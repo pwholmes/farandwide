@@ -1,0 +1,195 @@
+package com.lastcallsoftware.farandwide.route;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.ObjectSelectionList;
+import net.minecraft.client.gui.screens.ConfirmScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+
+/**
+ * Displays the routes known to {@link RouteManager}. The list highlight is kept
+ * separate from the route selected in the manager until Select is pressed.
+ */
+public class RouteManagementScreen extends Screen {
+    private static final int LIST_TOP = 40;
+    private static final int PANEL_WIDTH = 260;
+    private static final int BUTTON_WIDTH = 60;
+    private static final int BUTTON_GAP = 4;
+
+    private RouteList routeList;
+    private Button selectButton;
+    private Button editButton;
+    private Button deleteButton;
+
+    public RouteManagementScreen() {
+        super(Component.translatable("screen.farandwide.manage_routes.title"));
+    }
+
+    @Override
+    protected void init() {
+        int listHeight = Math.max(40, height - LIST_TOP - 88);
+        int panelX = (width - PANEL_WIDTH) / 2;
+        routeList = addRenderableWidget(new RouteList(minecraft, PANEL_WIDTH, listHeight, LIST_TOP, 24));
+        routeList.updateSizeAndPosition(PANEL_WIDTH, listHeight, panelX, LIST_TOP);
+
+        for (Route route : RouteManager.getRoutes()) {
+            RouteEntry entry = new RouteEntry(route, routeList);
+            routeList.addRoute(entry);
+            if (route == RouteManager.getCurrentRoute()) {
+                routeList.setSelected(entry);
+            }
+        }
+
+        int buttonsWidth = BUTTON_WIDTH * 4 + BUTTON_GAP * 3;
+        int buttonX = panelX + (PANEL_WIDTH - buttonsWidth) / 2;
+        int buttonY = height - 60;
+
+        addRenderableWidget(Button.builder(
+                Component.translatable("screen.farandwide.manage_routes.create"),
+                button -> minecraft.setScreenAndShow(new RouteEditorScreen(null)))
+                .bounds(buttonX, buttonY, BUTTON_WIDTH, 20)
+                .build());
+
+        editButton = addRenderableWidget(Button.builder(
+                Component.translatable("screen.farandwide.manage_routes.edit"),
+                button -> editSelectedRoute())
+                .bounds(buttonX + BUTTON_WIDTH + BUTTON_GAP, buttonY, BUTTON_WIDTH, 20)
+                .build());
+
+        deleteButton = addRenderableWidget(Button.builder(
+                Component.translatable("screen.farandwide.manage_routes.delete"),
+                button -> confirmDeleteSelectedRoute())
+                .bounds(buttonX + (BUTTON_WIDTH + BUTTON_GAP) * 2, buttonY, BUTTON_WIDTH, 20)
+                .build());
+
+        selectButton = addRenderableWidget(Button.builder(
+                Component.translatable("screen.farandwide.manage_routes.select"),
+                button -> selectHighlightedRoute())
+                .bounds(buttonX + (BUTTON_WIDTH + BUTTON_GAP) * 3, buttonY, BUTTON_WIDTH, 20)
+                .build());
+
+        addRenderableWidget(Button.builder(
+                Component.translatable("gui.done"),
+                button -> onClose())
+                .bounds((width - 100) / 2, height - 32, 100, 20)
+                .build());
+
+        updateButtonState();
+        if (routeList.getSelected() != null) {
+            setInitialFocus(routeList);
+        }
+    }
+
+    private void updateButtonState() {
+        boolean hasSelection = routeList != null && routeList.getSelected() != null;
+        if (selectButton != null) {
+            selectButton.active = hasSelection;
+        }
+        if (editButton != null) {
+            editButton.active = hasSelection;
+        }
+        if (deleteButton != null) {
+            deleteButton.active = hasSelection;
+        }
+    }
+
+    private Route getSelectedRoute() {
+        RouteEntry entry = routeList.getSelected();
+        return entry == null ? null : entry.route();
+    }
+
+    private void editSelectedRoute() {
+        Route route = getSelectedRoute();
+        if (route != null) {
+            minecraft.setScreenAndShow(new RouteEditorScreen(route));
+        }
+    }
+
+    private void selectHighlightedRoute() {
+        Route route = getSelectedRoute();
+        if (route != null) {
+            RouteManager.setSelectedRoute(route);
+        }
+    }
+
+    private void confirmDeleteSelectedRoute() {
+        Route route = getSelectedRoute();
+        if (route == null) {
+            return;
+        }
+
+        minecraft.setScreenAndShow(new ConfirmScreen(
+                confirmed -> {
+                    if (confirmed) {
+                        RouteManager.removeRoute(route);
+                    }
+                    minecraft.setScreenAndShow(new RouteManagementScreen());
+                },
+                Component.translatable("screen.farandwide.manage_routes.delete.title"),
+                Component.translatable("screen.farandwide.manage_routes.delete.message", route.getName())));
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        graphics.text(font, title, (width - font.width(title)) / 2, 15, 0xFFFFFFFF);
+    }
+
+    private class RouteList extends ObjectSelectionList<RouteEntry> {
+        RouteList(Minecraft minecraft, int width, int height, int y, int itemHeight) {
+            super(minecraft, width, height, y, itemHeight);
+        }
+
+        void addRoute(RouteEntry entry) {
+            addEntry(entry);
+        }
+
+        @Override
+        public void setSelected(RouteEntry entry) {
+            super.setSelected(entry);
+            updateButtonState();
+        }
+    }
+
+    private class RouteEntry extends ObjectSelectionList.Entry<RouteEntry> {
+        private final Route route;
+        private final RouteList list;
+
+        RouteEntry(Route route, RouteList list) {
+            this.route = route;
+            this.list = list;
+        }
+
+        Route route() {
+            return route;
+        }
+
+        @Override
+        public Component getNarration() {
+            return Component.literal(route.getName());
+        }
+
+        @Override
+        public void extractContent(
+                GuiGraphicsExtractor graphics,
+                int mouseX,
+                int mouseY,
+                boolean hovered,
+                float partialTick) {
+            Component name = route == RouteManager.getCurrentRoute()
+                    ? Component.translatable("screen.farandwide.manage_routes.current", route.getName())
+                    : Component.literal(route.getName());
+            int color = route == RouteManager.getCurrentRoute() ? 0xFF55FF55 : 0xFFFFFFFF;
+            graphics.text(font, name, getContentX() + 4, getContentY() + 5, color);
+        }
+
+        @Override
+        public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+            list.setSelected(this);
+            return true;
+        }
+    }
+}
