@@ -56,7 +56,7 @@ public record WaypointGizmo(Vec3 position, int ordinal, boolean target) implemen
         primitives.addLine(back, left, edgeColor, EDGE_WIDTH);
 
         primitives.addText(
-                center.add(0, HALF_HEIGHT + 0.1, 0),
+                center.add(0, HALF_HEIGHT/2, 0),
                 Integer.toString(ordinal),
                 TextGizmo.Style.forColorAndCentered(textColor).withScale(TEXT_SCALE));
     }

@@ -66,6 +66,11 @@ public final class FarAndWideKeyBindings {
                 KeyModifier.NONE,
                 InputConstants.UNKNOWN,
                 FarAndWideCommands.TOGGLE_ROUTE::execute);
+
+        binding("key.farandwide.toggle_hud",
+                KeyModifier.NONE,
+                InputConstants.UNKNOWN,
+                FarAndWideCommands.TOGGLE_HUD::execute);
     }
 
     private FarAndWideKeyBindings() {

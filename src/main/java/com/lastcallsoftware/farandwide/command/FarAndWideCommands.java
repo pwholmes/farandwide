@@ -9,6 +9,7 @@ import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteEditorScreen;
 import com.lastcallsoftware.farandwide.route.RouteManagementScreen;
 import com.lastcallsoftware.farandwide.route.RouteManager;
+import com.lastcallsoftware.farandwide.route.RouteNavigationHud;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import net.minecraft.client.Minecraft;
@@ -35,6 +36,11 @@ public final class FarAndWideCommands {
             "command.farandwide.assign_route",
             () -> withCurrentRoute(RouteManager::assignRoute));
 
+    public static final FarAndWideCommand TOGGLE_ROUTE = command(
+            GLFW.GLFW_KEY_A,
+            "command.farandwide.toggle_route",
+            RouteManager::toggleCurrentAssignment);
+
     public static final FarAndWideCommand ADD_WAYPOINT = command(
             GLFW.GLFW_KEY_W,
             "command.farandwide.add_waypoint",
@@ -50,10 +56,10 @@ public final class FarAndWideCommands {
             "command.farandwide.toggle_waypoint",
             () -> withCurrentRoute(Route::toggleCurrentPosition));
 
-    public static final FarAndWideCommand TOGGLE_ROUTE = command(
-            GLFW.GLFW_KEY_A,
-            "command.farandwide.toggle_route",
-            RouteManager::toggleCurrentAssignment);
+    public static final FarAndWideCommand TOGGLE_HUD = command(
+            GLFW.GLFW_KEY_V,
+            "command.farandwide.toggle_hud",
+            RouteNavigationHud::toggleVisibility);
 
     private FarAndWideCommands() {
     }
@@ -63,10 +69,11 @@ public final class FarAndWideCommands {
                 MANAGE_ROUTES,
                 CREATE_ROUTE,
                 ASSIGN_ROUTE,
+                TOGGLE_ROUTE,
                 ADD_WAYPOINT,
                 REMOVE_WAYPOINT,
                 TOGGLE_WAYPOINT,
-                TOGGLE_ROUTE
+                TOGGLE_HUD
         );
     }
 

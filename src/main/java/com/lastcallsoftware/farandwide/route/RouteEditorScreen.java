@@ -2,9 +2,12 @@ package com.lastcallsoftware.farandwide.route;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 
 /** A small name editor used for both creating and renaming routes. */
@@ -13,6 +16,7 @@ public class RouteEditorScreen extends Screen {
 
     private final Route route;
     private EditBox nameField;
+    private CycleButton<TraversalType> traversalTypeButton;
     private Button saveButton;
     private String validationError;
     private boolean focusNameFieldOnNextTick;
@@ -62,7 +66,23 @@ public class RouteEditorScreen extends Screen {
             updateSaveButtonState();
         });
 
-        int buttonY = fieldY + 32;
+        TraversalType initialTraversalType = route == null
+                ? TraversalType.ONE_WAY
+                : route.getTraversalType();
+        int traversalY = fieldY + 32;
+        traversalTypeButton = addRenderableWidget(CycleButton
+                .builder(TraversalType::getDisplayName, initialTraversalType)
+                .withValues(TraversalType.values())
+                .withTooltip(type -> Tooltip.create(type.getDescription()))
+                .create(
+                        fieldX,
+                        traversalY,
+                        fieldWidth,
+                        20,
+                        Component.translatable("screen.farandwide.route_editor.traversal"),
+                        (button, value) -> validationError = null));
+
+        int buttonY = traversalY + 32;
         saveButton = addRenderableWidget(Button.builder(
                 Component.translatable("screen.farandwide.route_editor.save"),
                 button -> saveRoute())
@@ -113,10 +133,12 @@ public class RouteEditorScreen extends Screen {
         if (route == null) {
             Route newRoute = new Route();
             newRoute.setName(name);
+            newRoute.setTraversalType(traversalTypeButton.getValue());
             RouteManager.addRoute(newRoute);
             RouteManager.setSelectedRoute(newRoute);
         } else {
             route.setName(name);
+            route.setTraversalType(traversalTypeButton.getValue());
         }
         returnToRouteList();
     }
@@ -133,6 +155,21 @@ public class RouteEditorScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
+        if (traversalTypeButton != null) {
+            graphics.blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    traversalTypeButton.getValue().getIcon(),
+                    traversalTypeButton.getX() + 4,
+                    traversalTypeButton.getY() + 2,
+                    0,
+                    0,
+                    16,
+                    16,
+                    TraversalType.ICON_TEXTURE_SIZE,
+                    TraversalType.ICON_TEXTURE_SIZE,
+                    TraversalType.ICON_TEXTURE_SIZE,
+                    TraversalType.ICON_TEXTURE_SIZE);
+        }
         graphics.text(font, title, (width - font.width(title)) / 2, height / 2 - 40, 0xFFFFFFFF);
         graphics.text(
                 font,
@@ -141,7 +178,7 @@ public class RouteEditorScreen extends Screen {
                 height / 2 - 24,
                 0xFFFFFFFF);
         if (validationError != null) {
-            graphics.text(font, validationError, (width - font.width(validationError)) / 2, height / 2 + 58, 0xFFFF5555);
+            graphics.text(font, validationError, (width - font.width(validationError)) / 2, height / 2 + 90, 0xFFFF5555);
         }
     }
 }

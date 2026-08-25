@@ -18,6 +18,7 @@ public class Route {
     private final int id;
     private String name;
     private final List<Waypoint> waypoints = new ArrayList<>();
+    private TraversalType traversalType = TraversalType.ONE_WAY;
     private boolean active = false;
 
     public Route() {
@@ -35,6 +36,14 @@ public class Route {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public TraversalType getTraversalType() {
+        return traversalType;
+    }
+
+    public void setTraversalType(TraversalType traversalType) {
+        this.traversalType = traversalType;
     }
 
     public void addWaypoint(Waypoint waypoint) {

@@ -12,7 +12,7 @@ import net.minecraft.world.phys.Vec3;
 
 public class RouteManager {
     private static List<Route> routes = new ArrayList<>();
-    private static final Map<Integer, RouteAssignment> assignmentsByVehicle = new HashMap<>();
+    private static final Map<Integer, RouteAssignment> assignmentsByEntity = new HashMap<>();
     private static Route selectedRoute = null;
 
     private RouteManager() {
@@ -48,20 +48,24 @@ public class RouteManager {
     public static void setSelectedRoute(Route route) {
         if (routes.contains(route)) {
             selectedRoute = route;
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft.player != null) {
+                assignRouteToEntity(route, minecraft.player);
+            }
         }
     }
 
     public static void setSelectedRoute(String name) {
         Route route = getRoute(name);
         if (route != null) {
-            selectedRoute = route;
+            setSelectedRoute(route);
         }
     }
 
     public static void setSelectedRoute(int id) {
         Route route = getRoute(id);
         if (route != null) {
-            selectedRoute = route;
+            setSelectedRoute(route);
         }
     }
 
@@ -74,7 +78,7 @@ public class RouteManager {
 
     public static void removeRoute(Route route) {
         routes.remove(route);
-        assignmentsByVehicle.values().removeIf(assignment -> assignment.getRouteId() == route.getId());
+        assignmentsByEntity.values().removeIf(assignment -> assignment.getRouteId() == route.getId());
         if (selectedRoute == route) {
             selectedRoute = routes.isEmpty() ? null : routes.get(0);
         }
@@ -96,9 +100,7 @@ public class RouteManager {
 
     public static void assignRoute(Route route) {
         Minecraft minecraft = Minecraft.getInstance();
-        Entity vehicle = minecraft.player == null ? null : minecraft.player.getVehicle();
-        if (vehicle == null) {
-            sendOverlayMessage("message.farandwide.no_vehicle");
+        if (minecraft.player == null) {
             return;
         }
         if (route.getWaypoints().isEmpty()) {
@@ -106,19 +108,55 @@ public class RouteManager {
             return;
         }
 
-        int targetIndex = findNearestWaypointIndex(route, vehicle.position());
-        RouteAssignment assignment = new RouteAssignment(route.getId(), vehicle.getId(), targetIndex);
-        assignmentsByVehicle.put(vehicle.getId(), assignment);
+        Entity assignee = minecraft.player.getVehicle() == null
+                ? minecraft.player
+                : minecraft.player.getVehicle();
+        assignRouteToEntity(route, assignee);
         sendOverlayMessage("message.farandwide.route_assigned", route.getName());
     }
 
-    public static RouteAssignment getAssignment(int vehicleId) {
-        return assignmentsByVehicle.get(vehicleId);
+    public static RouteAssignment assignRouteToEntity(Route route, Entity assignee) {
+        int targetIndex = route.getWaypoints().isEmpty()
+                ? 0
+                : findNearestWaypointIndex(route, assignee.position());
+        RouteAssignment assignment = new RouteAssignment(route.getId(), assignee.getId(), targetIndex);
+        assignmentsByEntity.put(assignee.getId(), assignment);
+        return assignment;
     }
 
-    public static RouteAssignment getActiveAssignment(Entity vehicle) {
-        RouteAssignment assignment = vehicle == null ? null : getAssignment(vehicle.getId());
+    public static RouteAssignment getAssignment(int assigneeEntityId) {
+        return assignmentsByEntity.get(assigneeEntityId);
+    }
+
+    public static List<RouteAssignment> getAssignments() {
+        return new ArrayList<>(assignmentsByEntity.values());
+    }
+
+    public static RouteAssignment getActiveAssignment(Entity assignee) {
+        RouteAssignment assignment = assignee == null ? null : getAssignment(assignee.getId());
         return assignment != null && assignment.isActive() ? assignment : null;
+    }
+
+    public static RouteAssignment getNavigationAssignment() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return null;
+        }
+
+        Entity riddenEntity = minecraft.player.getVehicle();
+        RouteAssignment riddenAssignment = riddenEntity == null ? null : getAssignment(riddenEntity.getId());
+        if (riddenAssignment != null) {
+            return riddenAssignment;
+        }
+        return getAssignment(minecraft.player.getId());
+    }
+
+    public static void synchronizeSelectedRouteWithNavigation() {
+        RouteAssignment assignment = getNavigationAssignment();
+        Route assignedRoute = assignment == null ? null : getRoute(assignment.getRouteId());
+        if (assignedRoute != null) {
+            selectedRoute = assignedRoute;
+        }
     }
 
     public static Waypoint getTargetWaypoint(RouteAssignment assignment) {
@@ -134,13 +172,25 @@ public class RouteManager {
 
     public static void toggleCurrentAssignment() {
         Minecraft minecraft = Minecraft.getInstance();
-        Entity vehicle = minecraft.player == null ? null : minecraft.player.getVehicle();
-        RouteAssignment assignment = vehicle == null ? null : getAssignment(vehicle.getId());
+        if (minecraft.player == null) {
+            return;
+        }
+        Entity assignee = minecraft.player.getVehicle() == null
+                ? minecraft.player
+                : minecraft.player.getVehicle();
+        RouteAssignment assignment = getAssignment(assignee.getId());
         if (assignment == null) {
             sendOverlayMessage("message.farandwide.no_route_assignment");
             return;
         }
         assignment.setActive(!assignment.isActive());
+        Route route = getRoute(assignment.getRouteId());
+        String routeName = route == null ? "" : route.getName();
+        sendOverlayMessage(
+                assignment.isActive()
+                        ? "message.farandwide.route_activated"
+                        : "message.farandwide.route_paused",
+                routeName);
     }
 
     private static int findNearestWaypointIndex(Route route, Vec3 position) {

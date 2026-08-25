@@ -48,7 +48,7 @@ public class FarAndWideCommandScreen extends Screen {
 
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
 
-        int menuWidth = 150;
+        int menuWidth = 180;
         int menuHeight = 38 + FarAndWideCommands.all().size() * (font.lineHeight + 4);
 
         int left = (width - menuWidth) / 2;

@@ -7,6 +7,7 @@ import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 
 /**
@@ -18,6 +19,7 @@ public class RouteManagementScreen extends Screen {
     private static final int PANEL_WIDTH = 260;
     private static final int BUTTON_WIDTH = 60;
     private static final int BUTTON_GAP = 4;
+    private static final int TRAVERSAL_ICON_SIZE = 16;
 
     private RouteList routeList;
     private Button selectButton;
@@ -169,7 +171,10 @@ public class RouteManagementScreen extends Screen {
 
         @Override
         public Component getNarration() {
-            return Component.literal(route.getName());
+            return Component.translatable(
+                    "screen.farandwide.manage_routes.route_entry",
+                    route.getName(),
+                    route.getTraversalType().getDisplayName());
         }
 
         @Override
@@ -183,7 +188,32 @@ public class RouteManagementScreen extends Screen {
                     ? Component.translatable("screen.farandwide.manage_routes.current", route.getName())
                     : Component.literal(route.getName());
             int color = route == RouteManager.getCurrentRoute() ? 0xFF55FF55 : 0xFFFFFFFF;
-            graphics.text(font, name, getContentX() + 4, getContentY() + 5, color);
+            int iconX = getContentX() + 4;
+            int iconY = getContentY() + 1;
+            graphics.blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    route.getTraversalType().getIcon(),
+                    iconX,
+                    iconY,
+                    0,
+                    0,
+                    TRAVERSAL_ICON_SIZE,
+                    TRAVERSAL_ICON_SIZE,
+                    TraversalType.ICON_TEXTURE_SIZE,
+                    TraversalType.ICON_TEXTURE_SIZE,
+                    TraversalType.ICON_TEXTURE_SIZE,
+                    TraversalType.ICON_TEXTURE_SIZE);
+            graphics.text(font, name, iconX + TRAVERSAL_ICON_SIZE + 4, getContentY() + 5, color);
+
+            if (hovered
+                    && mouseX >= iconX && mouseX < iconX + TRAVERSAL_ICON_SIZE
+                    && mouseY >= iconY && mouseY < iconY + TRAVERSAL_ICON_SIZE) {
+                graphics.setTooltipForNextFrame(
+                        font,
+                        route.getTraversalType().getDisplayName(),
+                        mouseX,
+                        mouseY);
+            }
         }
 
         @Override
