@@ -110,6 +110,23 @@ Progress is written through `FarAndWideSavedData`, which marks it dirty, and the
 updated assignment is sent to a controlling player. Client navigation renders
 the snapshot but does not authoritatively advance it.
 
+Route selection and traversal remain server-authoritative. The traversal
+controller passes the current target into the vehicle navigation pipeline:
+
+1. A `VehicleNavigator` turns the current route segment into a temporary,
+   side-neutral `NavigationIntent`. The initial `DirectWaypointNavigator`
+   assumes the segment is unobstructed.
+2. A `VehicleActuator` translates that intent into one vehicle's mechanics.
+   Actuators also declare whether their physical side currently owns movement.
+3. The server actuator handles unattended vehicles. When vanilla delegates a
+   ridden vehicle's physics to its controlling client, the corresponding client
+   actuator applies the same intent from the synchronized route assignment.
+
+Navigators may later perform local pathfinding without changing route storage or
+vehicle controls. New vehicle types add actuators without changing traversal or
+navigation intent. Recorded waypoints remain the global route, and the server
+alone decides when an assignment advances.
+
 ## Physical-side and package boundaries
 
 Feature code should remain grouped under `route` or `vehicle`, with physical
