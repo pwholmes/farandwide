@@ -67,6 +67,11 @@ public final class RouteNavigationHud {
             return;
         }
 
+        Route selectedRoute = RouteManager.getCurrentRoute();
+        if (selectedRoute == null) {
+            return;
+        }
+
         RouteAssignment assignment = RouteManager.getNavigationAssignment();
         if (assignment != null && !assignment.isActive()) {
             assignment = null;
@@ -74,10 +79,7 @@ public final class RouteNavigationHud {
         Waypoint target = RouteManager.getTargetWaypoint(assignment);
         if (assignment == null || target == null) {
             hasDisplayedAngle = false;
-            return;
-        }
-        Route selectedRoute = RouteManager.getCurrentRoute();
-        if (selectedRoute == null) {
+            drawRouteNameOnly(event.getGuiGraphics(), minecraft, selectedRoute);
             return;
         }
 
@@ -152,6 +154,16 @@ public final class RouteNavigationHud {
         graphics.pose().popMatrix();
 
         graphics.centeredText(minecraft.font, label, centerX, centerY + 12, 0xFFFFFFFF);
+    }
+
+    /** Draws the selected route title when there is no active navigation target. */
+    private static void drawRouteNameOnly(GuiGraphicsExtractor graphics, Minecraft minecraft, Route route) {
+        Component routeName = Component.literal(route.getName());
+        int routeNameWidth = minecraft.font.width(routeName);
+        int centerX = HUD_POSITION.centerX(graphics.guiWidth(), routeNameWidth);
+        int centerY = HUD_POSITION.centerY(graphics.guiHeight(), minecraft.font.lineHeight);
+        int titleY = centerY - INDICATOR_DISPLAY_SIZE / 2 - minecraft.font.lineHeight - 3;
+        graphics.text(minecraft.font, routeName, centerX - routeNameWidth / 2, titleY, 0xFFFFFFFF);
     }
 
     private static void drawBackplate(GuiGraphicsExtractor graphics, int centerX, int centerY) {
