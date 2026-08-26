@@ -24,7 +24,7 @@ class AssignmentSnapshotPayloadTest {
         AssignmentSnapshotPayload received = AssignmentSnapshotPayload.STREAM_CODEC.decode(buffer);
 
         assertEquals(runtimeEntityId, received.entityId());
-        assertEquals(runtimeEntityId, received.assignment().getAssigneeEntityId());
+        assertEquals(runtimeEntityId, received.assignment().getAssigneeId());
         assertEquals(7, received.assignment().getRouteId());
         assertEquals(3, received.assignment().getTargetWaypointIndex());
         assertEquals(-1, received.assignment().getTraversalDirection());

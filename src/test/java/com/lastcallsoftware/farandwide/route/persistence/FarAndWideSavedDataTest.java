@@ -49,7 +49,7 @@ class FarAndWideSavedDataTest {
         RouteAssignment restoredAssignment = restored.getAssignment(assigneeId);
         assertNotNull(restoredAssignment);
         assertEquals(route.getId(), restoredAssignment.getRouteId());
-        assertEquals(assigneeId, restoredAssignment.getAssigneeEntityId());
+        assertEquals(assigneeId, restoredAssignment.getAssigneeId());
         assertEquals(1, restoredAssignment.getTargetWaypointIndex());
         assertEquals(-1, restoredAssignment.getTraversalDirection());
         assertEquals(TraversalType.LOOP, restoredAssignment.getTraversalTypeOverride());
@@ -146,7 +146,7 @@ class FarAndWideSavedDataTest {
         assertEquals("Valid", restored.getRoute(2).getName());
         RouteAssignment assignment = restored.getAssignment(5);
         assertNotNull(assignment);
-        assertEquals(5, assignment.getAssigneeEntityId());
+        assertEquals(5, assignment.getAssigneeId());
         assertEquals(0, assignment.getTargetWaypointIndex());
         assertEquals(1, assignment.getTraversalDirection());
         assertNull(restored.getAssignment(6));

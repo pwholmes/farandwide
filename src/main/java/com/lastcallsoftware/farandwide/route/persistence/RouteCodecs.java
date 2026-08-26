@@ -43,7 +43,7 @@ public final class RouteCodecs {
 
     private static final Codec<RouteAssignment> ASSIGNMENT = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.fieldOf("routeId").forGetter(RouteAssignment::getRouteId),
-            Codec.INT.fieldOf("assigneeId").forGetter(RouteAssignment::getAssigneeEntityId),
+            Codec.INT.fieldOf("assigneeId").forGetter(RouteAssignment::getAssigneeId),
             Codec.INT.fieldOf("targetWaypointIndex").forGetter(RouteAssignment::getTargetWaypointIndex),
             Codec.INT.fieldOf("traversalDirection").forGetter(RouteAssignment::getTraversalDirection),
             TraversalType.CODEC.optionalFieldOf("traversalTypeOverride")
