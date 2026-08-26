@@ -13,6 +13,22 @@
 
   "screen.farandwide.command_menu_title": "Far and Wide Commands",
   "screen.farandwide.close_command_menu": "Esc  Close",
+  "screen.farandwide.help.title": "Far and Wide Help",
+  "screen.farandwide.help.previous": "Previous",
+  "screen.farandwide.help.next": "Next",
+  "screen.farandwide.help.page": "Page %s of %s",
+  "screen.farandwide.help.intro.title": "Welcome",
+  "screen.farandwide.help.intro.body": "The purpose of the Far and Wide mod is to allow you to automate vehicle movement.  To do that, you create and manage 'Routes'.  A Route is a series of 'Waypoints' that your vehicle can follow.\n\nThe following pages will walk you through the steps of creating a Route, adding waypoints, and assigning the Route to your vehicle.",
+  "screen.farandwide.help.create.title": "1. Create a Route",
+  "screen.farandwide.help.create.body": "Go to the Edit Route screen from the Far and Wide Commands menu, from the Route Management screen, or use an assigned Minecraft hotkey.\n\nA Route requires a name and a traversal type.  The traversal type determines how the vehicle will behave when it reaches the end of the route.",
+  "screen.farandwide.help.select.title": "2. Select a Route",
+  "screen.farandwide.help.select.body": "There may be multiple Routes available.  From the Route Management screen, select the Route you want to use.\n\nWhen you create a new Route, it will automatically be selected.",
+  "screen.farandwide.help.waypoints.title": "3. Add Waypoints",
+  "screen.farandwide.help.waypoints.body": "Travel the intended path, adding Waypoints to the selected Route as you go.\n\nTo add the player's current position as a Waypoint, use the Add Waypoint command from the Far and Wide Commands menu, or (much easier) an assigned Minecraft hotkey.",
+  "screen.farandwide.help.assign.title": "4. Assign a Route",
+  "screen.farandwide.help.assign.body": "Once the Route has been defined, you can assign it to a supported vehicle (currently, boats or horses).  Ride the vehicle and use the Assign Route command from the Far and Wide Commands menu, or an assigned Minecraft hotkey.\n\nIf you assign a Route without being in a vehicle, the Route will be assigned directly to the player, in which case you can see and traverse the Route yourself.",
+  "screen.farandwide.help.activate.title": "5. Activate a Route",
+  "screen.farandwide.help.activate.body": "When a Route is assigned to a vehicle, you can activate it using the Activate Route command from the Far and Wide Commands menu, or an assigned Minecraft hotkey.  The vehicle will automatically travel to each Waypoint in the Route, following the traversal type defined for the Route.\n\nYou can pause or resume the Route at any time using the Toggle Route command from the Far and Wide Commands menu, or an assigned Minecraft hotkey.",
   "screen.farandwide.manage_routes.title": "Manage Routes",
   "screen.farandwide.manage_routes.create": "Create",
   "screen.farandwide.manage_routes.select": "Select",
@@ -29,6 +45,7 @@
   "screen.farandwide.route_editor.save": "Save",
   "screen.farandwide.route_editor.cancel": "Cancel",
   "screen.farandwide.route_editor.name_required": "A route name is required.",
+
   "key.category.farandwide.keybindings": "Far and Wide",
   "key.farandwide.open_commands": "Open Far and Wide Commands",
   "key.farandwide.manage_routes": "Manage Routes",
@@ -39,6 +56,7 @@
   "key.farandwide.remove_waypoint": "Remove Waypoint",
   "key.farandwide.toggle_waypoint": "Toggle Waypoint",
   "key.farandwide.toggle_hud": "Toggle HUD Visibility",
+
   "command.farandwide.open_menu": "Open Menu",
   "command.farandwide.open_menu.description": "Open the Far and Wide command menu.",
   "command.farandwide.manage_routes": "Manage Routes",
@@ -57,6 +75,9 @@
   "command.farandwide.toggle_waypoint.description": "Add or remove a waypoint at your current position.",
   "command.farandwide.toggle_hud": "Toggle HUD Visibility",
   "command.farandwide.toggle_hud.description": "Show or hide the Far and Wide navigation HUD.",
+  "command.farandwide.help_screen": "Help Screen",
+  "command.farandwide.help_screen.description": "Open the Far and Wide help screen.",
+
   "message.farandwide.no_route_selected": "No route selected. Open Manage Routes to select or create one.",
   "message.farandwide.no_vehicle": "Ride a vehicle before assigning a route.",
   "message.farandwide.route_has_no_waypoints": "The selected route has no waypoints.",
@@ -71,7 +92,9 @@
   "message.farandwide.operation.no_assignment": "No route has been assigned.",
   "message.farandwide.hud_visible": "Navigation HUD shown.",
   "message.farandwide.hud_hidden": "Navigation HUD hidden.",
+
   "hud.farandwide.waypoint": "Waypoint %s • %s m",
+
   "traversal.farandwide.one_way": "One Way",
   "traversal.farandwide.one_way.description": "Follow the route once and stop at the final waypoint.",
   "traversal.farandwide.loop": "Loop",

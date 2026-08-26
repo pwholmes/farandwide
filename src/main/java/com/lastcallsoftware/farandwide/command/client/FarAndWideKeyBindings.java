@@ -71,6 +71,11 @@ public final class FarAndWideKeyBindings {
                 KeyModifier.NONE,
                 InputConstants.UNKNOWN,
                 FarAndWideCommands.TOGGLE_HUD::execute);
+
+        binding("key.farandwide.help_screen",
+                KeyModifier.NONE,
+                InputConstants.UNKNOWN,
+                FarAndWideCommands.HELP_SCREEN::execute);
     }
 
     private FarAndWideKeyBindings() {

@@ -108,7 +108,7 @@ public final class FarAndWideSavedData extends SavedData {
             return false;
         }
         assignmentsByAssignee.put(assigneeId, new RouteAssignment(
-                assignment.getRouteId(), assignment.getAssigneeEntityId(), assignment.getTargetWaypointIndex(),
+                assignment.getRouteId(), assignment.getAssigneeId(), assignment.getTargetWaypointIndex(),
                 assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), active));
         setDirty();
         return true;
@@ -120,7 +120,7 @@ public final class FarAndWideSavedData extends SavedData {
             return false;
         }
         assignmentsByAssignee.put(assigneeId, new RouteAssignment(
-                assignment.getRouteId(), assignment.getAssigneeEntityId(), targetWaypointIndex,
+                assignment.getRouteId(), assignment.getAssigneeId(), targetWaypointIndex,
                 traversalDirection, assignment.getTraversalTypeOverride(), assignment.isActive()));
         setDirty();
         return true;
@@ -132,7 +132,7 @@ public final class FarAndWideSavedData extends SavedData {
             return false;
         }
         assignmentsByAssignee.put(assigneeId, new RouteAssignment(
-                assignment.getRouteId(), assignment.getAssigneeEntityId(), assignment.getTargetWaypointIndex(),
+                assignment.getRouteId(), assignment.getAssigneeId(), assignment.getTargetWaypointIndex(),
                 assignment.getTraversalDirection(), traversalTypeOverride, assignment.isActive()));
         setDirty();
         return true;
@@ -277,7 +277,7 @@ public final class FarAndWideSavedData extends SavedData {
 
             int targetIndex = Math.clamp(assignment.getTargetWaypointIndex(), 0, route.getWaypoints().size() - 1);
             int direction = assignment.getTraversalDirection() == -1 ? -1 : 1;
-            if (assignment.getAssigneeEntityId() != assigneeId
+            if (assignment.getAssigneeId() != assigneeId
                     || targetIndex != assignment.getTargetWaypointIndex()
                     || direction != assignment.getTraversalDirection()) {
                 FarAndWide.LOGGER.warn("Repairing assignment for assignee {}", assigneeId);

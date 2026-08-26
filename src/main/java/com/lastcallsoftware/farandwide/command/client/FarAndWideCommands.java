@@ -61,8 +61,10 @@ public final class FarAndWideCommands {
             "command.farandwide.toggle_hud",
             RouteNavigationHud::toggleVisibility);
 
-    private FarAndWideCommands() {
-    }
+    public static final FarAndWideCommand HELP_SCREEN = command(
+            GLFW.GLFW_KEY_H,
+            "command.farandwide.help_screen",
+            () -> Minecraft.getInstance().setScreenAndShow(new FarAndWideHelpScreen()));
 
     public static List<FarAndWideCommand> all() {
         return List.of(
@@ -73,7 +75,8 @@ public final class FarAndWideCommands {
                 ADD_WAYPOINT,
                 REMOVE_WAYPOINT,
                 TOGGLE_WAYPOINT,
-                TOGGLE_HUD
+                TOGGLE_HUD,
+                HELP_SCREEN
         );
     }
 
