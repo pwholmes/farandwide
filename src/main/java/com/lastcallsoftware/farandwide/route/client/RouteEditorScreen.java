@@ -1,4 +1,7 @@
-package com.lastcallsoftware.farandwide.route;
+package com.lastcallsoftware.farandwide.route.client;
+
+import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.TraversalType;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -131,14 +134,9 @@ public class RouteEditorScreen extends Screen {
         }
 
         if (route == null) {
-            Route newRoute = new Route();
-            newRoute.setName(name);
-            newRoute.setTraversalType(traversalTypeButton.getValue());
-            RouteManager.addRoute(newRoute);
-            RouteManager.setSelectedRoute(newRoute);
+            RouteManager.createRoute(name, traversalTypeButton.getValue());
         } else {
-            route.setName(name);
-            route.setTraversalType(traversalTypeButton.getValue());
+            RouteManager.updateRoute(route, name, traversalTypeButton.getValue());
         }
         returnToRouteList();
     }

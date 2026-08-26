@@ -1,5 +1,7 @@
 package com.lastcallsoftware.farandwide.route;
 
+import com.mojang.serialization.Codec;
+
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
@@ -7,6 +9,10 @@ public enum TraversalType {
     ONE_WAY("one_way"),
     LOOP("loop"),
     REVERSE("reverse");
+
+    public static final Codec<TraversalType> CODEC = Codec.STRING.xmap(
+            value -> TraversalType.valueOf(value.toUpperCase(java.util.Locale.ROOT)),
+            value -> value.name().toLowerCase(java.util.Locale.ROOT));
 
     public static final int ICON_TEXTURE_SIZE = 1254;
 

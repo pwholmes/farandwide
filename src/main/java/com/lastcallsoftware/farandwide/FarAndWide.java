@@ -2,9 +2,10 @@ package com.lastcallsoftware.farandwide;
 
 import org.slf4j.Logger;
 
-import com.lastcallsoftware.farandwide.command.FarAndWideKeyBindings;
-import com.lastcallsoftware.farandwide.route.WaypointRenderer;
-import com.lastcallsoftware.farandwide.vehicle.VehicleController;
+import com.lastcallsoftware.farandwide.route.network.RouteNetwork;
+import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
+import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
+import com.lastcallsoftware.farandwide.route.server.ServerRouteTraversalController;
 import com.mojang.logging.LogUtils;
 
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -71,22 +72,17 @@ public class FarAndWide {
     public FarAndWide(IEventBus modEventBus, ModContainer modContainer) {
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
+        modEventBus.addListener(RouteNetwork::registerPayloads);
 
         // Register the Deferred Register to the mod event bus so blocks get registered
         BLOCKS.register(modEventBus);
         // Register the Deferred Register to the mod event bus so items get registered
         ITEMS.register(modEventBus);
+        FarAndWideAttachments.ATTACHMENT_TYPES.register(modEventBus);
         // Register the Deferred Register to the mod event bus so tabs get registered
         //CREATIVE_MODE_TABS.register(modEventBus);
 
-        // Register key bindings
-        FarAndWideKeyBindings.register(modEventBus);
-
-        // Register the waypoint renderer to render waypoints each client tick
-        WaypointRenderer.register();
-
-        // Vehicle controller instance
-        VehicleController.register();
+        ServerRouteTraversalController.register();
 
         // Register ourselves for server and other game events we are interested in.
         // Note that this is necessary if and only if we want *this* class (FarandWide) to respond directly to events.
@@ -123,7 +119,8 @@ public class FarAndWide {
     // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        // Do something when the server starts
-        LOGGER.info("HELLO from server starting");
+        FarAndWideSavedData data = FarAndWideSavedData.get(event.getServer());
+        LOGGER.info("Loaded Far and Wide route data ({} routes, next route ID {})",
+                data.getRoutes().size(), data.getNextRouteId());
     }
 }

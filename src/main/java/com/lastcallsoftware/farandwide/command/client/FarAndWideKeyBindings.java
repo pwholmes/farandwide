@@ -1,4 +1,4 @@
-package com.lastcallsoftware.farandwide.command;
+package com.lastcallsoftware.farandwide.command.client;
 
 import java.util.ArrayList;
 import java.util.List;
