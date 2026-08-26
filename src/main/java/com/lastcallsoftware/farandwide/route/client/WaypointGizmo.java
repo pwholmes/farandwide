@@ -1,4 +1,4 @@
-package com.lastcallsoftware.farandwide.route;
+package com.lastcallsoftware.farandwide.route.client;
 
 import net.minecraft.gizmos.Gizmo;
 import net.minecraft.gizmos.GizmoPrimitives;

@@ -1,4 +1,4 @@
-package com.lastcallsoftware.farandwide.command;
+package com.lastcallsoftware.farandwide.command.client;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -6,10 +6,10 @@ import java.util.function.Consumer;
 import org.lwjgl.glfw.GLFW;
 
 import com.lastcallsoftware.farandwide.route.Route;
-import com.lastcallsoftware.farandwide.route.RouteEditorScreen;
-import com.lastcallsoftware.farandwide.route.RouteManagementScreen;
-import com.lastcallsoftware.farandwide.route.RouteManager;
-import com.lastcallsoftware.farandwide.route.RouteNavigationHud;
+import com.lastcallsoftware.farandwide.route.client.RouteEditorScreen;
+import com.lastcallsoftware.farandwide.route.client.RouteManagementScreen;
+import com.lastcallsoftware.farandwide.route.client.RouteManager;
+import com.lastcallsoftware.farandwide.route.client.RouteNavigationHud;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import net.minecraft.client.Minecraft;
@@ -44,17 +44,17 @@ public final class FarAndWideCommands {
     public static final FarAndWideCommand ADD_WAYPOINT = command(
             GLFW.GLFW_KEY_W,
             "command.farandwide.add_waypoint",
-            () -> withCurrentRoute(Route::addCurrentPosition));
+            () -> withCurrentRoute(RouteManager::addCurrentPosition));
 
     public static final FarAndWideCommand REMOVE_WAYPOINT = command(
             GLFW.GLFW_KEY_R,
             "command.farandwide.remove_waypoint",
-            () -> withCurrentRoute(Route::removeCurrentPosition));
+            () -> withCurrentRoute(RouteManager::removeCurrentPosition));
 
     public static final FarAndWideCommand TOGGLE_WAYPOINT = command(
             GLFW.GLFW_KEY_T,
             "command.farandwide.toggle_waypoint",
-            () -> withCurrentRoute(Route::toggleCurrentPosition));
+            () -> withCurrentRoute(RouteManager::toggleCurrentPosition));
 
     public static final FarAndWideCommand TOGGLE_HUD = command(
             GLFW.GLFW_KEY_V,

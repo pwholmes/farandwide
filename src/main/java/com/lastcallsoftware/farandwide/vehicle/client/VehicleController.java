@@ -1,19 +1,17 @@
-package com.lastcallsoftware.farandwide.vehicle;
+package com.lastcallsoftware.farandwide.vehicle.client;
 
 import net.minecraft.world.entity.vehicle.boat.Boat;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
-import com.lastcallsoftware.farandwide.route.RouteManager;
-import com.lastcallsoftware.farandwide.route.RouteTraversalController;
+import com.lastcallsoftware.farandwide.route.client.RouteManager;
 
 import net.minecraft.client.Minecraft;
 
 public class VehicleController {
     public static void register() {
         NeoForge.EVENT_BUS.addListener(VehicleController::onClientTick);
-        RouteTraversalController.register();
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {

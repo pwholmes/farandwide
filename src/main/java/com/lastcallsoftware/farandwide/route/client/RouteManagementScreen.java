@@ -1,4 +1,7 @@
-package com.lastcallsoftware.farandwide.route;
+package com.lastcallsoftware.farandwide.route.client;
+
+import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.TraversalType;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -25,6 +28,7 @@ public class RouteManagementScreen extends Screen {
     private Button selectButton;
     private Button editButton;
     private Button deleteButton;
+    private long displayedRouteStateRevision = Long.MIN_VALUE;
 
     public RouteManagementScreen() {
         super(Component.translatable("screen.farandwide.manage_routes.title"));
@@ -37,13 +41,7 @@ public class RouteManagementScreen extends Screen {
         routeList = addRenderableWidget(new RouteList(minecraft, PANEL_WIDTH, listHeight, LIST_TOP, 24));
         routeList.updateSizeAndPosition(PANEL_WIDTH, listHeight, panelX, LIST_TOP);
 
-        for (Route route : RouteManager.getRoutes()) {
-            RouteEntry entry = new RouteEntry(route, routeList);
-            routeList.addRoute(entry);
-            if (route == RouteManager.getCurrentRoute()) {
-                routeList.setSelected(entry);
-            }
-        }
+        refreshRouteList();
 
         int buttonsWidth = BUTTON_WIDTH * 4 + BUTTON_GAP * 3;
         int buttonX = panelX + (PANEL_WIDTH - buttonsWidth) / 2;
@@ -83,6 +81,33 @@ public class RouteManagementScreen extends Screen {
         if (routeList.getSelected() != null) {
             setInitialFocus(routeList);
         }
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (displayedRouteStateRevision != RouteManager.getRouteStateRevision()) {
+            refreshRouteList();
+        }
+    }
+
+    private void refreshRouteList() {
+        if (routeList == null) {
+            return;
+        }
+        Route selectedBeforeRefresh = getSelectedRoute();
+        int selectedId = selectedBeforeRefresh == null ? -1 : selectedBeforeRefresh.getId();
+        Route currentRoute = RouteManager.getCurrentRoute();
+        routeList.clearEntries();
+        for (Route route : RouteManager.getRoutes()) {
+            RouteEntry entry = new RouteEntry(route, routeList);
+            routeList.addRoute(entry);
+            if (route.getId() == selectedId || (selectedId < 0 && route == currentRoute)) {
+                routeList.setSelected(entry);
+            }
+        }
+        displayedRouteStateRevision = RouteManager.getRouteStateRevision();
+        updateButtonState();
     }
 
     private void updateButtonState() {

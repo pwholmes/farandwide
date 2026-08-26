@@ -1,4 +1,8 @@
-package com.lastcallsoftware.farandwide.route;
+package com.lastcallsoftware.farandwide.route.client;
+
+import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.RouteAssignment;
+import com.lastcallsoftware.farandwide.route.Waypoint;
 
 import net.minecraft.gizmos.Gizmos;
 import net.neoforged.neoforge.client.event.ClientTickEvent;

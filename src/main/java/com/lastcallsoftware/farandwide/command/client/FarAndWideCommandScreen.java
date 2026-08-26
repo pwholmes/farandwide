@@ -1,4 +1,4 @@
-package com.lastcallsoftware.farandwide.command;
+package com.lastcallsoftware.farandwide.command.client;
 
 import org.lwjgl.glfw.GLFW;
 
