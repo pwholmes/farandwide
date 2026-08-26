@@ -159,11 +159,26 @@ public final class RouteNavigationHud {
     /** Draws the selected route title when there is no active navigation target. */
     private static void drawRouteNameOnly(GuiGraphicsExtractor graphics, Minecraft minecraft, Route route) {
         Component routeName = Component.literal(route.getName());
-        int routeNameWidth = minecraft.font.width(routeName);
-        int centerX = HUD_POSITION.centerX(graphics.guiWidth(), routeNameWidth);
+        int titleWidth = TRAVERSAL_ICON_SIZE + TITLE_GAP + minecraft.font.width(routeName);
+        int centerX = HUD_POSITION.centerX(graphics.guiWidth(), titleWidth);
         int centerY = HUD_POSITION.centerY(graphics.guiHeight(), minecraft.font.lineHeight);
         int titleY = centerY - INDICATOR_DISPLAY_SIZE / 2 - minecraft.font.lineHeight - 3;
-        graphics.text(minecraft.font, routeName, centerX - routeNameWidth / 2, titleY, 0xFFFFFFFF);
+        int titleX = centerX - titleWidth / 2;
+        TraversalType traversalType = route.getTraversalType();
+        graphics.blit(
+                RenderPipelines.GUI_TEXTURED,
+                traversalType.getIcon(),
+                titleX,
+                titleY - 1,
+                0,
+                0,
+                TRAVERSAL_ICON_SIZE,
+                TRAVERSAL_ICON_SIZE,
+                TraversalType.ICON_TEXTURE_SIZE,
+                TraversalType.ICON_TEXTURE_SIZE,
+                TraversalType.ICON_TEXTURE_SIZE,
+                TraversalType.ICON_TEXTURE_SIZE);
+        graphics.text(minecraft.font, routeName, titleX + TRAVERSAL_ICON_SIZE + TITLE_GAP, titleY, 0xFFFFFFFF);
     }
 
     private static void drawBackplate(GuiGraphicsExtractor graphics, int centerX, int centerY) {
