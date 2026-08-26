@@ -12,6 +12,7 @@ import com.lastcallsoftware.farandwide.route.server.RouteService;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
@@ -67,7 +68,12 @@ public final class RouteNetwork {
                             ? RouteService.assignRoute(player, payload.routeId())
                             : RouteService.toggleAssignment(player);
                     replyWithResult(context, result);
-                    sendAssignmentSnapshot(player);
+                    if (payload.action() == AssignmentMutationPayload.Action.TOGGLE_ACTIVE
+                            && result == RouteOperationResult.SUCCESS) {
+                        sendAssignmentSnapshotsForRoute(player, RouteService.getSelectedRouteId(player));
+                    } else {
+                        sendAssignmentSnapshot(player);
+                    }
                 });
         registrar.playToClient(RouteSnapshotPayload.TYPE, RouteSnapshotPayload.STREAM_CODEC);
         registrar.playToClient(AssignmentSnapshotPayload.TYPE, AssignmentSnapshotPayload.STREAM_CODEC);
@@ -80,6 +86,24 @@ public final class RouteNetwork {
         // entity's current runtime ID.
         RouteService.AssignmentState state = RouteService.getAssignment(player);
         PacketDistributor.sendToPlayer(player, new AssignmentSnapshotPayload(state.entityId(), state.assignment()));
+    }
+
+    /** Synchronizes both possible HUD subjects after a mount ownership transition. */
+    public static void syncMountTransition(ServerPlayer player, Entity vehicle) {
+        RouteService.RouteState routes = RouteService.getRoutes(player);
+        PacketDistributor.sendToPlayer(player, RouteSnapshotPayload.from(routes.routes(), routes.selectedRouteId()));
+        RouteService.AssignmentState playerState = RouteService.getAssignment(player, player);
+        RouteService.AssignmentState vehicleState = RouteService.getAssignment(player, vehicle);
+        PacketDistributor.sendToPlayer(player,
+                new AssignmentSnapshotPayload(playerState.entityId(), playerState.assignment()));
+        PacketDistributor.sendToPlayer(player,
+                new AssignmentSnapshotPayload(vehicleState.entityId(), vehicleState.assignment()));
+    }
+
+    private static void sendAssignmentSnapshotsForRoute(ServerPlayer source, int routeId) {
+        for (RouteService.AssignmentState state : RouteService.getLoadedAssignmentsForRoute(source, routeId)) {
+            PacketDistributor.sendToAllPlayers(new AssignmentSnapshotPayload(state.entityId(), state.assignment()));
+        }
     }
 
     private static void broadcastRoutes(ServerPlayer player) {

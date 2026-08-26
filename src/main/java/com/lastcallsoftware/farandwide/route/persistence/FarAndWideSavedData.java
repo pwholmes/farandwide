@@ -105,10 +105,33 @@ public final class FarAndWideSavedData extends SavedData {
         if (targetWaypointIndex < 0) {
             return null;
         }
-        RouteAssignment assignment = new RouteAssignment(routeId, assigneeId, targetWaypointIndex);
+        boolean active = assignmentsByAssignee.values().stream()
+                .anyMatch(existing -> existing.getRouteId() == routeId && existing.isActive());
+        RouteAssignment assignment = new RouteAssignment(routeId, assigneeId, targetWaypointIndex, 1, null, active);
         assignmentsByAssignee.put(assigneeId, assignment);
         setDirty();
         return assignment;
+    }
+
+    public boolean removeAssignment(int assigneeId) {
+        if (assignmentsByAssignee.remove(assigneeId) == null) {
+            return false;
+        }
+        setDirty();
+        return true;
+    }
+
+    /** Moves a complete traversal state from one stable assignee to another. */
+    public boolean transferAssignment(int sourceAssigneeId, int targetAssigneeId) {
+        RouteAssignment source = assignmentsByAssignee.remove(sourceAssigneeId);
+        if (source == null) {
+            return false;
+        }
+        assignmentsByAssignee.put(targetAssigneeId, new RouteAssignment(
+                source.getRouteId(), targetAssigneeId, source.getTargetWaypointIndex(),
+                source.getTraversalDirection(), source.getTraversalTypeOverride(), source.isActive()));
+        setDirty();
+        return true;
     }
 
     public boolean setAssignmentActive(int assigneeId, boolean active) {
@@ -121,6 +144,17 @@ public final class FarAndWideSavedData extends SavedData {
                 assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), active));
         setDirty();
         return true;
+    }
+
+    /** Sets the active state of every assignee using one route. */
+    public boolean setRouteAssignmentsActive(int routeId, boolean active) {
+        boolean changed = false;
+        for (Map.Entry<Integer, RouteAssignment> entry : List.copyOf(assignmentsByAssignee.entrySet())) {
+            if (entry.getValue().getRouteId() == routeId) {
+                changed |= setAssignmentActive(entry.getKey(), active);
+            }
+        }
+        return changed;
     }
 
     public boolean updateAssignmentProgress(int assigneeId, int targetWaypointIndex, int traversalDirection) {

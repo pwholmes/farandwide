@@ -72,6 +72,8 @@ class ServerRouteTraversalControllerTest {
         }
         int assigneeId = data.allocateAssigneeId();
         RouteAssignment assignment = data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(assigneeId, true);
+        assignment = data.getAssignment(assigneeId);
         return new Fixture(data, data.getRoute(route.getId()), assigneeId, assignment);
     }
 

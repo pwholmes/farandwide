@@ -7,6 +7,7 @@ import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
+import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -47,6 +48,34 @@ public final class RouteService {
         FarAndWideSavedData data = data(player);
         Entity assignee = controlledAssignee(player);
         return new AssignmentState(assignee.getId(), data.getAssignment(assigneeId(assignee, data)));
+    }
+
+    public static AssignmentState getAssignment(ServerPlayer player, Entity assignee) {
+        FarAndWideSavedData data = data(player);
+        return new AssignmentState(assignee.getId(), data.getAssignment(assigneeId(assignee, data)));
+    }
+
+    public static int getSelectedRouteId(ServerPlayer player) {
+        FarAndWideSavedData data = data(player);
+        return data.getSelectedRouteId(assigneeId(player, data));
+    }
+
+    public static List<AssignmentState> getLoadedAssignmentsForRoute(ServerPlayer player, int routeId) {
+        FarAndWideSavedData data = data(player);
+        List<AssignmentState> states = new java.util.ArrayList<>();
+        for (net.minecraft.server.level.ServerLevel level : player.level().getServer().getAllLevels()) {
+            for (Entity entity : level.getAllEntities()) {
+                if (!entity.hasData(FarAndWideAttachments.ASSIGNEE_ID.get())) {
+                    continue;
+                }
+                RouteAssignment assignment = data.getAssignment(
+                        entity.getData(FarAndWideAttachments.ASSIGNEE_ID.get()));
+                if (assignment != null && assignment.getRouteId() == routeId) {
+                    states.add(new AssignmentState(entity.getId(), assignment));
+                }
+            }
+        }
+        return states;
     }
 
     public static RouteOperationResult createRoute(ServerPlayer player, String name, TraversalType traversalType) {
@@ -95,7 +124,12 @@ public final class RouteService {
     }
 
     public static RouteOperationResult addWaypoint(ServerPlayer player, int routeId) {
-        return data(player).addWaypoint(routeId, waypointInFrontOf(player))
+        FarAndWideSavedData data = data(player);
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
+        }
+        return data.addWaypoint(routeId, waypointInFrontOf(player))
                 ? RouteOperationResult.SUCCESS
                 : RouteOperationResult.ROUTE_NOT_FOUND;
     }
@@ -104,6 +138,10 @@ public final class RouteService {
         FarAndWideSavedData data = data(player);
         if (data.getRoute(routeId) == null) {
             return RouteOperationResult.ROUTE_NOT_FOUND;
+        }
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
         }
         return data.removeNearestWaypoint(routeId, player.position(), dimension(player), WAYPOINT_REMOVE_RADIUS)
                 ? RouteOperationResult.SUCCESS
@@ -114,6 +152,10 @@ public final class RouteService {
         FarAndWideSavedData data = data(player);
         if (data.getRoute(routeId) == null) {
             return RouteOperationResult.ROUTE_NOT_FOUND;
+        }
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
         }
         data.toggleWaypoint(routeId, player.position(), dimension(player), WAYPOINT_REMOVE_RADIUS,
                 waypointInFrontOf(player));
@@ -129,6 +171,9 @@ public final class RouteService {
         if (route.getWaypoints().isEmpty()) {
             return RouteOperationResult.NO_WAYPOINTS;
         }
+        if (data.getSelectedRouteId(assigneeId(player, data)) != routeId) {
+            return RouteOperationResult.ROUTE_NOT_FOUND;
+        }
         Entity assignee = controlledAssignee(player);
         RouteAssignment assignment = data.assignRoute(
                 routeId, assigneeId(assignee, data), assignee.position(), dimension(assignee));
@@ -139,13 +184,48 @@ public final class RouteService {
 
     public static RouteOperationResult toggleAssignment(ServerPlayer player) {
         FarAndWideSavedData data = data(player);
-        int assigneeId = assigneeId(controlledAssignee(player), data);
-        RouteAssignment assignment = data.getAssignment(assigneeId);
-        if (assignment == null) {
+        int routeId = data.getSelectedRouteId(assigneeId(player, data));
+        if (routeId == 0 || data.getRoute(routeId) == null) {
             return RouteOperationResult.NO_ASSIGNMENT;
         }
-        data.setAssignmentActive(assigneeId, !assignment.isActive());
+
+        List<RouteAssignment> assignments = data.getAssignments().stream()
+                .filter(assignment -> assignment.getRouteId() == routeId)
+                .toList();
+        if (assignments.isEmpty()) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        boolean active = assignments.stream().noneMatch(RouteAssignment::isActive);
+        data.setRouteAssignmentsActive(routeId, active);
+        if (!active) {
+            stopLoadedAssignees(player, data, routeId);
+        }
         return RouteOperationResult.SUCCESS;
+    }
+
+    private static RouteOperationResult validateWaypointMutation(
+            ServerPlayer player, FarAndWideSavedData data, int routeId) {
+        if (data.getSelectedRouteId(assigneeId(player, data)) != routeId) {
+            return RouteOperationResult.ROUTE_NOT_FOUND;
+        }
+        Entity assignee = controlledAssignee(player);
+        RouteAssignment assignment = data.getAssignment(assigneeId(assignee, data));
+        return assignment != null && assignment.getRouteId() == routeId && assignment.isActive()
+                ? RouteOperationResult.ROUTE_ACTIVE
+                : RouteOperationResult.SUCCESS;
+    }
+
+    private static void stopLoadedAssignees(ServerPlayer player, FarAndWideSavedData data, int routeId) {
+        for (net.minecraft.server.level.ServerLevel level : player.level().getServer().getAllLevels()) {
+            for (Entity entity : level.getAllEntities()) {
+                RouteAssignment assignment = entity.hasData(FarAndWideAttachments.ASSIGNEE_ID.get())
+                        ? data.getAssignment(entity.getData(FarAndWideAttachments.ASSIGNEE_ID.get()))
+                        : null;
+                if (assignment != null && assignment.getRouteId() == routeId) {
+                    ServerVehicleController.stop(entity);
+                }
+            }
+        }
     }
 
     private static FarAndWideSavedData data(ServerPlayer player) {

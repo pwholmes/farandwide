@@ -90,6 +90,7 @@
   "message.farandwide.operation.no_waypoints": "The selected route has no waypoints.",
   "message.farandwide.operation.no_waypoint_in_dimension": "No route waypoint is available in this dimension.",
   "message.farandwide.operation.no_assignment": "No route has been assigned.",
+  "message.farandwide.operation.route_active": "Waypoints cannot be changed while the route is active.",
   "message.farandwide.hud_visible": "Navigation HUD shown.",
   "message.farandwide.hud_hidden": "Navigation HUD hidden.",
 

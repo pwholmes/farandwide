@@ -118,10 +118,6 @@ public class RouteManager {
             selectedRoute = route;
             routeStateRevision++;
             RouteRequests.selectRoute(route.getId());
-            Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.player != null) {
-                assignRoute(route);
-            }
         }
     }
 

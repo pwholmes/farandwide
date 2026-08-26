@@ -72,7 +72,6 @@ public final class ServerRouteTraversalController {
             Entity entity, int assigneeId,
             RouteAssignment assignment) {
         if (!assignment.isActive()) {
-            ServerVehicleController.stop(entity);
             return;
         }
         Route route = data.getRoute(assignment.getRouteId());

@@ -34,6 +34,7 @@ class FarAndWideSavedDataTest {
         int assigneeId = original.allocateAssigneeId();
         RouteAssignment assignment = original.assignRoute(route.getId(), assigneeId, new Vec3(4, 70, 12), NETHER);
         assertNotNull(assignment);
+        assertTrue(original.setAssignmentActive(assigneeId, true));
         assertTrue(original.setAssignmentTraversalTypeOverride(assigneeId, TraversalType.LOOP));
         assertTrue(original.updateAssignmentProgress(assigneeId, 1, -1));
         assertTrue(original.setAssignmentActive(assigneeId, false));
@@ -125,6 +126,68 @@ class FarAndWideSavedDataTest {
         assertFalse(data.clearSelectedRouteId(assigneeId));
 
         assertEquals(0, roundTrip(data).getSelectedRouteId(assigneeId));
+    }
+
+    @Test
+    void routeActivationChangesEveryAssignmentUsingThatRouteOnly() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        Route otherRoute = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        data.addWaypoint(otherRoute.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int first = data.allocateAssigneeId();
+        int second = data.allocateAssigneeId();
+        int unrelated = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), first, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), second, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(otherRoute.getId(), unrelated, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(first, true);
+        data.setAssignmentActive(second, true);
+        data.setAssignmentActive(unrelated, true);
+
+        assertTrue(data.setRouteAssignmentsActive(route.getId(), false));
+
+        assertFalse(data.getAssignment(first).isActive());
+        assertFalse(data.getAssignment(second).isActive());
+        assertTrue(data.getAssignment(unrelated).isActive());
+    }
+
+    @Test
+    void transferringAssignmentPreservesTraversalStateAndRemovesSource() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int playerId = data.allocateAssigneeId();
+        int vehicleId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), playerId, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(playerId, true);
+        data.setAssignmentTraversalTypeOverride(playerId, TraversalType.REVERSE);
+
+        assertTrue(data.transferAssignment(playerId, vehicleId));
+
+        assertNull(data.getAssignment(playerId));
+        RouteAssignment transferred = data.getAssignment(vehicleId);
+        assertNotNull(transferred);
+        assertEquals(vehicleId, transferred.getAssigneeId());
+        assertEquals(route.getId(), transferred.getRouteId());
+        assertEquals(TraversalType.REVERSE, transferred.getTraversalTypeOverride());
+        assertTrue(transferred.isActive());
+    }
+
+    @Test
+    void firstAssignmentIsInactiveAndLaterAssignmentsInheritRouteActivity() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int first = data.allocateAssigneeId();
+        int second = data.allocateAssigneeId();
+
+        RouteAssignment firstAssignment = data.assignRoute(route.getId(), first, Vec3.ZERO, OVERWORLD);
+        assertFalse(firstAssignment.isActive());
+        data.setAssignmentActive(first, true);
+
+        RouteAssignment secondAssignment = data.assignRoute(route.getId(), second, Vec3.ZERO, OVERWORLD);
+        assertTrue(secondAssignment.isActive());
     }
 
     @Test

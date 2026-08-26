@@ -27,8 +27,13 @@ final class ServerBoatActuator implements VehicleActuator {
     @Override
     public void apply(Entity vehicle, NavigationIntent intent) {
         Boat boat = (Boat) vehicle;
-        BoatControls.Input input = BoatControls.from(boat.getYRot(), intent);
+        BoatControls.Input input = BoatControls.from(
+                boat.getYRot(), intent, BoatControls.MOVES_WHILE_TURNING);
         boat.setYRot(boat.getYRot() + Mth.clamp(input.yawError(), -MAX_TURN_PER_TICK, MAX_TURN_PER_TICK));
+        if (!input.forward()) {
+            boat.setDeltaMovement(Vec3.ZERO);
+            return;
+        }
         float yawRadians = boat.getYRot() * ((float) Math.PI / 180.0F);
         Vec3 acceleration = new Vec3(-Mth.sin(yawRadians) * ACCELERATION, 0.0,
                 Mth.cos(yawRadians) * ACCELERATION);

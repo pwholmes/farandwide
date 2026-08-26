@@ -35,7 +35,7 @@ public record RouteAssignment(
         boolean active) {
 
     public RouteAssignment(int routeId, int assigneeId, int targetWaypointIndex) {
-        this(routeId, assigneeId, targetWaypointIndex, 1, null, true);
+        this(routeId, assigneeId, targetWaypointIndex, 1, null, false);
     }
 
     public int getRouteId() { return routeId; }

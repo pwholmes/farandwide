@@ -27,9 +27,6 @@ public class WaypointRenderer {
 
     public static void renderWaypoints(Route route) {
         RouteAssignment assignment = RouteManager.getNavigationAssignment();
-        if (assignment != null && !assignment.isActive()) {
-            assignment = null;
-        }
         int ordinal = 1;
         for (Waypoint waypoint : route.getWaypoints()) {
             boolean target = assignment != null

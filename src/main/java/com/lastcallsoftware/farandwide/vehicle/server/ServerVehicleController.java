@@ -13,7 +13,7 @@ import net.minecraft.world.entity.Entity;
 /** Selects a vehicle-specific navigator while keeping movement server-authoritative. */
 public final class ServerVehicleController {
     private static final List<VehicleNavigator> NAVIGATORS = List.of(new DirectWaypointNavigator());
-    private static final List<VehicleActuator> ACTUATORS = List.of(new ServerBoatActuator());
+    private static final List<VehicleActuator> ACTUATORS = List.of(new ServerBoatActuator(), new ServerHorseActuator());
 
     private ServerVehicleController() {
     }

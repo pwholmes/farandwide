@@ -24,7 +24,8 @@ final class ClientBoatActuator implements VehicleActuator {
     @Override
     public void apply(Entity vehicle, NavigationIntent intent) {
         Boat boat = (Boat) vehicle;
-        BoatControls.Input input = BoatControls.from(boat.getYRot(), intent);
+        BoatControls.Input input = BoatControls.from(
+                boat.getYRot(), intent, BoatControls.MOVES_WHILE_TURNING);
         boat.setInput(input.left(), input.right(), input.forward(), input.backward());
     }
 
