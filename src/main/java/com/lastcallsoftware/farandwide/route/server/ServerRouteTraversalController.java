@@ -9,6 +9,7 @@ import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
+import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -22,15 +23,15 @@ import net.neoforged.neoforge.network.PacketDistributor;
  *
  * <p>The controller first maps stable assignee IDs to currently loaded entities.
  * Unloaded entities keep their persisted progress but are not advanced. Arrival
- * requires the entity and target waypoint to share a dimension and compares only
- * horizontal distance, matching vehicle navigation behavior.
+ * requires the entity and target waypoint to share a dimension and compares
+ * three-dimensional distance.
  *
  * <p>Progress changes go through {@code FarAndWideSavedData}; after replacement,
  * the controller fetches the new immutable assignment and sends it to any player
  * controlling that entity.
  */
 public final class ServerRouteTraversalController {
-    private static final double ARRIVAL_RADIUS = 5.0;
+    private static final double ARRIVAL_RADIUS = 3.0;
 
     private ServerRouteTraversalController() {
     }
@@ -61,35 +62,46 @@ public final class ServerRouteTraversalController {
 
         assignments.forEach((assigneeId, assignment) -> {
             Entity entity = entitiesByAssigneeId.get(assigneeId);
-            if (entity != null && advanceIfTargetReached(data, entity, assigneeId, assignment)) {
-                syncToControllingPlayer(event.getServer(), entity, data.getAssignment(assigneeId));
+            if (entity != null) {
+                tickAssignment(event.getServer(), data, entity, assigneeId, assignment);
             }
         });
     }
 
-    private static boolean advanceIfTargetReached(FarAndWideSavedData data, Entity entity, int assigneeId,
+    private static void tickAssignment(net.minecraft.server.MinecraftServer server, FarAndWideSavedData data,
+            Entity entity, int assigneeId,
             RouteAssignment assignment) {
         if (!assignment.isActive()) {
-            return false;
+            ServerVehicleController.stop(entity);
+            return;
         }
         Route route = data.getRoute(assignment.getRouteId());
         if (route == null) {
-            return data.setAssignmentActive(assigneeId, false);
+            if (data.setAssignmentActive(assigneeId, false)) {
+                ServerVehicleController.stop(entity);
+                syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
+            }
+            return;
         }
         Waypoint target = assignment.getTargetWaypointIndex() >= 0
                 && assignment.getTargetWaypointIndex() < route.getWaypoints().size()
                 ? route.getWaypoints().get(assignment.getTargetWaypointIndex())
                 : null;
         if (target == null || !target.dimension().equals(entity.level().dimension().identifier())) {
-            return false;
+            ServerVehicleController.stop(entity);
+            return;
         }
         double deltaX = entity.getX() - target.position().x;
+        double deltaY = entity.getY() - target.position().y;
         double deltaZ = entity.getZ() - target.position().z;
-        if (deltaX * deltaX + deltaZ * deltaZ > ARRIVAL_RADIUS * ARRIVAL_RADIUS) {
-            return false;
+        if (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ > ARRIVAL_RADIUS * ARRIVAL_RADIUS) {
+            ServerVehicleController.navigate(entity, target);
+            return;
         }
 
-        return advanceAssignment(data, assigneeId, route, assignment);
+        if (advanceAssignment(data, assigneeId, route, assignment)) {
+            syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
+        }
     }
 
     static boolean advanceAssignment(FarAndWideSavedData data, int assigneeId, Route route,
