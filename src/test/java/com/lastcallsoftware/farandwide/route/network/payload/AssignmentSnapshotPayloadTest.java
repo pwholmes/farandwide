@@ -8,6 +8,7 @@ import com.lastcallsoftware.farandwide.route.TraversalType;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.neoforged.neoforge.network.connection.ConnectionType;
 import org.junit.jupiter.api.Test;
 
 class AssignmentSnapshotPayloadTest {
@@ -18,7 +19,8 @@ class AssignmentSnapshotPayloadTest {
         RouteAssignment persisted = new RouteAssignment(
                 7, persistentAssigneeId, 3, -1, TraversalType.LOOP, false);
         AssignmentSnapshotPayload sent = new AssignmentSnapshotPayload(runtimeEntityId, persisted);
-        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(Unpooled.buffer(), RegistryAccess.EMPTY);
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);
 
         AssignmentSnapshotPayload.STREAM_CODEC.encode(buffer, sent);
         AssignmentSnapshotPayload received = AssignmentSnapshotPayload.STREAM_CODEC.decode(buffer);
