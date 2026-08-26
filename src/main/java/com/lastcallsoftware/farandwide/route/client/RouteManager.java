@@ -91,6 +91,10 @@ public class RouteManager {
         return selectedRoute;
     }
 
+    public static int getCurrentRouteId() {
+        return selectedRoute == null ? 0 : selectedRoute.getId();
+    }
+
     public static Route getRoute(String name) {
         for (Route route : routes) {
             if (route.getName().equals(name)) {
@@ -133,6 +137,16 @@ public class RouteManager {
         if (route != null) {
             setSelectedRoute(route);
         }
+    }
+
+    /** Clears the player's selected route without changing any route assignment. */
+    public static void clearSelectedRoute() {
+        if (selectedRoute == null) {
+            return;
+        }
+        selectedRoute = null;
+        routeStateRevision++;
+        RouteRequests.selectRoute(0);
     }
 
     public static void createRoute(String name, TraversalType traversalType) {

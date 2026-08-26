@@ -87,6 +87,15 @@ public final class FarAndWideSavedData extends SavedData {
         return true;
     }
 
+    /** Clears the route selection for an assignee. */
+    public boolean clearSelectedRouteId(int assigneeId) {
+        if (selectedRouteByAssignee.remove(assigneeId) == null) {
+            return false;
+        }
+        setDirty();
+        return true;
+    }
+
     public RouteAssignment assignRoute(int routeId, int assigneeId, Vec3 assigneePosition, Identifier dimension) {
         Route route = getRoute(routeId);
         if (route == null || route.getWaypoints().isEmpty()) {

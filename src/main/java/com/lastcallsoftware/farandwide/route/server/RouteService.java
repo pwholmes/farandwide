@@ -83,6 +83,10 @@ public final class RouteService {
 
     public static RouteOperationResult selectRoute(ServerPlayer player, int routeId) {
         FarAndWideSavedData data = data(player);
+        if (routeId == 0) {
+            data.clearSelectedRouteId(assigneeId(player, data));
+            return RouteOperationResult.SUCCESS;
+        }
         if (data.getRoute(routeId) == null) {
             return RouteOperationResult.ROUTE_NOT_FOUND;
         }

@@ -114,6 +114,20 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void clearingSelectedRouteRemovesItsPersistedSelection() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        int assigneeId = data.allocateAssigneeId();
+        assertTrue(data.setSelectedRouteId(assigneeId, route.getId()));
+
+        assertTrue(data.clearSelectedRouteId(assigneeId));
+        assertEquals(0, data.getSelectedRouteId(assigneeId));
+        assertFalse(data.clearSelectedRouteId(assigneeId));
+
+        assertEquals(0, roundTrip(data).getSelectedRouteId(assigneeId));
+    }
+
+    @Test
     void malformedReferencesAndTraversalStateAreRepaired() {
         JsonElement saved = JsonParser.parseString("""
                 {

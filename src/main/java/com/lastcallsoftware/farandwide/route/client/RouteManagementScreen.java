@@ -138,7 +138,11 @@ public class RouteManagementScreen extends Screen {
     private void selectHighlightedRoute() {
         Route route = getSelectedRoute();
         if (route != null) {
-            RouteManager.setSelectedRoute(route);
+            if (route.getId() == RouteManager.getCurrentRouteId()) {
+                RouteManager.clearSelectedRoute();
+            } else {
+                RouteManager.setSelectedRoute(route);
+            }
         }
     }
 
