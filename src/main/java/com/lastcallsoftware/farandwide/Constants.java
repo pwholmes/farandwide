@@ -27,6 +27,8 @@ public final class Constants {
         public static final int MAX_ITEMS_PER_OPERATION = 4_096;
         public static final int MAX_ITEMS_PER_STACK = 64;
         public static final long TRANSFER_INTERVAL_TICKS = 10;
+        /** Five seconds at Minecraft's normal 20 server ticks per second. */
+        public static final long WAYPOINT_DWELL_TICKS = 100;
         public static final int EQUINE_EQUIPMENT_SLOT_COUNT = 2;
 
         private Cargo() {
@@ -36,7 +38,7 @@ public final class Constants {
     public static final class Vehicles {
         public static final boolean BOATS_MOVE_WHILE_TURNING = false;
         public static final float BOAT_TURN_DEAD_ZONE_DEGREES = 5.0F;
-        public static final float SERVER_BOAT_MAX_TURN_PER_TICK = 1.0F;
+        public static final float SERVER_BOAT_MAX_TURN_PER_TICK = 2.0F;
         public static final double SERVER_BOAT_ACCELERATION = 0.04;
         public static final boolean EQUINES_MOVE_WHILE_TURNING = false;
         public static final boolean PLAYER_MOVES_WHILE_TURNING = false;

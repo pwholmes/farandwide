@@ -109,16 +109,16 @@ public final class CargoWaypointScreen extends Screen {
         int positionOffset = existingWaypoint == null ? 0 : 26;
         if (existingWaypoint != null) {
             moveUpButton = addRenderableWidget(Button.builder(Component.literal("↑"), button -> moveWaypoint(-1))
-                    .bounds(left + 64, top + 52, 20, 20)
+                    .bounds(left, top + 52, 20, 20)
                     .build());
             moveDownButton = addRenderableWidget(Button.builder(Component.literal("↓"), button -> moveWaypoint(1))
-                    .bounds(left + 156, top + 52, 20, 20)
+                    .bounds(left + 100, top + 52, 20, 20)
                     .build());
-            radiusDecreaseButton = addRenderableWidget(Button.builder(Component.literal("−"), button -> adjustRadius(-1))
-                    .bounds(left, top + 78, 20, 20)
+            radiusDecreaseButton = addRenderableWidget(Button.builder(Component.literal("+"), button -> adjustRadius(-1))
+                    .bounds(left + 124, top + 52, 20, 20)
                     .build());
-            radiusIncreaseButton = addRenderableWidget(Button.builder(Component.literal("+"), button -> adjustRadius(1))
-                    .bounds(left + CONTROL_WIDTH - 20, top + 78, 20, 20)
+            radiusIncreaseButton = addRenderableWidget(Button.builder(Component.literal("−"), button -> adjustRadius(1))
+                    .bounds(left + CONTROL_WIDTH - 20, top + 52, 20, 20)
                     .build());
         }
         selectLoadStationButton = addRenderableWidget(Button.builder(
@@ -256,9 +256,9 @@ public final class CargoWaypointScreen extends Screen {
         if (existingWaypoint != null) {
             Component position = Component.translatable(
                     "screen.farandwide.cargo_waypoint.position", targetPosition + 1, route.getWaypoints().size());
-            graphics.centeredText(font, position, width / 2, top + 58, 0xFFFFFFFF);
-            graphics.centeredText(font, Component.literal("Arrival radius: %.1f".formatted(selectedArrivalRadius)),
-                    width / 2, top + 84, 0xFFFFFFFF);
+            graphics.centeredText(font, position, left + 60, top + 58, 0xFFFFFFFF);
+            graphics.centeredText(font, Component.literal("Radius: %.1f".formatted(selectedArrivalRadius)),
+                    left + 182, top + 58, 0xFFFFFFFF);
         }
         if (selectedBehavior == BehaviorType.CARGO) {
             int detailY = top + 78 + positionOffset;

@@ -133,9 +133,6 @@ public final class ServerRouteTraversalController {
             return true;
         }
         Optional<ResourceHandler<ItemResource>> vehicle = CargoVehicleInventory.find(entity);
-        if (vehicle.isEmpty()) {
-            return true;
-        }
         Optional<ResourceHandler<ItemResource>> loadStation = CargoStationResolver.find(level, waypoint, behavior.loadStation());
         Optional<ResourceHandler<ItemResource>> unloadStation = CargoStationResolver.find(level, waypoint, behavior.unloadStation());
         CargoTransferSession session = cargoTransfersByAssignee.get(assigneeId);
@@ -149,23 +146,29 @@ public final class ServerRouteTraversalController {
         CargoTransferSession activeSession = session;
 
         if (activeSession.stage == CargoStage.UNLOAD) {
-            int moved = unloadStation.map(station -> CargoTransferService.transferOneStack(
-                    vehicle.get(), station, resource -> CargoTransferService.matches(behavior.unloadFilter(), resource)))
+            int moved = vehicle.flatMap(handler -> unloadStation.map(station -> CargoTransferService.transferOneStack(
+                    handler, station, resource -> CargoTransferService.matches(behavior.unloadFilter(), resource))))
                     .orElse(0);
             if (moved > 0) {
                 playCargoTransferSound(level, entity, false);
                 activeSession.nextTransferTick = level.getGameTime() + Constants.Cargo.TRANSFER_INTERVAL_TICKS;
                 return false;
             }
-            if (behavior.operation() != CargoOperation.UNLOAD_THEN_LOAD) {
+            activeSession.stage = CargoStage.WAIT;
+            activeSession.nextTransferTick = level.getGameTime() + Constants.Cargo.WAYPOINT_DWELL_TICKS;
+            return false;
+        }
+
+        if (activeSession.stage == CargoStage.WAIT) {
+            if (behavior.operation() == CargoOperation.UNLOAD) {
                 cargoTransfersByAssignee.remove(assigneeId);
                 return true;
             }
             activeSession.stage = CargoStage.LOAD;
         }
 
-        int moved = loadStation.map(station -> CargoTransferService.transferOneStack(
-                station, vehicle.get(), resource -> CargoTransferService.matches(behavior.loadFilter(), resource)))
+        int moved = vehicle.flatMap(handler -> loadStation.map(station -> CargoTransferService.transferOneStack(
+                station, handler, resource -> CargoTransferService.matches(behavior.loadFilter(), resource))))
                 .orElse(0);
         if (moved > 0) {
             playCargoTransferSound(level, entity, true);
@@ -183,6 +186,7 @@ public final class ServerRouteTraversalController {
 
     private enum CargoStage {
         UNLOAD,
+        WAIT,
         LOAD
     }
 
@@ -197,7 +201,7 @@ public final class ServerRouteTraversalController {
             this.routeId = routeId;
             this.waypointId = waypointId;
             this.behavior = behavior;
-            this.stage = behavior.operation() == CargoOperation.LOAD ? CargoStage.LOAD : CargoStage.UNLOAD;
+            this.stage = CargoStage.UNLOAD;
         }
 
         boolean matches(int routeId, int waypointId, CargoBehavior behavior) {
