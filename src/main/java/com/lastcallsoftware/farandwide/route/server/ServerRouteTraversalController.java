@@ -2,21 +2,32 @@ package com.lastcallsoftware.farandwide.route.server;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
 
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
+import com.lastcallsoftware.farandwide.Constants;
+import com.lastcallsoftware.farandwide.route.CargoBehavior;
+import com.lastcallsoftware.farandwide.route.CargoOperation;
 import com.lastcallsoftware.farandwide.route.Waypoint;
+import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
+import com.lastcallsoftware.farandwide.vehicle.server.cargo.CargoVehicleInventory;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.item.ItemResource;
 
 /**
  * Advances active assignments on the authoritative server tick.
@@ -31,7 +42,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
  * controlling that entity.
  */
 public final class ServerRouteTraversalController {
-    private static final double ARRIVAL_RADIUS = 3.0;
+    private static final Map<Integer, CargoTransferSession> cargoTransfersByAssignee = new HashMap<>();
 
     private ServerRouteTraversalController() {
     }
@@ -93,13 +104,104 @@ public final class ServerRouteTraversalController {
         double deltaX = entity.getX() - target.position().x;
         double deltaY = entity.getY() - target.position().y;
         double deltaZ = entity.getZ() - target.position().z;
-        if (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ > ARRIVAL_RADIUS * ARRIVAL_RADIUS) {
+        if (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ > target.arrivalRadiusSquared()) {
             ServerVehicleController.navigate(entity, target);
             return;
         }
 
+        ServerVehicleController.stop(entity);
+        if (target.action() instanceof WaypointAction.Cargo cargo
+                && !processCargo(assigneeId, route.getId(), entity, target, cargo.behavior())) {
+            return;
+        }
         if (advanceAssignment(data, assigneeId, route, assignment)) {
             syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
+        }
+    }
+
+    static boolean processArrival(FarAndWideSavedData data, int assigneeId, Route route,
+            RouteAssignment assignment, Waypoint target, Consumer<CargoBehavior> cargoProcessor) {
+        if (target.action() instanceof WaypointAction.Cargo cargo) {
+            cargoProcessor.accept(cargo.behavior());
+        }
+        return advanceAssignment(data, assigneeId, route, assignment);
+    }
+
+    private static boolean processCargo(int assigneeId, int routeId, Entity entity, Waypoint waypoint,
+            CargoBehavior behavior) {
+        if (!(entity.level() instanceof ServerLevel level)) {
+            return true;
+        }
+        Optional<ResourceHandler<ItemResource>> vehicle = CargoVehicleInventory.find(entity);
+        if (vehicle.isEmpty()) {
+            return true;
+        }
+        Optional<ResourceHandler<ItemResource>> loadStation = CargoStationResolver.find(level, waypoint, behavior.loadStation());
+        Optional<ResourceHandler<ItemResource>> unloadStation = CargoStationResolver.find(level, waypoint, behavior.unloadStation());
+        CargoTransferSession session = cargoTransfersByAssignee.get(assigneeId);
+        if (session == null || !session.matches(routeId, waypoint.id(), behavior)) {
+            session = new CargoTransferSession(routeId, waypoint.id(), behavior);
+            cargoTransfersByAssignee.put(assigneeId, session);
+        }
+        if (level.getGameTime() < session.nextTransferTick) {
+            return false;
+        }
+        CargoTransferSession activeSession = session;
+
+        if (activeSession.stage == CargoStage.UNLOAD) {
+            int moved = unloadStation.map(station -> CargoTransferService.transferOneStack(
+                    vehicle.get(), station, resource -> CargoTransferService.matches(behavior.unloadFilter(), resource)))
+                    .orElse(0);
+            if (moved > 0) {
+                playCargoTransferSound(level, entity, false);
+                activeSession.nextTransferTick = level.getGameTime() + Constants.Cargo.TRANSFER_INTERVAL_TICKS;
+                return false;
+            }
+            if (behavior.operation() != CargoOperation.UNLOAD_THEN_LOAD) {
+                cargoTransfersByAssignee.remove(assigneeId);
+                return true;
+            }
+            activeSession.stage = CargoStage.LOAD;
+        }
+
+        int moved = loadStation.map(station -> CargoTransferService.transferOneStack(
+                station, vehicle.get(), resource -> CargoTransferService.matches(behavior.loadFilter(), resource)))
+                .orElse(0);
+        if (moved > 0) {
+            playCargoTransferSound(level, entity, true);
+            activeSession.nextTransferTick = level.getGameTime() + Constants.Cargo.TRANSFER_INTERVAL_TICKS;
+            return false;
+        }
+        cargoTransfersByAssignee.remove(assigneeId);
+        return true;
+    }
+
+    private static void playCargoTransferSound(ServerLevel level, Entity entity, boolean loading) {
+        level.playSound(null, entity.getX(), entity.getY(), entity.getZ(), SoundEvents.ITEM_PICKUP,
+                SoundSource.BLOCKS, 0.35F, loading ? 1.15F : 0.85F);
+    }
+
+    private enum CargoStage {
+        UNLOAD,
+        LOAD
+    }
+
+    private static final class CargoTransferSession {
+        private final int routeId;
+        private final int waypointId;
+        private final CargoBehavior behavior;
+        private CargoStage stage;
+        private long nextTransferTick;
+
+        CargoTransferSession(int routeId, int waypointId, CargoBehavior behavior) {
+            this.routeId = routeId;
+            this.waypointId = waypointId;
+            this.behavior = behavior;
+            this.stage = behavior.operation() == CargoOperation.LOAD ? CargoStage.LOAD : CargoStage.UNLOAD;
+        }
+
+        boolean matches(int routeId, int waypointId, CargoBehavior behavior) {
+            return this.routeId == routeId && this.waypointId == waypointId && this.behavior.equals(behavior);
         }
     }
 

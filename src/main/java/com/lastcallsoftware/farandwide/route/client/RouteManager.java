@@ -5,6 +5,7 @@ import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
+import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.network.client.RouteRequests;
 
 import java.util.ArrayList;
@@ -15,6 +16,8 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Client-facing route API and replaceable snapshot cache.
@@ -55,6 +58,8 @@ public class RouteManager {
         selectedRoute = null;
         requestedServerSnapshot = false;
         requestedAssignmentEntityId = Integer.MIN_VALUE;
+        WaypointEditor.reset();
+        CargoStationSelector.reset();
         routeStateRevision++;
     }
 
@@ -181,6 +186,12 @@ public class RouteManager {
         sendOverlayMessage("message.farandwide.route_assigned", route.getName());
     }
 
+    /** Assigns the selected route, or unassigns the controlled assignee when one is already assigned. */
+    public static void toggleRouteAssignment() {
+        Route route = getCurrentRoute();
+        RouteRequests.assignRoute(route == null ? 0 : route.getId());
+    }
+
     public static void updateRoute(Route route, String name, TraversalType traversalType) {
         RouteRequests.updateRoute(route.getId(), name, traversalType);
     }
@@ -189,12 +200,25 @@ public class RouteManager {
         RouteRequests.addWaypoint(route.getId());
     }
 
-    public static void removeCurrentPosition(Route route) {
-        RouteRequests.removeWaypoint(route.getId());
+    public static void createWaypoint(Route route, Vec3 position, Identifier dimension, WaypointAction action) {
+        RouteRequests.createWaypoint(route.getId(), position, dimension, action);
     }
 
-    public static void toggleCurrentPosition(Route route) {
-        RouteRequests.toggleWaypoint(route.getId());
+    public static void createWaypoint(Route route, Vec3 position, Identifier dimension, WaypointAction action,
+            double arrivalRadius) {
+        RouteRequests.createWaypoint(route.getId(), position, dimension, action, arrivalRadius);
+    }
+
+    public static void replaceWaypoint(Route route, Waypoint waypoint, int targetPosition) {
+        RouteRequests.replaceWaypoint(route.getId(), waypoint, targetPosition);
+    }
+
+    public static void convertWaypoint(Route route, int waypointId, WaypointAction action) {
+        RouteRequests.convertWaypoint(route.getId(), waypointId, action);
+    }
+
+    public static void deleteWaypoint(Route route, int waypointId) {
+        RouteRequests.deleteWaypoint(route.getId(), waypointId);
     }
 
     public static void replaceAssignmentFromServer(int entityId, RouteAssignment assignment) {

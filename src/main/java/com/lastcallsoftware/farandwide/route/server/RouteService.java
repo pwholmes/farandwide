@@ -2,14 +2,18 @@ package com.lastcallsoftware.farandwide.route.server;
 
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
+import com.lastcallsoftware.farandwide.Constants;
+import com.lastcallsoftware.farandwide.route.CargoBehavior;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
+import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
@@ -26,8 +30,6 @@ import net.minecraft.world.phys.Vec3;
  * the first mutation so a rejected request cannot leave partially changed state.
  */
 public final class RouteService {
-    private static final double WAYPOINT_REMOVE_RADIUS = 5.0;
-
     private RouteService() {
     }
 
@@ -105,9 +107,22 @@ public final class RouteService {
     }
 
     public static RouteOperationResult deleteRoute(ServerPlayer player, int routeId) {
-        return data(player).deleteRoute(routeId)
+        FarAndWideSavedData data = data(player);
+        return deleteRoute(data, routeId, () -> stopLoadedAssignees(player, data, routeId))
                 ? RouteOperationResult.SUCCESS
                 : RouteOperationResult.ROUTE_NOT_FOUND;
+    }
+
+    /**
+     * Stops loaded assignees while their route assignment can still be resolved,
+     * then removes the route and its persisted references.
+     */
+    static boolean deleteRoute(FarAndWideSavedData data, int routeId, Runnable stopAssignees) {
+        if (data.getRoute(routeId) == null) {
+            return false;
+        }
+        stopAssignees.run();
+        return data.deleteRoute(routeId);
     }
 
     public static RouteOperationResult selectRoute(ServerPlayer player, int routeId) {
@@ -134,36 +149,13 @@ public final class RouteService {
                 : RouteOperationResult.ROUTE_NOT_FOUND;
     }
 
-    public static RouteOperationResult removeWaypoint(ServerPlayer player, int routeId) {
-        FarAndWideSavedData data = data(player);
-        if (data.getRoute(routeId) == null) {
-            return RouteOperationResult.ROUTE_NOT_FOUND;
-        }
-        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
-        if (validation != RouteOperationResult.SUCCESS) {
-            return validation;
-        }
-        return data.removeNearestWaypoint(routeId, player.position(), dimension(player), WAYPOINT_REMOVE_RADIUS)
-                ? RouteOperationResult.SUCCESS
-                : RouteOperationResult.NO_WAYPOINT_IN_DIMENSION;
-    }
-
-    public static RouteOperationResult toggleWaypoint(ServerPlayer player, int routeId) {
-        FarAndWideSavedData data = data(player);
-        if (data.getRoute(routeId) == null) {
-            return RouteOperationResult.ROUTE_NOT_FOUND;
-        }
-        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
-        if (validation != RouteOperationResult.SUCCESS) {
-            return validation;
-        }
-        data.toggleWaypoint(routeId, player.position(), dimension(player), WAYPOINT_REMOVE_RADIUS,
-                waypointInFrontOf(player));
-        return RouteOperationResult.SUCCESS;
-    }
-
     public static RouteOperationResult assignRoute(ServerPlayer player, int routeId) {
         FarAndWideSavedData data = data(player);
+        Entity assignee = controlledAssignee(player);
+        int assigneeId = assigneeId(assignee, data);
+        if (unassignRoute(data, assigneeId, () -> ServerVehicleController.stop(assignee))) {
+            return RouteOperationResult.SUCCESS;
+        }
         Route route = data.getRoute(routeId);
         if (route == null) {
             return RouteOperationResult.ROUTE_NOT_FOUND;
@@ -174,12 +166,23 @@ public final class RouteService {
         if (data.getSelectedRouteId(assigneeId(player, data)) != routeId) {
             return RouteOperationResult.ROUTE_NOT_FOUND;
         }
-        Entity assignee = controlledAssignee(player);
         RouteAssignment assignment = data.assignRoute(
-                routeId, assigneeId(assignee, data), assignee.position(), dimension(assignee));
+                routeId, assigneeId, assignee.position(), dimension(assignee));
         return assignment == null
                 ? RouteOperationResult.NO_WAYPOINT_IN_DIMENSION
                 : RouteOperationResult.SUCCESS;
+    }
+
+    /** Removes an existing assignment, stopping it first only when it is navigating. */
+    static boolean unassignRoute(FarAndWideSavedData data, int assigneeId, Runnable stopAssignee) {
+        RouteAssignment assignment = data.getAssignment(assigneeId);
+        if (assignment == null) {
+            return false;
+        }
+        if (assignment.isActive()) {
+            stopAssignee.run();
+        }
+        return data.removeAssignment(assigneeId);
     }
 
     public static RouteOperationResult toggleAssignment(ServerPlayer player) {
@@ -203,6 +206,95 @@ public final class RouteService {
         return RouteOperationResult.SUCCESS;
     }
 
+    public static RouteOperationResult createWaypoint(ServerPlayer player, int routeId, Vec3 position,
+            net.minecraft.resources.Identifier dimension, WaypointAction action, double arrivalRadius) {
+        FarAndWideSavedData data = data(player);
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
+        }
+        RouteOperationResult requestValidation = validateWaypointRequest(player, position, dimension, action, arrivalRadius,
+                data.getRoute(routeId), 0);
+        if (requestValidation != RouteOperationResult.SUCCESS) {
+            return requestValidation;
+        }
+        return data.addWaypoint(routeId, new Waypoint(0, position, dimension, action, arrivalRadius))
+                ? RouteOperationResult.SUCCESS
+                : RouteOperationResult.ROUTE_NOT_FOUND;
+    }
+
+    public static RouteOperationResult replaceWaypoint(ServerPlayer player, int routeId, int waypointId,
+            Vec3 position, net.minecraft.resources.Identifier dimension, WaypointAction action, int targetPosition,
+            double arrivalRadius) {
+        FarAndWideSavedData data = data(player);
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
+        }
+        Route route = data.getRoute(routeId);
+        if (data.getWaypoint(routeId, waypointId) == null) {
+            return RouteOperationResult.WAYPOINT_NOT_FOUND;
+        }
+        if (route == null || targetPosition < 0 || targetPosition >= route.getWaypoints().size()) {
+            return RouteOperationResult.INVALID_WAYPOINT;
+        }
+        RouteOperationResult requestValidation = validateWaypointRequest(player, position, dimension, action, arrivalRadius,
+                route, waypointId);
+        if (requestValidation != RouteOperationResult.SUCCESS) {
+            return requestValidation;
+        }
+        return data.replaceWaypoint(routeId, waypointId,
+                new Waypoint(waypointId, position, dimension, action, arrivalRadius), targetPosition)
+                ? RouteOperationResult.SUCCESS
+                : RouteOperationResult.WAYPOINT_NOT_FOUND;
+    }
+
+    public static RouteOperationResult convertWaypoint(ServerPlayer player, int routeId, int waypointId,
+            WaypointAction action) {
+        FarAndWideSavedData data = data(player);
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
+        }
+        Waypoint waypoint = data.getWaypoint(routeId, waypointId);
+        if (waypoint == null) {
+            return RouteOperationResult.WAYPOINT_NOT_FOUND;
+        }
+        if (action == null || !waypoint.dimension().equals(dimension(player))
+                || waypoint.position().distanceToSqr(player.position())
+                        > Constants.Waypoints.EDIT_RADIUS * Constants.Waypoints.EDIT_RADIUS) {
+            return RouteOperationResult.INVALID_WAYPOINT;
+        }
+        RouteOperationResult cargoValidation = validateCargoStations(player, waypoint.position(), action, waypoint.arrivalRadius(),
+                data.getRoute(routeId), waypointId);
+        if (cargoValidation != RouteOperationResult.SUCCESS) {
+            return cargoValidation;
+        }
+        return data.convertWaypoint(routeId, waypointId, action)
+                ? RouteOperationResult.SUCCESS
+                : RouteOperationResult.WAYPOINT_NOT_FOUND;
+    }
+
+    public static RouteOperationResult deleteWaypoint(ServerPlayer player, int routeId, int waypointId) {
+        FarAndWideSavedData data = data(player);
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
+        }
+        Waypoint waypoint = data.getWaypoint(routeId, waypointId);
+        if (waypoint == null) {
+            return RouteOperationResult.WAYPOINT_NOT_FOUND;
+        }
+        if (!waypoint.dimension().equals(dimension(player))
+                || waypoint.position().distanceToSqr(player.position())
+                        > Constants.Waypoints.EDIT_RADIUS * Constants.Waypoints.EDIT_RADIUS) {
+            return RouteOperationResult.INVALID_WAYPOINT;
+        }
+        return data.removeWaypointById(routeId, waypointId)
+                ? RouteOperationResult.SUCCESS
+                : RouteOperationResult.WAYPOINT_NOT_FOUND;
+    }
+
     private static RouteOperationResult validateWaypointMutation(
             ServerPlayer player, FarAndWideSavedData data, int routeId) {
         if (data.getSelectedRouteId(assigneeId(player, data)) != routeId) {
@@ -213,6 +305,52 @@ public final class RouteService {
         return assignment != null && assignment.getRouteId() == routeId && assignment.isActive()
                 ? RouteOperationResult.ROUTE_ACTIVE
                 : RouteOperationResult.SUCCESS;
+    }
+
+    private static RouteOperationResult validateWaypointRequest(ServerPlayer player, Vec3 position,
+            net.minecraft.resources.Identifier requestedDimension, WaypointAction action, double arrivalRadius, Route route,
+            int replacedWaypointId) {
+        if (!(position != null && requestedDimension != null && action != null && Waypoint.isValidArrivalRadius(arrivalRadius)
+                && Double.isFinite(position.x) && Double.isFinite(position.y) && Double.isFinite(position.z)
+                && requestedDimension.equals(dimension(player))
+                && position.distanceToSqr(player.position()) <= Constants.Waypoints.EDIT_RADIUS
+                        * Constants.Waypoints.EDIT_RADIUS)) {
+            return RouteOperationResult.INVALID_WAYPOINT;
+        }
+        return validateCargoStations(player, position, action, arrivalRadius, route, replacedWaypointId);
+    }
+
+    private static RouteOperationResult validateCargoStations(ServerPlayer player, Vec3 waypointPosition,
+            WaypointAction action, double arrivalRadius, Route route, int replacedWaypointId) {
+        if (!(action instanceof WaypointAction.Cargo cargo)) {
+            return RouteOperationResult.SUCCESS;
+        }
+        if (cargo.behavior().usesSameStation() || conflictsWithRoute(cargo.behavior(), route, replacedWaypointId)) {
+            return RouteOperationResult.SAME_CARGO_STATION;
+        }
+        if (!(player.level() instanceof ServerLevel level)) {
+            return RouteOperationResult.INVALID_CARGO_STATION;
+        }
+        boolean valid = switch (cargo.behavior().operation()) {
+            case LOAD -> validStation(level, waypointPosition, arrivalRadius, cargo.behavior().loadStation());
+            case UNLOAD -> validStation(level, waypointPosition, arrivalRadius, cargo.behavior().unloadStation());
+            case UNLOAD_THEN_LOAD -> validStation(level, waypointPosition, arrivalRadius, cargo.behavior().loadStation())
+                    && validStation(level, waypointPosition, arrivalRadius, cargo.behavior().unloadStation());
+        };
+        return valid ? RouteOperationResult.SUCCESS : RouteOperationResult.INVALID_CARGO_STATION;
+    }
+
+    private static boolean conflictsWithRoute(CargoBehavior proposedBehavior, Route route, int replacedWaypointId) {
+        return route != null && route.getWaypoints().stream()
+                .filter(waypoint -> waypoint.id() != replacedWaypointId)
+                .filter(waypoint -> waypoint.action() instanceof WaypointAction.Cargo)
+                .map(waypoint -> ((WaypointAction.Cargo) waypoint.action()).behavior())
+                .anyMatch(proposedBehavior::conflictsWithOppositeRole);
+    }
+
+    private static boolean validStation(ServerLevel level, Vec3 waypointPosition, double arrivalRadius,
+            java.util.Optional<com.lastcallsoftware.farandwide.route.CargoStationBinding> station) {
+        return CargoStationResolver.find(level, waypointPosition, arrivalRadius, station).isPresent();
     }
 
     private static void stopLoadedAssignees(ServerPlayer player, FarAndWideSavedData data, int routeId) {
@@ -251,9 +389,9 @@ public final class RouteService {
         // waypoint above or below the player's current elevation.
         Vec3 look = player.getLookAngle();
         Vec3 position = player.position().add(
-                look.x * Route.OFFSET_DISTANCE,
+                look.x * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE,
                 0.0,
-                look.z * Route.OFFSET_DISTANCE);
+                look.z * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE);
         return new Waypoint(position, dimension(player));
     }
 

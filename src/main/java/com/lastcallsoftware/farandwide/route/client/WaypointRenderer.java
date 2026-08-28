@@ -3,6 +3,7 @@ package com.lastcallsoftware.farandwide.route.client;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.Waypoint;
+import com.lastcallsoftware.farandwide.route.WaypointAction;
 
 import net.minecraft.gizmos.Gizmos;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -14,6 +15,8 @@ public class WaypointRenderer {
     }
 
     public static void register() {
+        WaypointEditor.register();
+        CargoStationSelector.register();
         NeoForge.EVENT_BUS.addListener(WaypointRenderer::onClientTick);
         RouteNavigationHud.register();
     }
@@ -32,7 +35,10 @@ public class WaypointRenderer {
             boolean target = assignment != null
                     && assignment.getRouteId() == route.getId()
                     && assignment.getTargetWaypointIndex() == ordinal - 1;
-            Gizmos.addGizmo(new WaypointGizmo(waypoint.position(), ordinal, target));
+            Gizmos.addGizmo(new WaypointGizmo(
+                    waypoint.position(), ordinal,
+                    waypoint.action() instanceof WaypointAction.Cargo,
+                    target, WaypointEditor.isTargeted(waypoint)));
             ordinal++;
         }
     }

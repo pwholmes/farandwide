@@ -7,11 +7,13 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.FarAndWide;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
+import com.lastcallsoftware.farandwide.route.WaypointAction;
 
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -33,7 +35,6 @@ import net.minecraft.world.phys.Vec3;
  * allocate IDs, and mark changed data dirty.
  */
 public final class FarAndWideSavedData extends SavedData {
-    public static final int CURRENT_DATA_VERSION = 1;
     private static final Identifier ID = Identifier.fromNamespaceAndPath(FarAndWide.MODID, "routes");
 
     public static final SavedDataType<FarAndWideSavedData> TYPE = new SavedDataType<>(
@@ -44,6 +45,7 @@ public final class FarAndWideSavedData extends SavedData {
     private final Map<Integer, Integer> selectedRouteByAssignee = new HashMap<>();
     private int nextRouteId = 1;
     private int nextAssigneeId = 1;
+    private int nextWaypointId = 1;
 
     public static FarAndWideSavedData get(MinecraftServer server) {
         return server.getDataStorage().computeIfAbsent(TYPE);
@@ -55,6 +57,7 @@ public final class FarAndWideSavedData extends SavedData {
     Map<Integer, Integer> getSelectedRoutesByAssignee() { return Map.copyOf(selectedRouteByAssignee); }
     public int getNextRouteId() { return nextRouteId; }
     public int getNextAssigneeId() { return nextAssigneeId; }
+    public int getNextWaypointId() { return nextWaypointId; }
 
     public Route createRoute() {
         Route route = new Route(nextRouteId++, "New Route", TraversalType.ONE_WAY, List.of());
@@ -207,10 +210,82 @@ public final class FarAndWideSavedData extends SavedData {
             return false;
         }
         List<Waypoint> waypoints = new ArrayList<>(route.getWaypoints());
-        waypoints.add(waypoint);
+        waypoints.add(waypoint.withId(nextWaypointId++));
         replaceRoute(route, new Route(route.getId(), route.getName(), route.getTraversalType(), waypoints));
         setDirty();
         return true;
+    }
+
+    public Waypoint getWaypoint(int routeId, int waypointId) {
+        Route route = getRoute(routeId);
+        return route == null ? null : route.getWaypoints().stream()
+                .filter(waypoint -> waypoint.id() == waypointId)
+                .findFirst().orElse(null);
+    }
+
+    /** Replaces waypoint values while retaining the server-allocated stable ID. */
+    public boolean replaceWaypoint(int routeId, int waypointId, Waypoint replacement) {
+        Route route = getRoute(routeId);
+        return route != null && replaceWaypoint(routeId, waypointId, replacement, findWaypointIndex(route, waypointId));
+    }
+
+    /** Replaces waypoint values and moves the stable waypoint ID to the requested list position. */
+    public boolean replaceWaypoint(int routeId, int waypointId, Waypoint replacement, int targetPosition) {
+        Route route = getRoute(routeId);
+        if (route == null || replacement == null) {
+            return false;
+        }
+        int waypointIndex = findWaypointIndex(route, waypointId);
+        if (waypointIndex < 0 || targetPosition < 0 || targetPosition >= route.getWaypoints().size()) {
+            return false;
+        }
+        Map<Integer, Integer> assignmentTargets = assignmentTargetWaypointIds(route);
+        List<Waypoint> waypoints = new ArrayList<>(route.getWaypoints());
+        waypoints.remove(waypointIndex);
+        waypoints.add(targetPosition, new Waypoint(
+                waypointId, replacement.position(), replacement.dimension(), replacement.action(), replacement.arrivalRadius()));
+        replaceRoute(route, new Route(route.getId(), route.getName(), route.getTraversalType(), waypoints));
+        remapAssignmentTargets(routeId, waypoints, assignmentTargets);
+        setDirty();
+        return true;
+    }
+
+    private Map<Integer, Integer> assignmentTargetWaypointIds(Route route) {
+        Map<Integer, Integer> targets = new HashMap<>();
+        for (Map.Entry<Integer, RouteAssignment> entry : assignmentsByAssignee.entrySet()) {
+            RouteAssignment assignment = entry.getValue();
+            int targetIndex = assignment.getTargetWaypointIndex();
+            if (assignment.getRouteId() == route.getId()
+                    && targetIndex >= 0 && targetIndex < route.getWaypoints().size()) {
+                targets.put(entry.getKey(), route.getWaypoints().get(targetIndex).id());
+            }
+        }
+        return targets;
+    }
+
+    private void remapAssignmentTargets(int routeId, List<Waypoint> waypoints, Map<Integer, Integer> targets) {
+        for (Map.Entry<Integer, Integer> entry : targets.entrySet()) {
+            RouteAssignment assignment = assignmentsByAssignee.get(entry.getKey());
+            int targetIndex = findWaypointIndex(waypoints, entry.getValue());
+            if (assignment != null && assignment.getRouteId() == routeId && targetIndex >= 0) {
+                assignmentsByAssignee.put(entry.getKey(), new RouteAssignment(
+                        assignment.getRouteId(), assignment.getAssigneeId(), targetIndex,
+                        assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), assignment.isActive()));
+            }
+        }
+    }
+
+    /** Converts behavior without allowing the request to move the waypoint. */
+    public boolean convertWaypoint(int routeId, int waypointId,
+            com.lastcallsoftware.farandwide.route.WaypointAction action) {
+        Waypoint waypoint = getWaypoint(routeId, waypointId);
+        return waypoint != null && replaceWaypoint(routeId, waypointId,
+                new Waypoint(waypointId, waypoint.position(), waypoint.dimension(), action, waypoint.arrivalRadius()));
+    }
+
+    public boolean removeWaypointById(int routeId, int waypointId) {
+        Route route = getRoute(routeId);
+        return route != null && removeWaypoint(routeId, findWaypointIndex(route, waypointId));
     }
 
     public boolean removeWaypoint(int routeId, int waypointIndex) {
@@ -223,29 +298,6 @@ public final class FarAndWideSavedData extends SavedData {
         replaceRoute(route, new Route(route.getId(), route.getName(), route.getTraversalType(), waypoints));
         setDirty();
         return true;
-    }
-
-    public boolean removeNearestWaypoint(int routeId, Vec3 position, Identifier dimension, double maxDistance) {
-        Route route = getRoute(routeId);
-        if (route == null) {
-            return false;
-        }
-        double maxDistanceSquared = maxDistance * maxDistance;
-        for (int index = 0; index < route.getWaypoints().size(); index++) {
-            Waypoint waypoint = route.getWaypoints().get(index);
-            if (waypoint.dimension().equals(dimension) && waypoint.position().distanceToSqr(position) <= maxDistanceSquared) {
-                return removeWaypoint(routeId, index);
-            }
-        }
-        return false;
-    }
-
-    public boolean toggleWaypoint(int routeId, Vec3 position, Identifier dimension, double maxDistance,
-            Waypoint waypointToAdd) {
-        if (removeNearestWaypoint(routeId, position, dimension, maxDistance)) {
-            return true;
-        }
-        return addWaypoint(routeId, waypointToAdd);
     }
 
     public boolean deleteRoute(int routeId) {
@@ -270,6 +322,19 @@ public final class FarAndWideSavedData extends SavedData {
         routes.set(routes.indexOf(oldRoute), newRoute);
     }
 
+    private static int findWaypointIndex(Route route, int waypointId) {
+        return findWaypointIndex(route.getWaypoints(), waypointId);
+    }
+
+    private static int findWaypointIndex(List<Waypoint> waypoints, int waypointId) {
+        for (int index = 0; index < waypoints.size(); index++) {
+            if (waypoints.get(index).id() == waypointId) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
     private static int findNearestWaypointIndex(Route route, Vec3 position, Identifier dimension) {
         int nearestIndex = 0;
         double nearestDistance = Double.MAX_VALUE;
@@ -288,6 +353,7 @@ public final class FarAndWideSavedData extends SavedData {
     }
 
     static FarAndWideSavedData restore(int dataVersion, int savedNextRouteId, int savedNextAssigneeId,
+            int savedNextWaypointId,
             List<Route> routes, Map<Integer, RouteAssignment> assignments, Map<Integer, Integer> selectedRoutes) {
         /*
          * Repair records independently instead of rejecting the complete save.
@@ -298,13 +364,32 @@ public final class FarAndWideSavedData extends SavedData {
         FarAndWideSavedData data = new FarAndWideSavedData();
         boolean repaired = false;
         Set<Integer> routeIds = new HashSet<>();
+        Set<Integer> waypointIds = new HashSet<>();
+        int highestPersistedWaypointId = routes.stream()
+                .flatMap(route -> route.getWaypoints().stream())
+                .mapToInt(Waypoint::id)
+                .max().orElse(0);
+        data.nextWaypointId = Math.max(savedNextWaypointId, highestPersistedWaypointId + 1);
         for (Route route : routes) {
             if (route.getId() <= 0 || !routeIds.add(route.getId())) {
                 FarAndWide.LOGGER.warn("Skipping route with invalid or duplicate ID {}", route.getId());
                 repaired = true;
                 continue;
             }
-            data.routes.add(route);
+            List<Waypoint> restoredWaypoints = new ArrayList<>(route.getWaypoints().size());
+            for (Waypoint waypoint : route.getWaypoints()) {
+                if (waypoint.id() <= 0 || !waypointIds.add(waypoint.id())) {
+                    int waypointId = data.nextWaypointId++;
+                    restoredWaypoints.add(new Waypoint(
+                            waypointId, waypoint.position(), waypoint.dimension(), WaypointAction.normal()));
+                    waypointIds.add(waypointId);
+                    repaired = true;
+                } else {
+                    restoredWaypoints.add(waypoint);
+                }
+            }
+            data.routes.add(new Route(
+                    route.getId(), route.getName(), route.getTraversalType(), restoredWaypoints));
         }
 
         for (Map.Entry<Integer, RouteAssignment> entry : assignments.entrySet()) {
@@ -351,12 +436,14 @@ public final class FarAndWideSavedData extends SavedData {
         int highestAssigneeId = Math.max(highestAssignmentId, highestSelectionId);
         data.nextRouteId = Math.max(savedNextRouteId, highestRouteId + 1);
         data.nextAssigneeId = Math.max(savedNextAssigneeId, highestAssigneeId + 1);
-        if (data.nextRouteId != savedNextRouteId || data.nextAssigneeId != savedNextAssigneeId) {
-            FarAndWide.LOGGER.warn("Repairing stale route or assignee ID allocator");
+        if (data.nextRouteId != savedNextRouteId || data.nextAssigneeId != savedNextAssigneeId
+                || data.nextWaypointId != savedNextWaypointId) {
+            FarAndWide.LOGGER.warn("Repairing stale route, assignee, or waypoint ID allocator");
             repaired = true;
         }
-        if (dataVersion > CURRENT_DATA_VERSION) {
-            FarAndWide.LOGGER.warn("Route data version {} is newer than supported version {}", dataVersion, CURRENT_DATA_VERSION);
+        if (dataVersion > Constants.Persistence.CURRENT_DATA_VERSION) {
+            FarAndWide.LOGGER.warn("Route data version {} is newer than supported version {}", dataVersion,
+                    Constants.Persistence.CURRENT_DATA_VERSION);
         }
         if (repaired) {
             data.setDirty();

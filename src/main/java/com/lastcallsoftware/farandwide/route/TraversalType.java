@@ -14,8 +14,6 @@ public enum TraversalType {
             value -> TraversalType.valueOf(value.toUpperCase(java.util.Locale.ROOT)),
             value -> value.name().toLowerCase(java.util.Locale.ROOT));
 
-    public static final int ICON_TEXTURE_SIZE = 1254;
-
     private final String translationKey;
     private final Identifier icon;
 

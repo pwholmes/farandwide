@@ -2,21 +2,19 @@ package com.lastcallsoftware.farandwide.vehicle.server;
 
 import com.lastcallsoftware.farandwide.vehicle.VehicleActuator;
 import com.lastcallsoftware.farandwide.vehicle.HorseControls;
+import com.lastcallsoftware.farandwide.Constants;
+import com.lastcallsoftware.farandwide.vehicle.EquineVehicleSupport;
 import com.lastcallsoftware.farandwide.vehicle.navigation.NavigationIntent;
 
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.equine.AbstractHorse;
 import net.minecraft.world.level.pathfinder.Path;
 
-/** Uses vanilla horse pathfinding when no riding client owns movement. */
+/** Uses vanilla equine pathfinding for horses, donkeys, and mules without a controlling client. */
 final class ServerHorseActuator implements VehicleActuator {
-    /** Multiplier applied to unmounted pathfinding speed; try 2.0 for a faster gait. */
-    static final double MOVEMENT_SPEED_MODIFIER = 1.0;
-    private static final double TURNING_SPEED_RATIO = 0.2;
-
     @Override
     public boolean supports(Entity vehicle) {
-        return vehicle instanceof AbstractHorse;
+        return EquineVehicleSupport.supportsNavigation(vehicle);
     }
 
     @Override
@@ -37,7 +35,7 @@ final class ServerHorseActuator implements VehicleActuator {
                 ? intent
                 : NavigationIntent.toward(horse.position(), path.getNextEntityPos(horse));
         HorseControls.Input input = HorseControls.from(
-                horse.getYRot(), steeringIntent, HorseControls.MOVES_WHILE_TURNING);
+                horse.getYRot(), steeringIntent, Constants.Vehicles.EQUINES_MOVE_WHILE_TURNING);
         horse.setYRot(input.yaw());
         horse.setYBodyRot(input.yaw());
         horse.setYHeadRot(input.yaw());
@@ -47,12 +45,13 @@ final class ServerHorseActuator implements VehicleActuator {
             // without the full moving-turn behavior used when the setting is enabled.
             if (hasNextNode(path)) {
                 horse.getNavigation().moveTo(
-                        path, MOVEMENT_SPEED_MODIFIER * TURNING_SPEED_RATIO);
+                        path, Constants.Vehicles.EQUINE_MOVEMENT_SPEED_MODIFIER
+                                * Constants.Vehicles.EQUINE_TURNING_SPEED_RATIO);
             }
             return;
         }
         if (hasNextNode(path)) {
-            horse.getNavigation().moveTo(path, MOVEMENT_SPEED_MODIFIER);
+            horse.getNavigation().moveTo(path, Constants.Vehicles.EQUINE_MOVEMENT_SPEED_MODIFIER);
         }
     }
 

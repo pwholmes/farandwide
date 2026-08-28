@@ -8,6 +8,7 @@ import com.lastcallsoftware.farandwide.route.network.payload.RouteMutationPayloa
 import com.lastcallsoftware.farandwide.route.network.payload.RouteOperationResultPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.SelectRoutePayload;
+import com.lastcallsoftware.farandwide.route.network.payload.WaypointMutationPayload;
 import com.lastcallsoftware.farandwide.route.server.RouteService;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 
@@ -30,7 +31,7 @@ public final class RouteNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("1");
+        var registrar = event.registrar("4");
         registrar.playToServer(RequestRouteSnapshotPayload.TYPE, RequestRouteSnapshotPayload.STREAM_CODEC,
                 (payload, context) -> replyWithRoutes((ServerPlayer) context.player(), context));
         registrar.playToServer(SelectRoutePayload.TYPE, SelectRoutePayload.STREAM_CODEC,
@@ -48,13 +49,30 @@ public final class RouteNetwork {
                                 player, payload.routeId(), payload.name(), payload.traversalType());
                         case DELETE -> RouteService.deleteRoute(player, payload.routeId());
                         case ADD_WAYPOINT -> RouteService.addWaypoint(player, payload.routeId());
-                        case REMOVE_WAYPOINT -> RouteService.removeWaypoint(player, payload.routeId());
-                        case TOGGLE_WAYPOINT -> RouteService.toggleWaypoint(player, payload.routeId());
                     };
                     replyWithResult(context, result);
                     if (result == RouteOperationResult.SUCCESS) {
                         // Route definitions are shared server state, so every
                         // connected client replaces its cache after a mutation.
+                        broadcastRoutes(player);
+                    }
+                    replyWithRoutes(player, context);
+                });
+        registrar.playToServer(WaypointMutationPayload.TYPE, WaypointMutationPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    ServerPlayer player = (ServerPlayer) context.player();
+                    RouteOperationResult result = switch (payload.mutation()) {
+                        case CREATE -> RouteService.createWaypoint(player, payload.routeId(), payload.position(),
+                                payload.dimension(), payload.waypointAction(), payload.arrivalRadius());
+                        case REPLACE -> RouteService.replaceWaypoint(player, payload.routeId(), payload.waypointId(),
+                                payload.position(), payload.dimension(), payload.waypointAction(), payload.targetPosition(),
+                                payload.arrivalRadius());
+                        case CONVERT -> RouteService.convertWaypoint(
+                                player, payload.routeId(), payload.waypointId(), payload.waypointAction());
+                        case DELETE -> RouteService.deleteWaypoint(player, payload.routeId(), payload.waypointId());
+                    };
+                    replyWithResult(context, result);
+                    if (result == RouteOperationResult.SUCCESS) {
                         broadcastRoutes(player);
                     }
                     replyWithRoutes(player, context);

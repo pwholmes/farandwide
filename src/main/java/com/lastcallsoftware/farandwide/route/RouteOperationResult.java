@@ -15,7 +15,11 @@ public enum RouteOperationResult {
     NO_WAYPOINTS,
     NO_WAYPOINT_IN_DIMENSION,
     NO_ASSIGNMENT,
-    ROUTE_ACTIVE;
+    ROUTE_ACTIVE,
+    WAYPOINT_NOT_FOUND,
+    INVALID_WAYPOINT,
+    INVALID_CARGO_STATION,
+    SAME_CARGO_STATION;
 
     public String translationKey() {
         return "message.farandwide.operation." + name().toLowerCase(java.util.Locale.ROOT);

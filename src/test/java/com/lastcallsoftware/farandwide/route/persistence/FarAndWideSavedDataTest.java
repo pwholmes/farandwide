@@ -9,17 +9,125 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
+import java.util.List;
+import java.util.Optional;
 import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.CargoBehavior;
+import com.lastcallsoftware.farandwide.route.CargoFilter;
+import com.lastcallsoftware.farandwide.route.CargoOperation;
+import com.lastcallsoftware.farandwide.route.CargoStationBinding;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
+import com.lastcallsoftware.farandwide.route.WaypointAction;
 import net.minecraft.resources.Identifier;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 class FarAndWideSavedDataTest {
     private static final Identifier OVERWORLD = Identifier.parse("minecraft:overworld");
     private static final Identifier NETHER = Identifier.parse("minecraft:the_nether");
+
+    @Test
+    void oldWaypointsReceiveStableIdsAndNormalBehaviorInRouteOrder() {
+        JsonElement saved = JsonParser.parseString("""
+                {
+                  "dataVersion": 1,
+                  "routes": [{
+                    "id": 4,
+                    "name": "Legacy",
+                    "traversalType": "one_way",
+                    "waypoints": [
+                      {"x": 1, "y": 64, "z": 3, "dimension": "minecraft:overworld"},
+                      {"x": 9, "y": 70, "z": 2, "dimension": "minecraft:the_nether"}
+                    ]
+                  }]
+                }
+                """);
+
+        FarAndWideSavedData restored = RouteCodecs.SAVED_DATA.parse(JsonOps.INSTANCE, saved).getOrThrow();
+        List<Waypoint> waypoints = restored.getRoute(4).getWaypoints();
+
+        assertEquals(List.of(1, 2), waypoints.stream().map(Waypoint::id).toList());
+        assertEquals(List.of(new Vec3(1, 64, 3), new Vec3(9, 70, 2)),
+                waypoints.stream().map(Waypoint::position).toList());
+        assertEquals(List.of(OVERWORLD, NETHER), waypoints.stream().map(Waypoint::dimension).toList());
+        assertTrue(waypoints.stream().allMatch(waypoint -> waypoint.action() instanceof WaypointAction.Normal));
+    }
+
+    @Test
+    void newWaypointIdsAreUniqueAcrossRoutesAfterMigration() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route firstRoute = data.createRoute();
+        Route secondRoute = data.createRoute();
+
+        assertTrue(data.addWaypoint(firstRoute.getId(), new Waypoint(Vec3.ZERO, OVERWORLD)));
+        assertTrue(data.addWaypoint(secondRoute.getId(), new Waypoint(Vec3.ZERO, OVERWORLD)));
+
+        assertEquals(1, data.getRoute(firstRoute.getId()).getWaypoints().getFirst().id());
+        assertEquals(2, data.getRoute(secondRoute.getId()).getWaypoints().getFirst().id());
+        assertEquals(3, data.getNextWaypointId());
+    }
+
+    @Test
+    void waypointMutationsUseStableIdInsteadOfMutableIndex() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(1, 64, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(2, 64, 0), OVERWORLD));
+        int firstId = data.getRoute(route.getId()).getWaypoints().get(0).id();
+        int secondId = data.getRoute(route.getId()).getWaypoints().get(1).id();
+        CargoBehavior cargo = CargoBehavior.unfiltered(CargoOperation.LOAD);
+
+        assertTrue(data.removeWaypointById(route.getId(), firstId));
+        assertTrue(data.convertWaypoint(route.getId(), secondId, WaypointAction.cargo(cargo)));
+
+        Waypoint remaining = data.getRoute(route.getId()).getWaypoints().getFirst();
+        assertEquals(secondId, remaining.id());
+        assertEquals(WaypointAction.cargo(cargo), remaining.action());
+    }
+
+    @Test
+    void replacementCannotChangeStableWaypointId() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int waypointId = data.getRoute(route.getId()).getWaypoints().getFirst().id();
+
+        assertTrue(data.replaceWaypoint(route.getId(), waypointId,
+                new Waypoint(999, new Vec3(8, 70, 4), NETHER, WaypointAction.normal())));
+
+        Waypoint replaced = data.getWaypoint(route.getId(), waypointId);
+        assertNotNull(replaced);
+        assertEquals(waypointId, replaced.id());
+        assertEquals(new Vec3(8, 70, 4), replaced.position());
+    }
+
+    @Test
+    void movingWaypointPreservesStableIdsAndAssignmentTarget() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(1, 64, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(2, 64, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(3, 64, 0), OVERWORLD));
+        route = data.getRoute(route.getId());
+        int firstId = route.getWaypoints().get(0).id();
+        int secondId = route.getWaypoints().get(1).id();
+        int thirdId = route.getWaypoints().get(2).id();
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, new Vec3(2, 64, 0), OVERWORLD);
+        data.updateAssignmentProgress(assigneeId, 1, 1);
+
+        Waypoint third = data.getWaypoint(route.getId(), thirdId);
+        assertTrue(data.replaceWaypoint(route.getId(), thirdId, third, 1));
+
+        route = data.getRoute(route.getId());
+        assertEquals(List.of(firstId, thirdId, secondId),
+                route.getWaypoints().stream().map(Waypoint::id).toList());
+        assertEquals(2, data.getAssignment(assigneeId).getTargetWaypointIndex());
+    }
 
     @Test
     void routeAndAssignmentFieldsSurviveDiskRoundTrip() {
@@ -112,6 +220,57 @@ class FarAndWideSavedDataTest {
         assertNull(restored.getRoute(route.getId()));
         assertNull(restored.getAssignment(assigneeId));
         assertEquals(0, restored.getSelectedRouteId(assigneeId));
+    }
+
+    @Test
+    void cargoWaypointFieldsSurviveDiskRoundTrip() {
+        FarAndWideSavedData original = new FarAndWideSavedData();
+        Route route = original.createRoute();
+        CargoBehavior behavior = new CargoBehavior(
+                CargoOperation.UNLOAD_THEN_LOAD,
+                CargoFilter.allowList(List.of(Identifier.parse("minecraft:coal"))),
+                CargoFilter.allowList(List.of(Identifier.parse("minecraft:iron_ingot"))),
+                Optional.of(new CargoStationBinding(new BlockPos(5, 63, 9), Direction.UP)),
+                Optional.of(new CargoStationBinding(new BlockPos(6, 63, 9), Direction.EAST)));
+        assertTrue(original.addWaypoint(route.getId(), new Waypoint(
+                0, new Vec3(5, 64, 9), NETHER, WaypointAction.cargo(behavior))));
+        Waypoint persisted = original.getRoute(route.getId()).getWaypoints().getFirst();
+
+        FarAndWideSavedData restored = roundTrip(original);
+
+        assertEquals(persisted, restored.getRoute(route.getId()).getWaypoints().getFirst());
+        assertEquals(original.getNextWaypointId(), restored.getNextWaypointId());
+    }
+
+    @Test
+    void legacySingleStationBindingAppliesToBothCargoDirections() {
+        JsonElement saved = JsonParser.parseString("""
+                {
+                  "routes": [{
+                    "id": 1,
+                    "name": "Legacy Cargo",
+                    "traversalType": "one_way",
+                    "waypoints": [{
+                      "id": 1,
+                      "x": 2.5, "y": 64.5, "z": 4.5,
+                      "dimension": "minecraft:overworld",
+                      "cargo": {
+                        "operation": "unload_then_load",
+                        "loadFilter": {"mode": "all"},
+                        "unloadFilter": {"mode": "all"},
+                        "station": {"x": 2, "y": 63, "z": 4, "side": "north"}
+                      }
+                    }]
+                  }]
+                }
+                """);
+
+        FarAndWideSavedData restored = RouteCodecs.SAVED_DATA.parse(JsonOps.INSTANCE, saved).getOrThrow();
+        WaypointAction.Cargo cargo = (WaypointAction.Cargo) restored.getRoute(1).getWaypoints().getFirst().action();
+        CargoStationBinding expected = new CargoStationBinding(new BlockPos(2, 63, 4), Direction.NORTH);
+
+        assertEquals(expected, cargo.behavior().loadStation().orElseThrow());
+        assertEquals(expected, cargo.behavior().unloadStation().orElseThrow());
     }
 
     @Test

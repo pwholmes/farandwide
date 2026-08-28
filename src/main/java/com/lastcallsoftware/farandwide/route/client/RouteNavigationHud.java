@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.client;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.TraversalType;
@@ -18,17 +19,17 @@ import net.neoforged.neoforge.common.NeoForge;
 
 /** HUD direction and distance indicator for the player's current navigation assignment. */
 public final class RouteNavigationHud {
-    private static final boolean DEFAULT_HUD_VISIBLE = true;
+    private static final boolean DEFAULT_HUD_VISIBLE = Constants.Client.DEFAULT_HUD_VISIBLE;
     private static final HudPosition HUD_POSITION = HudPosition.TOP_CENTER;
-    private static final int HUD_MARGIN = 8;
+    private static final int HUD_MARGIN = Constants.Client.HUD_MARGIN;
     private static final Identifier NAVIGATION_NEEDLE = Identifier.fromNamespaceAndPath(
             "farandwide",
             "textures/gui/navigation_needle.png");
-    private static final int NEEDLE_TEXTURE_SIZE = 1254;
-    private static final int INDICATOR_DISPLAY_SIZE = 16;
-    private static final int NEEDLE_DISPLAY_SIZE = 16;
-    private static final int TRAVERSAL_ICON_SIZE = 12;
-    private static final int TITLE_GAP = 3;
+    private static final int NEEDLE_TEXTURE_SIZE = Constants.Client.NAVIGATION_NEEDLE_TEXTURE_SIZE;
+    private static final int INDICATOR_DISPLAY_SIZE = Constants.Client.NAVIGATION_INDICATOR_DISPLAY_SIZE;
+    private static final int NEEDLE_DISPLAY_SIZE = Constants.Client.NAVIGATION_NEEDLE_DISPLAY_SIZE;
+    private static final int TRAVERSAL_ICON_SIZE = Constants.Client.HUD_TRAVERSAL_ICON_SIZE;
+    private static final int TITLE_GAP = Constants.Client.HUD_TITLE_GAP;
     private static float displayedAngle;
     private static boolean hasDisplayedAngle;
     private static boolean visible = DEFAULT_HUD_VISIBLE;
@@ -120,10 +121,10 @@ public final class RouteNavigationHud {
                 0,
                 TRAVERSAL_ICON_SIZE,
                 TRAVERSAL_ICON_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE);
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE);
         graphics.text(
                 minecraft.font,
                 routeName,
@@ -171,10 +172,10 @@ public final class RouteNavigationHud {
                 0,
                 TRAVERSAL_ICON_SIZE,
                 TRAVERSAL_ICON_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE,
-                TraversalType.ICON_TEXTURE_SIZE);
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE);
         graphics.text(minecraft.font, routeName, titleX + TRAVERSAL_ICON_SIZE + TITLE_GAP, titleY, 0xFFFFFFFF);
     }
 

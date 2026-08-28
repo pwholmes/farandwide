@@ -1,7 +1,7 @@
 package com.lastcallsoftware.farandwide.route.client;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.Route;
-import com.lastcallsoftware.farandwide.route.TraversalType;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -18,11 +18,11 @@ import net.minecraft.network.chat.Component;
  * separate from the route selected in the manager until Select is pressed.
  */
 public class RouteManagementScreen extends Screen {
-    private static final int LIST_TOP = 40;
-    private static final int PANEL_WIDTH = 260;
-    private static final int BUTTON_WIDTH = 60;
-    private static final int BUTTON_GAP = 4;
-    private static final int TRAVERSAL_ICON_SIZE = 16;
+    private static final int LIST_TOP = Constants.Client.ROUTE_LIST_TOP;
+    private static final int PANEL_WIDTH = Constants.Client.ROUTE_PANEL_WIDTH;
+    private static final int BUTTON_WIDTH = Constants.Client.ROUTE_BUTTON_WIDTH;
+    private static final int BUTTON_GAP = Constants.Client.ROUTE_BUTTON_GAP;
+    private static final int TRAVERSAL_ICON_SIZE = Constants.Client.ROUTE_TRAVERSAL_ICON_SIZE;
 
     private RouteList routeList;
     private Button selectButton;
@@ -228,10 +228,10 @@ public class RouteManagementScreen extends Screen {
                     0,
                     TRAVERSAL_ICON_SIZE,
                     TRAVERSAL_ICON_SIZE,
-                    TraversalType.ICON_TEXTURE_SIZE,
-                    TraversalType.ICON_TEXTURE_SIZE,
-                    TraversalType.ICON_TEXTURE_SIZE,
-                    TraversalType.ICON_TEXTURE_SIZE);
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE);
             graphics.text(font, name, iconX + TRAVERSAL_ICON_SIZE + 4, getContentY() + 5, color);
 
             if (hovered

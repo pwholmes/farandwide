@@ -5,11 +5,14 @@ import java.util.function.Consumer;
 
 import org.lwjgl.glfw.GLFW;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.client.RouteEditorScreen;
+import com.lastcallsoftware.farandwide.route.client.CargoWaypointScreen;
 import com.lastcallsoftware.farandwide.route.client.RouteManagementScreen;
 import com.lastcallsoftware.farandwide.route.client.RouteManager;
 import com.lastcallsoftware.farandwide.route.client.RouteNavigationHud;
+import com.lastcallsoftware.farandwide.route.client.WaypointEditor;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import net.minecraft.client.Minecraft;
@@ -34,27 +37,22 @@ public final class FarAndWideCommands {
     public static final FarAndWideCommand ASSIGN_ROUTE = command(
             GLFW.GLFW_KEY_G,
             "command.farandwide.assign_route",
-            () -> withCurrentRoute(RouteManager::assignRoute));
+            RouteManager::toggleRouteAssignment);
 
     public static final FarAndWideCommand TOGGLE_ROUTE = command(
             GLFW.GLFW_KEY_A,
             "command.farandwide.toggle_route",
             RouteManager::toggleCurrentAssignment);
 
-    public static final FarAndWideCommand ADD_WAYPOINT = command(
-            GLFW.GLFW_KEY_W,
-            "command.farandwide.add_waypoint",
-            () -> withCurrentRoute(RouteManager::addCurrentPosition));
-
-    public static final FarAndWideCommand REMOVE_WAYPOINT = command(
-            GLFW.GLFW_KEY_R,
-            "command.farandwide.remove_waypoint",
-            () -> withCurrentRoute(RouteManager::removeCurrentPosition));
-
-    public static final FarAndWideCommand TOGGLE_WAYPOINT = command(
+    public static final FarAndWideCommand ADD_OR_REMOVE_WAYPOINT = command(
             GLFW.GLFW_KEY_T,
-            "command.farandwide.toggle_waypoint",
-            () -> withCurrentRoute(RouteManager::toggleCurrentPosition));
+            "command.farandwide.add_or_remove_waypoint",
+            () -> withCurrentRoute(WaypointEditor::toggleTargetedWaypoint));
+
+    public static final FarAndWideCommand EDIT_WAYPOINT = command(
+            GLFW.GLFW_KEY_X,
+            "command.farandwide.edit_waypoint",
+            WaypointEditor::editTargetedWaypoint);
 
     public static final FarAndWideCommand TOGGLE_HUD = command(
             GLFW.GLFW_KEY_V,
@@ -72,9 +70,8 @@ public final class FarAndWideCommands {
                 CREATE_ROUTE,
                 ASSIGN_ROUTE,
                 TOGGLE_ROUTE,
-                ADD_WAYPOINT,
-                REMOVE_WAYPOINT,
-                TOGGLE_WAYPOINT,
+                ADD_OR_REMOVE_WAYPOINT,
+                EDIT_WAYPOINT,
                 TOGGLE_HUD,
                 HELP_SCREEN
         );
@@ -100,6 +97,19 @@ public final class FarAndWideCommands {
             Minecraft.getInstance().player.sendOverlayMessage(
                     Component.translatable("message.farandwide.no_route_selected"));
         }
+    }
+
+    private static void openCargoWaypointScreen(Route route) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return;
+        }
+        var look = minecraft.player.getLookAngle();
+        var position = minecraft.player.position().add(
+                look.x * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE, 0.0,
+                look.z * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE);
+        minecraft.setScreenAndShow(new CargoWaypointScreen(
+                route, position, minecraft.player.level().dimension().identifier()));
     }
 
     private record CommandDefinition(
