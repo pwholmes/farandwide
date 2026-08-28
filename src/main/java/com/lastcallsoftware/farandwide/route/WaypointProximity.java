@@ -1,7 +1,5 @@
 package com.lastcallsoftware.farandwide.route;
 
-import com.lastcallsoftware.farandwide.Constants;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 

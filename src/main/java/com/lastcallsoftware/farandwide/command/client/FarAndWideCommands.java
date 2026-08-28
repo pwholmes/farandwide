@@ -5,10 +5,8 @@ import java.util.function.Consumer;
 
 import org.lwjgl.glfw.GLFW;
 
-import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.client.RouteEditorScreen;
-import com.lastcallsoftware.farandwide.route.client.CargoWaypointScreen;
 import com.lastcallsoftware.farandwide.route.client.RouteManagementScreen;
 import com.lastcallsoftware.farandwide.route.client.RouteManager;
 import com.lastcallsoftware.farandwide.route.client.RouteNavigationHud;
@@ -97,19 +95,6 @@ public final class FarAndWideCommands {
             Minecraft.getInstance().player.sendOverlayMessage(
                     Component.translatable("message.farandwide.no_route_selected"));
         }
-    }
-
-    private static void openCargoWaypointScreen(Route route) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) {
-            return;
-        }
-        var look = minecraft.player.getLookAngle();
-        var position = minecraft.player.position().add(
-                look.x * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE, 0.0,
-                look.z * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE);
-        minecraft.setScreenAndShow(new CargoWaypointScreen(
-                route, position, minecraft.player.level().dimension().identifier()));
     }
 
     private record CommandDefinition(
