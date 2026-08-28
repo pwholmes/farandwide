@@ -23,7 +23,6 @@ import java.util.Optional;
 /** Reusable create/edit screen for normal and cargo waypoint behavior. */
 public final class CargoWaypointScreen extends Screen {
     private static final int CONTROL_WIDTH = Constants.Client.CARGO_WAYPOINT_CONTROL_WIDTH;
-    private static final int SAVE_BUTTON_Y = Constants.Client.CARGO_WAYPOINT_SAVE_BUTTON_Y;
 
     private final Route route;
     private final Waypoint existingWaypoint;
@@ -85,62 +84,77 @@ public final class CargoWaypointScreen extends Screen {
     protected void init() {
         int left = (width - CONTROL_WIDTH) / 2;
         int top = height / 2 - 94;
+        int yPos = top;
 
+        // Behavior (Normal vs Cargo)
         addRenderableWidget(CycleButton
                 .builder(BehaviorType::displayName, selectedBehavior)
                 .withValues(BehaviorType.values())
-                .create(left, top, CONTROL_WIDTH, 20,
+                .create(left, yPos, CONTROL_WIDTH, 20,
                         Component.translatable("screen.farandwide.cargo_waypoint.behavior"),
                         (button, value) -> {
                             selectedBehavior = value;
                             validationError = null;
                             updateCargoControls();
                         }));
+        yPos += 26;
+
+        // Waypoint (Ordinal) Position and Radius
+        if (existingWaypoint != null) {
+            moveUpButton = addRenderableWidget(Button.builder(Component.literal("↑"), button -> moveWaypoint(-1))
+                    .bounds(left, yPos, 20, 20)
+                    .build());
+            moveDownButton = addRenderableWidget(Button.builder(Component.literal("↓"), button -> moveWaypoint(1))
+                    .bounds(left + 100, yPos, 20, 20)
+                    .build());
+            radiusDecreaseButton = addRenderableWidget(Button.builder(Component.literal("+"), button -> adjustRadius(-1))
+                    .bounds(left + 124, yPos, 20, 20)
+                    .build());
+            radiusIncreaseButton = addRenderableWidget(Button.builder(Component.literal("−"), button -> adjustRadius(1))
+                    .bounds(left + CONTROL_WIDTH - 20, yPos, 20, 20)
+                    .build());
+            yPos += 26;
+        }
+
+        // Cargo operation (Load, Unload, Unload then Load)
         operationButton = addRenderableWidget(CycleButton
                 .builder(CargoWaypointScreen::operationName, selectedOperation)
                 .withValues(CargoOperation.values())
-                .create(left, top + 26, CONTROL_WIDTH, 20,
+                .create(left, yPos, CONTROL_WIDTH, 20,
                         Component.translatable("screen.farandwide.cargo_waypoint.operation"),
                         (button, value) -> {
                             selectedOperation = value;
                             validationError = null;
                             updateCargoControls();
                         }));
-        int positionOffset = existingWaypoint == null ? 0 : 26;
-        if (existingWaypoint != null) {
-            moveUpButton = addRenderableWidget(Button.builder(Component.literal("↑"), button -> moveWaypoint(-1))
-                    .bounds(left, top + 52, 20, 20)
-                    .build());
-            moveDownButton = addRenderableWidget(Button.builder(Component.literal("↓"), button -> moveWaypoint(1))
-                    .bounds(left + 100, top + 52, 20, 20)
-                    .build());
-            radiusDecreaseButton = addRenderableWidget(Button.builder(Component.literal("+"), button -> adjustRadius(-1))
-                    .bounds(left + 124, top + 52, 20, 20)
-                    .build());
-            radiusIncreaseButton = addRenderableWidget(Button.builder(Component.literal("−"), button -> adjustRadius(1))
-                    .bounds(left + CONTROL_WIDTH - 20, top + 52, 20, 20)
-                    .build());
-        }
+        yPos += 26;
+
+        // Load and unload station selection buttons.
         selectLoadStationButton = addRenderableWidget(Button.builder(
                 Component.translatable("screen.farandwide.cargo_waypoint.select_load_station"),
                 button -> CargoStationSelector.begin(this, CargoStationSelector.Role.LOAD))
-                .bounds(left, top + 52 + positionOffset, 116, 20)
+                .bounds(left, yPos, 116, 20)
                 .build());
         selectUnloadStationButton = addRenderableWidget(Button.builder(
                 Component.translatable("screen.farandwide.cargo_waypoint.select_unload_station"),
                 button -> CargoStationSelector.begin(this, CargoStationSelector.Role.UNLOAD))
-                .bounds(left + 124, top + 52 + positionOffset, 116, 20)
+                .bounds(left + 124, yPos, 116, 20)
                 .build());
+        yPos += 26;
 
+        // Leave room for up to two station/filter detail rows.
+        yPos += 52;
+
+        // Save and Cancel buttons.
         addRenderableWidget(Button.builder(
                 Component.translatable("screen.farandwide.cargo_waypoint.save"),
                 button -> save())
-                .bounds(left, top + SAVE_BUTTON_Y + positionOffset, 116, 20)
+                .bounds(left, yPos, 116, 20)
                 .build());
         addRenderableWidget(Button.builder(
                 Component.translatable("screen.farandwide.cargo_waypoint.cancel"),
                 button -> onClose())
-                .bounds(left + 124, top + SAVE_BUTTON_Y + positionOffset, 116, 20)
+                .bounds(left + 124, yPos, 116, 20)
                 .build());
         updateCargoControls();
     }
@@ -164,7 +178,8 @@ public final class CargoWaypointScreen extends Screen {
 
     private void updateCargoControls() {
         if (operationButton != null) {
-            operationButton.active = selectedBehavior == BehaviorType.CARGO;
+            operationButton.visible = selectedBehavior == BehaviorType.CARGO;
+            operationButton.active = operationButton.visible;
         }
         if (selectLoadStationButton != null) {
             selectLoadStationButton.visible = selectedBehavior == BehaviorType.CARGO
@@ -251,33 +266,39 @@ public final class CargoWaypointScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         int left = (width - CONTROL_WIDTH) / 2;
         int top = height / 2 - 94;
+        int yPos = top;
+        yPos += 26; // Behavior row.
+
         graphics.text(font, title, (width - font.width(title)) / 2, top - 25, 0xFFFFFFFF);
-        int positionOffset = existingWaypoint == null ? 0 : 26;
+
         if (existingWaypoint != null) {
             Component position = Component.translatable(
                     "screen.farandwide.cargo_waypoint.position", targetPosition + 1, route.getWaypoints().size());
-            graphics.centeredText(font, position, left + 60, top + 58, 0xFFFFFFFF);
+            graphics.centeredText(font, position, left + 60, yPos + 6, 0xFFFFFFFF);
             graphics.centeredText(font, Component.literal("Radius: %.1f".formatted(selectedArrivalRadius)),
-                    left + 182, top + 58, 0xFFFFFFFF);
+                    left + 182, yPos + 6, 0xFFFFFFFF);
+            yPos += 26;
         }
+        yPos += 26; // Operation row.
+        yPos += 26; // Station-selection row.
+
         if (selectedBehavior == BehaviorType.CARGO) {
-            int detailY = top + 78 + positionOffset;
             if (validationError != null) {
                 for (FormattedCharSequence line : font.split(validationError, CONTROL_WIDTH)) {
-                    graphics.text(font, line, (width - font.width(line)) / 2, detailY, 0xFFFF5555);
-                    detailY += font.lineHeight;
+                    graphics.text(font, line, (width - font.width(line)) / 2, yPos, 0xFFFF5555);
+                    yPos += font.lineHeight;
                 }
             } else {
                 if (usesLoadStation(selectedOperation)) {
-                    graphics.text(font, stationDescription(selectedLoadStation, "load"), left, detailY, 0xFFAAAAAA);
+                    graphics.text(font, stationDescription(selectedLoadStation, "load"), left, yPos, 0xFFAAAAAA);
                     graphics.text(font, Component.translatable("screen.farandwide.cargo_waypoint.load_filter"),
-                            left, detailY + 14, 0xFFAAAAAA);
-                    detailY += 28;
+                            left, yPos + 14, 0xFFAAAAAA);
+                    yPos += 28;
                 }
                 if (usesUnloadStation(selectedOperation)) {
-                    graphics.text(font, stationDescription(selectedUnloadStation, "unload"), left, detailY, 0xFFAAAAAA);
+                    graphics.text(font, stationDescription(selectedUnloadStation, "unload"), left, yPos, 0xFFAAAAAA);
                     graphics.text(font, Component.translatable("screen.farandwide.cargo_waypoint.unload_filter"),
-                            left, detailY + 14, 0xFFAAAAAA);
+                            left, yPos + 14, 0xFFAAAAAA);
                 }
             }
         }
