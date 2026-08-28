@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.client;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 
@@ -15,7 +16,7 @@ import net.minecraft.network.chat.Component;
 
 /** A small name editor used for both creating and renaming routes. */
 public class RouteEditorScreen extends Screen {
-    private static final int DEFAULT_NAME_COLOR = 0xFF777777;
+    private static final int DEFAULT_NAME_COLOR = Constants.Client.ROUTE_EDITOR_DEFAULT_NAME_COLOR;
 
     private final Route route;
     private EditBox nameField;
@@ -163,10 +164,10 @@ public class RouteEditorScreen extends Screen {
                     0,
                     16,
                     16,
-                    TraversalType.ICON_TEXTURE_SIZE,
-                    TraversalType.ICON_TEXTURE_SIZE,
-                    TraversalType.ICON_TEXTURE_SIZE,
-                    TraversalType.ICON_TEXTURE_SIZE);
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
+                    Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE);
         }
         graphics.text(font, title, (width - font.width(title)) / 2, height / 2 - 40, 0xFFFFFFFF);
         graphics.text(

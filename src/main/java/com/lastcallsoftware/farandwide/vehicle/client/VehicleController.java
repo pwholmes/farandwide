@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.vehicle.client;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.client.RouteManager;
@@ -110,7 +111,7 @@ public final class VehicleController {
 
             NavigationIntent intent = NavigationIntent.toward(player.position(), target.position());
             HorseControls.Input navigationInput = HorseControls.from(
-                    player.getYRot(), intent, ClientPlayerActuator.MOVES_WHILE_TURNING);
+                    player.getYRot(), intent, Constants.Vehicles.PLAYER_MOVES_WHILE_TURNING);
             boolean moveForward = navigationInput.forward() > 0.0F;
             moveVector = moveForward ? new Vec2(0.0F, 1.0F) : Vec2.ZERO;
             keyPresses = new Input(

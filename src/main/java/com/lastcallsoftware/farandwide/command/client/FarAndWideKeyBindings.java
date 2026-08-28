@@ -47,20 +47,15 @@ public final class FarAndWideKeyBindings {
                 InputConstants.UNKNOWN,
                 FarAndWideCommands.ASSIGN_ROUTE::execute);
 
-        binding("key.farandwide.add_waypoint",
-                KeyModifier.NONE,
-                InputConstants.UNKNOWN,
-                FarAndWideCommands.ADD_WAYPOINT::execute);
-
-        binding("key.farandwide.remove_waypoint",
-                KeyModifier.NONE,
-                InputConstants.UNKNOWN,
-                FarAndWideCommands.REMOVE_WAYPOINT::execute);
-
-        binding("key.farandwide.toggle_waypoint",
+        binding("key.farandwide.add_or_remove_waypoint",
                 KeyModifier.NONE,
                 key(GLFW.GLFW_KEY_K),
-                FarAndWideCommands.TOGGLE_WAYPOINT::execute);
+                FarAndWideCommands.ADD_OR_REMOVE_WAYPOINT::execute);
+
+        binding("key.farandwide.edit_waypoint",
+                KeyModifier.NONE,
+                InputConstants.UNKNOWN,
+                FarAndWideCommands.EDIT_WAYPOINT::execute);
 
         binding("key.farandwide.toggle_route",
                 KeyModifier.NONE,

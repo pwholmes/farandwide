@@ -1,11 +1,16 @@
 package com.lastcallsoftware.farandwide.route.network.client;
 
 import com.lastcallsoftware.farandwide.route.TraversalType;
+import com.lastcallsoftware.farandwide.route.Waypoint;
+import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RequestAssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RequestRouteSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.SelectRoutePayload;
+import com.lastcallsoftware.farandwide.route.network.payload.WaypointMutationPayload;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 /**
@@ -53,12 +58,25 @@ public final class RouteRequests {
         send(routeMutation(RouteMutationPayload.Action.ADD_WAYPOINT, routeId));
     }
 
-    public static void removeWaypoint(int routeId) {
-        send(routeMutation(RouteMutationPayload.Action.REMOVE_WAYPOINT, routeId));
+    public static void createWaypoint(int routeId, Vec3 position, Identifier dimension, WaypointAction action) {
+        send(WaypointMutationPayload.create(routeId, position, dimension, action));
     }
 
-    public static void toggleWaypoint(int routeId) {
-        send(routeMutation(RouteMutationPayload.Action.TOGGLE_WAYPOINT, routeId));
+    public static void createWaypoint(int routeId, Vec3 position, Identifier dimension, WaypointAction action,
+            double arrivalRadius) {
+        send(WaypointMutationPayload.create(routeId, position, dimension, action, arrivalRadius));
+    }
+
+    public static void replaceWaypoint(int routeId, Waypoint waypoint, int targetPosition) {
+        send(WaypointMutationPayload.replace(routeId, waypoint, targetPosition));
+    }
+
+    public static void convertWaypoint(int routeId, int waypointId, WaypointAction action) {
+        send(WaypointMutationPayload.convert(routeId, waypointId, action));
+    }
+
+    public static void deleteWaypoint(int routeId, int waypointId) {
+        send(WaypointMutationPayload.delete(routeId, waypointId));
     }
 
     public static void assignRoute(int routeId) {

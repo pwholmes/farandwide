@@ -1,23 +1,32 @@
 package com.lastcallsoftware.farandwide.route.client;
 
+import com.lastcallsoftware.farandwide.Constants;
+
 import net.minecraft.gizmos.Gizmo;
 import net.minecraft.gizmos.GizmoPrimitives;
 import net.minecraft.gizmos.TextGizmo;
 import net.minecraft.world.phys.Vec3;
 
-public record WaypointGizmo(Vec3 position, int ordinal, boolean target) implements Gizmo {
+public record WaypointGizmo(
+        Vec3 position, int ordinal, boolean cargo, boolean navigationTarget, boolean editTarget) implements Gizmo {
 
-    private static final int WAYPOINT_COLOR = 0x6600FF00; // Green color for the waypoint gizmo
-    private static final double HALF_WIDTH = 0.35;
-    private static final double HALF_HEIGHT = 0.5;
-    private static final double HEIGHT_OFFSET = 1.5;
-    private static final int EDGE_COLOR = 0xCC000000;
-    private static final int TEXT_COLOR = 0x99000000;
-    private static final int TARGET_COLOR = 0xAAFFFF00;
-    private static final int TARGET_EDGE_COLOR = 0xFFFFFF00;
-    private static final int TARGET_TEXT_COLOR = 0xB3FFFF00;
-    private static final float EDGE_WIDTH = 1.0f;
-    private static final float TEXT_SCALE = 0.5f;
+    private static final int WAYPOINT_COLOR = Constants.Client.WAYPOINT_COLOR;
+    private static final int CARGO_COLOR = Constants.Client.CARGO_WAYPOINT_COLOR;
+    private static final double HALF_WIDTH = Constants.Client.WAYPOINT_GIZMO_HALF_WIDTH;
+    private static final double HALF_HEIGHT = Constants.Client.WAYPOINT_GIZMO_HALF_HEIGHT;
+    private static final double HEIGHT_OFFSET = Constants.Client.WAYPOINT_GIZMO_HEIGHT_OFFSET;
+    private static final int EDGE_COLOR = Constants.Client.WAYPOINT_GIZMO_EDGE_COLOR;
+    private static final int TEXT_COLOR = Constants.Client.WAYPOINT_GIZMO_TEXT_COLOR;
+    private static final int CARGO_EDGE_COLOR = Constants.Client.CARGO_WAYPOINT_EDGE_COLOR;
+    private static final int CARGO_TEXT_COLOR = Constants.Client.CARGO_WAYPOINT_TEXT_COLOR;
+    private static final int TARGET_COLOR = Constants.Client.TARGET_WAYPOINT_COLOR;
+    private static final int TARGET_EDGE_COLOR = Constants.Client.TARGET_WAYPOINT_EDGE_COLOR;
+    private static final int TARGET_TEXT_COLOR = Constants.Client.TARGET_WAYPOINT_TEXT_COLOR;
+    private static final int EDIT_TARGET_COLOR = Constants.Client.EDIT_TARGET_WAYPOINT_COLOR;
+    private static final int EDIT_TARGET_EDGE_COLOR = Constants.Client.EDIT_TARGET_WAYPOINT_EDGE_COLOR;
+    private static final int EDIT_TARGET_TEXT_COLOR = Constants.Client.EDIT_TARGET_WAYPOINT_TEXT_COLOR;
+    private static final float EDGE_WIDTH = Constants.Client.WAYPOINT_GIZMO_EDGE_WIDTH;
+    private static final float TEXT_SCALE = Constants.Client.WAYPOINT_GIZMO_TEXT_SCALE;
 
     @Override
     public void emit(GizmoPrimitives primitives, float alphaMultiplier) {
@@ -33,9 +42,15 @@ public record WaypointGizmo(Vec3 position, int ordinal, boolean target) implemen
        Vec3[] pyramid1 = {top, left, front, right, back, left};
        Vec3[] pyramid2 = {bottom, left, front, right, back, left};
 
-        int fillColor = target ? TARGET_COLOR : WAYPOINT_COLOR;
-        int edgeColor = target ? TARGET_EDGE_COLOR : EDGE_COLOR;
-        int textColor = target ? TARGET_TEXT_COLOR : TEXT_COLOR;
+        int fillColor = editTarget ? EDIT_TARGET_COLOR
+                : navigationTarget ? TARGET_COLOR
+                : cargo ? CARGO_COLOR : WAYPOINT_COLOR;
+        int edgeColor = editTarget ? EDIT_TARGET_EDGE_COLOR
+                : navigationTarget ? TARGET_EDGE_COLOR
+                : cargo ? CARGO_EDGE_COLOR : EDGE_COLOR;
+        int textColor = editTarget ? EDIT_TARGET_TEXT_COLOR
+                : navigationTarget ? TARGET_TEXT_COLOR
+                : cargo ? CARGO_TEXT_COLOR : TEXT_COLOR;
 
         primitives.addTriangleFan(pyramid1, fillColor);
         primitives.addTriangleFan(pyramid2, fillColor);
@@ -55,9 +70,27 @@ public record WaypointGizmo(Vec3 position, int ordinal, boolean target) implemen
         primitives.addLine(right, back, edgeColor, EDGE_WIDTH);
         primitives.addLine(back, left, edgeColor, EDGE_WIDTH);
 
+        if (cargo) {
+            // Cargo markers have a wider square loading-band silhouette in
+            // addition to their orange palette and C-prefixed ordinal.
+            double bandRadius = HALF_WIDTH + 0.12;
+            Vec3 northWest = center.add(-bandRadius, 0, -bandRadius);
+            Vec3 northEast = center.add(bandRadius, 0, -bandRadius);
+            Vec3 southEast = center.add(bandRadius, 0, bandRadius);
+            Vec3 southWest = center.add(-bandRadius, 0, bandRadius);
+            primitives.addLine(northWest, northEast, edgeColor, EDGE_WIDTH);
+            primitives.addLine(northEast, southEast, edgeColor, EDGE_WIDTH);
+            primitives.addLine(southEast, southWest, edgeColor, EDGE_WIDTH);
+            primitives.addLine(southWest, northWest, edgeColor, EDGE_WIDTH);
+        }
+
         primitives.addText(
                 center.add(0, HALF_HEIGHT/2, 0),
-                Integer.toString(ordinal),
+                markerLabel(ordinal, cargo),
                 TextGizmo.Style.forColorAndCentered(textColor).withScale(TEXT_SCALE));
+    }
+
+    static String markerLabel(int ordinal, boolean cargo) {
+        return cargo ? "C" + ordinal : Integer.toString(ordinal);
     }
 }

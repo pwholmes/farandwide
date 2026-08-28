@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.network.payload;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -18,7 +19,6 @@ import net.minecraft.resources.Identifier;
  */
 public record RouteMutationPayload(Action action, int routeId, String name, TraversalType traversalType)
         implements CustomPacketPayload {
-    public static final int MAX_NAME_LENGTH = 64;
     public static final Type<RouteMutationPayload> TYPE = new Type<>(
             Identifier.fromNamespaceAndPath("farandwide", "route_mutation"));
     public static final StreamCodec<RegistryFriendlyByteBuf, RouteMutationPayload> STREAM_CODEC = StreamCodec.of(
@@ -34,14 +34,14 @@ public record RouteMutationPayload(Action action, int routeId, String name, Trav
     private static void write(RegistryFriendlyByteBuf buffer, RouteMutationPayload payload) {
         buffer.writeVarInt(payload.action.ordinal());
         buffer.writeVarInt(payload.routeId);
-        buffer.writeUtf(payload.name, MAX_NAME_LENGTH);
+        buffer.writeUtf(payload.name, Constants.Network.MAX_ROUTE_NAME_LENGTH);
         buffer.writeVarInt(payload.traversalType.ordinal());
     }
 
     private static RouteMutationPayload read(RegistryFriendlyByteBuf buffer) {
         int action = buffer.readVarInt();
         int routeId = buffer.readVarInt();
-        String name = buffer.readUtf(MAX_NAME_LENGTH);
+        String name = buffer.readUtf(Constants.Network.MAX_ROUTE_NAME_LENGTH);
         int type = buffer.readVarInt();
         if (action < 0 || action >= Action.values().length || type < 0 || type >= TraversalType.values().length) {
             throw new IllegalArgumentException("Invalid route mutation");
@@ -49,5 +49,5 @@ public record RouteMutationPayload(Action action, int routeId, String name, Trav
         return new RouteMutationPayload(Action.values()[action], routeId, name, TraversalType.values()[type]);
     }
 
-    public enum Action { CREATE, UPDATE, DELETE, ADD_WAYPOINT, REMOVE_WAYPOINT, TOGGLE_WAYPOINT }
+    public enum Action { CREATE, UPDATE, DELETE, ADD_WAYPOINT }
 }

@@ -17,9 +17,6 @@ import java.util.List;
  * the record's back.
  */
 public record Route(int id, String name, TraversalType traversalType, List<Waypoint> waypoints) {
-    /** Distance in front of the player at which a newly requested waypoint is placed. */
-    public static final double OFFSET_DISTANCE = 1.0;
-
     public Route {
         waypoints = List.copyOf(waypoints);
     }

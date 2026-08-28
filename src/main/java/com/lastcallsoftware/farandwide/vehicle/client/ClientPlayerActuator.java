@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.vehicle.client;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.vehicle.HorseControls;
 import com.lastcallsoftware.farandwide.vehicle.VehicleActuator;
 import com.lastcallsoftware.farandwide.vehicle.navigation.NavigationIntent;
@@ -11,8 +12,6 @@ import net.minecraft.world.entity.player.Player;
 
 /** Applies auto-navigation input when the route is assigned directly to the player. */
 final class ClientPlayerActuator implements VehicleActuator {
-    static final boolean MOVES_WHILE_TURNING = false;
-
     @Override
     public boolean supports(Entity vehicle) {
         return vehicle instanceof Player;
@@ -27,7 +26,7 @@ final class ClientPlayerActuator implements VehicleActuator {
     public void apply(Entity vehicle, NavigationIntent intent) {
         Player player = (Player) vehicle;
         HorseControls.Input input = HorseControls.from(
-                player.getYRot(), intent, MOVES_WHILE_TURNING);
+                player.getYRot(), intent, Constants.Vehicles.PLAYER_MOVES_WHILE_TURNING);
         player.setYRot(input.yaw());
         if (input.forward() > 0.0F
                 && player instanceof LocalPlayer localPlayer
