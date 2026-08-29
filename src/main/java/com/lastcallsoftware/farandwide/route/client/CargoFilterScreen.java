@@ -1,6 +1,5 @@
 package com.lastcallsoftware.farandwide.route.client;
 
-import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.CargoFilter;
 import java.util.ArrayList;
 import java.util.Comparator;
