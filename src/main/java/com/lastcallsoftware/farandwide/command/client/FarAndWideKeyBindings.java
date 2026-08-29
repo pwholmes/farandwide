@@ -42,6 +42,11 @@ public final class FarAndWideKeyBindings {
                 InputConstants.UNKNOWN,
                 FarAndWideCommands.CREATE_ROUTE::execute);
 
+        binding("key.farandwide.deselect_route",
+                KeyModifier.NONE,
+                InputConstants.UNKNOWN,
+                FarAndWideCommands.DESELECT_ROUTE::execute);
+
         binding("key.farandwide.assign_route",
                 KeyModifier.NONE,
                 InputConstants.UNKNOWN,

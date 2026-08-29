@@ -101,10 +101,7 @@ public final class ServerRouteTraversalController {
             ServerVehicleController.stop(entity);
             return;
         }
-        double deltaX = entity.getX() - target.position().x;
-        double deltaY = entity.getY() - target.position().y;
-        double deltaZ = entity.getZ() - target.position().z;
-        if (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ > target.arrivalRadiusSquared()) {
+        if (!target.hasArrived(entity.position())) {
             ServerVehicleController.navigate(entity, target);
             return;
         }

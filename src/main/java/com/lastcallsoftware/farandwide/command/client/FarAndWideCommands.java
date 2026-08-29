@@ -32,6 +32,11 @@ public final class FarAndWideCommands {
             "command.farandwide.create_route",
             () -> Minecraft.getInstance().setScreenAndShow(new RouteEditorScreen(null)));
 
+    public static final FarAndWideCommand DESELECT_ROUTE = command(
+            GLFW.GLFW_KEY_D,
+            "command.farandwide.deselect_route",
+            () -> RouteManager.clearSelectedRoute());
+
     public static final FarAndWideCommand ASSIGN_ROUTE = command(
             GLFW.GLFW_KEY_G,
             "command.farandwide.assign_route",
@@ -61,6 +66,7 @@ public final class FarAndWideCommands {
         return List.of(
                 MANAGE_ROUTES,
                 CREATE_ROUTE,
+                DESELECT_ROUTE,
                 ASSIGN_ROUTE,
                 TOGGLE_ROUTE,
                 ADD_OR_REMOVE_WAYPOINT,

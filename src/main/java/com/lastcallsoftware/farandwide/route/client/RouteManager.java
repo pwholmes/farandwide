@@ -119,6 +119,10 @@ public class RouteManager {
     }
 
     public static void setSelectedRoute(Route route) {
+        if (route == null) {
+            clearSelectedRoute();
+            return;
+        }
         if (routes.contains(route)) {
             selectedRoute = route;
             routeStateRevision++;
@@ -127,6 +131,10 @@ public class RouteManager {
     }
 
     public static void setSelectedRoute(String name) {
+        if (name == null) {
+            clearSelectedRoute();
+            return;
+        }
         Route route = getRoute(name);
         if (route != null) {
             setSelectedRoute(route);

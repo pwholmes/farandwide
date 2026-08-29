@@ -43,6 +43,11 @@ public record Waypoint(int id, Vec3 position, Identifier dimension, WaypointActi
         return arrivalRadius * arrivalRadius;
     }
 
+    /** Uses the same three-dimensional arrival check on both logical sides. */
+    public boolean hasArrived(Vec3 entityPosition) {
+        return position.distanceToSqr(entityPosition) <= arrivalRadiusSquared();
+    }
+
     public static boolean isValidArrivalRadius(double radius) {
         return Double.isFinite(radius)
                 && radius >= Constants.Waypoints.MIN_ARRIVAL_RADIUS

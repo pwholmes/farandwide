@@ -41,6 +41,15 @@ class WaypointTest {
     }
 
     @Test
+    void arrivalIncludesBoundaryAndUsesThreeDimensionalDistance() {
+        Waypoint waypoint = new Waypoint(
+                42, Vec3.ZERO, Waypoint.DEFAULT_DIMENSION, WaypointAction.normal(), 3.5);
+
+        assertTrue(waypoint.hasArrived(new Vec3(0.0, 0.0, 3.5)));
+        assertFalse(waypoint.hasArrived(new Vec3(0.0, 3.5, 0.1)));
+    }
+
+    @Test
     void arrivalRadiusMustUseTheSupportedRangeAndIncrement() {
         assertThrows(IllegalArgumentException.class, () ->
                 new Waypoint(1, Vec3.ZERO, Waypoint.DEFAULT_DIMENSION, WaypointAction.normal(), 0.5));

@@ -68,6 +68,14 @@ public final class VehicleController {
             return;
         }
 
+        // Ridden vehicle physics are client-authoritative. Stop locally as soon as
+        // the waypoint is reached while the server processes arrival and advances
+        // the assignment; otherwise stale steering circles around the target.
+        if (target.hasArrived(ridden.position())) {
+            actuator.stop(ridden);
+            return;
+        }
+
         VehicleNavigator navigator = NAVIGATORS.stream().filter(candidate -> candidate.supports(ridden))
                 .findFirst().orElse(null);
         if (navigator != null) {
