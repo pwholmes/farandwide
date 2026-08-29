@@ -18,16 +18,21 @@ public final class FarAndWideHelpScreen extends Screen {
     private static final int IMAGE_TEXTURE_WIDTH = 1400;
     private static final int IMAGE_TEXTURE_HEIGHT = 1200;
     private static final int CONTENT_TOP = 44;
+    private static final int CONTENT_BOTTOM_MARGIN = 60;
+    private static final int PANEL_MAX_WIDTH = 400;
+    private static final int PANEL_PADDING = 12;
+    private static final int INDEX_LINK_GAP = 18;
     private static final int BUTTON_WIDTH = 90;
     private static final int BUTTON_GAP = 6;
     private static final int INDEX_PAGE = 0;
     private static final int ROUTES_PAGE = 1;
-    private static final int CARGO_PAGE = 6;
-    private static final int TERMS_PAGE = 9;
-    private static final int COMMANDS_PAGE = 11;
+    private static final int CARGO_PAGE = 7;
+    private static final int TIPS_AND_TRICKS_PAGE = 11;
 
     private static final HelpPage[] PAGES = {
             new HelpPage("screen.farandwide.help.index.title", "screen.farandwide.help.index.body", null),
+            new HelpPage("screen.farandwide.help.routes.title", "screen.farandwide.help.routes.body",
+                    texture("route_intro")),
             new HelpPage("screen.farandwide.help.create.title", "screen.farandwide.help.create.body",
                     texture("route_create")),
             new HelpPage("screen.farandwide.help.select.title", "screen.farandwide.help.select.body",
@@ -38,19 +43,24 @@ public final class FarAndWideHelpScreen extends Screen {
                     texture("route_assign")),
             new HelpPage("screen.farandwide.help.activate.title", "screen.farandwide.help.activate.body",
                     texture("route_activate")),
-            new HelpPage("screen.farandwide.help.cargo.create.title", "screen.farandwide.help.cargo.create.body", null),
-            new HelpPage("screen.farandwide.help.cargo.stations.title", "screen.farandwide.help.cargo.stations.body", null),
-            new HelpPage("screen.farandwide.help.cargo.operations.title", "screen.farandwide.help.cargo.operations.body", null),
-            new HelpPage("screen.farandwide.help.terms.routes.title", "screen.farandwide.help.terms.routes.body", null),
-            new HelpPage("screen.farandwide.help.terms.cargo.title", "screen.farandwide.help.terms.cargo.body", null),
-            new HelpPage("screen.farandwide.help.commands.routes.title", "screen.farandwide.help.commands.routes.body", null),
-            new HelpPage("screen.farandwide.help.commands.other.title", "screen.farandwide.help.commands.other.body", null)
+            new HelpPage("screen.farandwide.help.cargo.title", "screen.farandwide.help.cargo.body",
+                    texture("cargo_intro")),
+            new HelpPage("screen.farandwide.help.cargo.create.title", "screen.farandwide.help.cargo.create.body",
+                    texture("cargo_create")),
+            new HelpPage("screen.farandwide.help.cargo.stations.title", "screen.farandwide.help.cargo.stations.body",
+                    texture("cargo_stations")),
+            new HelpPage("screen.farandwide.help.cargo.operations.title", "screen.farandwide.help.cargo.operations.body",
+                    texture("cargo_transfer")),
+            new HelpPage("screen.farandwide.help.tips_and_tricks.title", "screen.farandwide.help.tips_and_tricks.page1.body", null),
+            new HelpPage("screen.farandwide.help.tips_and_tricks.title", "screen.farandwide.help.tips_and_tricks.page2.body", null),
+            new HelpPage("screen.farandwide.help.tips_and_tricks.title", "screen.farandwide.help.tips_and_tricks.page3.body", null)
     };
 
     private int pageIndex;
     private Button previousButton;
     private Button nextButton;
     private Button indexButton;
+    private Button doneButton;
     private List<Button> sectionButtons = List.of();
 
     public FarAndWideHelpScreen() {
@@ -73,18 +83,23 @@ public final class FarAndWideHelpScreen extends Screen {
                 button -> showPage(INDEX_PAGE))
                 .bounds(left + BUTTON_WIDTH + BUTTON_GAP, buttonY, BUTTON_WIDTH, 20)
                 .build());
+        doneButton = addRenderableWidget(Button.builder(
+                Component.translatable("screen.farandwide.help.done"),
+                button -> onClose())
+                .bounds(left + BUTTON_WIDTH + BUTTON_GAP, buttonY, BUTTON_WIDTH, 20)
+                .build());
         nextButton = addRenderableWidget(Button.builder(
                 Component.translatable("screen.farandwide.help.next"),
                 button -> showPage(pageIndex + 1))
                 .bounds(left + (BUTTON_WIDTH + BUTTON_GAP) * 2, buttonY, BUTTON_WIDTH, 20)
                 .build());
 
-        int linkY = CONTENT_TOP + 42;
+        int linkY = height - CONTENT_BOTTOM_MARGIN - PANEL_PADDING - font.lineHeight - INDEX_LINK_GAP * 2;
         sectionButtons = List.of(
                 sectionButton("screen.farandwide.help.index.routes", ROUTES_PAGE, linkY),
-                sectionButton("screen.farandwide.help.index.cargo", CARGO_PAGE, linkY + 24),
-                sectionButton("screen.farandwide.help.index.terms", TERMS_PAGE, linkY + 48),
-                sectionButton("screen.farandwide.help.index.commands", COMMANDS_PAGE, linkY + 72));
+                sectionButton("screen.farandwide.help.index.cargo", CARGO_PAGE, linkY + INDEX_LINK_GAP),
+                sectionButton("screen.farandwide.help.index.tips_and_tricks", TIPS_AND_TRICKS_PAGE,
+                        linkY + INDEX_LINK_GAP * 2));
         updateButtonState();
     }
 
@@ -99,7 +114,7 @@ public final class FarAndWideHelpScreen extends Screen {
 
     @Override
     public void onClose() {
-        minecraft.setScreenAndShow(new FarAndWideCommandScreen());
+        minecraft.setScreenAndShow(null);
     }
 
     @Override
@@ -109,22 +124,25 @@ public final class FarAndWideHelpScreen extends Screen {
         HelpPage page = PAGES[pageIndex];
         Component pageTitle = Component.translatable(page.titleKey());
         Component pageBody = Component.translatable(page.bodyKey());
-        int bodyWidth = page.image() == null
-                ? Math.min(360, width - 40) - 24
-                : Math.min(380, width - 40);
+        int panelWidth = Math.min(PANEL_MAX_WIDTH, width - 40);
+        int panelHeight = Math.max(40, height - CONTENT_TOP - CONTENT_BOTTOM_MARGIN);
+        int panelX = (width - panelWidth) / 2;
+        int panelY = CONTENT_TOP;
+        int bodyWidth = panelWidth - PANEL_PADDING * 2;
         List<FormattedCharSequence> bodyLines = font.split(pageBody, bodyWidth);
         int titleY = 16;
         int bodyY = 32;
 
         graphics.centeredText(font, title, width / 2, titleY, 0xFFFFFFFF);
         graphics.centeredText(font, pageTitle, width / 2, bodyY, 0xFFFFD27F);
+        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xCC000000);
 
         if (pageIndex == INDEX_PAGE) {
-            drawIndexPanel(graphics, bodyLines, mouseX, mouseY, partialTick);
+            drawIndexPage(graphics, bodyLines, panelY, mouseX, mouseY, partialTick);
         } else if (page.image() == null) {
-            drawIntroPanel(graphics, bodyLines);
+            drawCenteredLines(graphics, bodyLines, panelY + PANEL_PADDING);
         } else {
-            drawImagePage(graphics, page.image(), bodyLines);
+            drawImagePage(graphics, page.image(), bodyLines, panelY, panelHeight);
         }
 
         graphics.centeredText(
@@ -135,14 +153,9 @@ public final class FarAndWideHelpScreen extends Screen {
                 0xFFAAAAAA);
     }
 
-    private void drawIndexPanel(GuiGraphicsExtractor graphics, List<FormattedCharSequence> bodyLines,
+    private void drawIndexPage(GuiGraphicsExtractor graphics, List<FormattedCharSequence> bodyLines, int panelY,
             int mouseX, int mouseY, float partialTick) {
-        int panelWidth = Math.min(360, width - 40);
-        int panelX = (width - panelWidth) / 2;
-        int panelY = CONTENT_TOP + 8;
-        int panelHeight = 48 + sectionButtons.size() * 24;
-        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xCC000000);
-        drawCenteredLines(graphics, bodyLines, panelY + 14);
+        drawCenteredLines(graphics, bodyLines, panelY + PANEL_PADDING);
 
         // Screen renders widgets before this page content, so redraw the index
         // links after its panel to keep them visible and clickable-looking.
@@ -151,21 +164,14 @@ public final class FarAndWideHelpScreen extends Screen {
         }
     }
 
-    private void drawIntroPanel(GuiGraphicsExtractor graphics, List<FormattedCharSequence> bodyLines) {
-        int panelWidth = Math.min(360, width - 40);
-        int panelHeight = 28 + bodyLines.size() * font.lineHeight;
-        int panelX = (width - panelWidth) / 2;
-        int panelY = CONTENT_TOP + 28;
-        graphics.fill(panelX, panelY, panelX + panelWidth, panelY + panelHeight, 0xCC000000);
-        drawCenteredLines(graphics, bodyLines, panelY + 14);
-    }
-
-    private void drawImagePage(GuiGraphicsExtractor graphics, Identifier image, List<FormattedCharSequence> bodyLines) {
-        int availableHeight = Math.max(80, height - CONTENT_TOP - 104 - bodyLines.size() * font.lineHeight);
-        int imageHeight = Math.min(270, availableHeight);
+    private void drawImagePage(GuiGraphicsExtractor graphics, Identifier image,
+            List<FormattedCharSequence> bodyLines, int panelY, int panelHeight) {
+        int textHeight = bodyLines.size() * font.lineHeight;
+        int availableHeight = panelHeight - PANEL_PADDING * 2 - 8 - textHeight;
+        int imageHeight = Math.max(1, Math.min(270, availableHeight));
         int imageWidth = imageHeight * IMAGE_TEXTURE_WIDTH / IMAGE_TEXTURE_HEIGHT;
         int imageX = (width - imageWidth) / 2;
-        int imageY = CONTENT_TOP;
+        int imageY = panelY + PANEL_PADDING;
 
         graphics.blit(
                 RenderPipelines.GUI_TEXTURED,
@@ -199,6 +205,7 @@ public final class FarAndWideHelpScreen extends Screen {
         previousButton.active = pageIndex > 0;
         nextButton.active = pageIndex < PAGES.length - 1;
         indexButton.visible = pageIndex != INDEX_PAGE;
+        doneButton.visible = pageIndex == INDEX_PAGE;
         for (Button button : sectionButtons) {
             button.visible = pageIndex == INDEX_PAGE;
         }

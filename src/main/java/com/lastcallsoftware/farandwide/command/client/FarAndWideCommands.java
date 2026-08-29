@@ -47,11 +47,6 @@ public final class FarAndWideCommands {
             "command.farandwide.add_or_remove_waypoint",
             () -> withCurrentRoute(WaypointEditor::toggleTargetedWaypoint));
 
-    public static final FarAndWideCommand EDIT_WAYPOINT = command(
-            GLFW.GLFW_KEY_X,
-            "command.farandwide.edit_waypoint",
-            WaypointEditor::editTargetedWaypoint);
-
     public static final FarAndWideCommand TOGGLE_HUD = command(
             GLFW.GLFW_KEY_V,
             "command.farandwide.toggle_hud",
@@ -69,7 +64,6 @@ public final class FarAndWideCommands {
                 ASSIGN_ROUTE,
                 TOGGLE_ROUTE,
                 ADD_OR_REMOVE_WAYPOINT,
-                EDIT_WAYPOINT,
                 TOGGLE_HUD,
                 HELP_SCREEN
         );

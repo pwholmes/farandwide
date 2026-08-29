@@ -52,14 +52,9 @@ public final class FarAndWideKeyBindings {
                 key(GLFW.GLFW_KEY_K),
                 FarAndWideCommands.ADD_OR_REMOVE_WAYPOINT::execute);
 
-        binding("key.farandwide.edit_waypoint",
-                KeyModifier.NONE,
-                InputConstants.UNKNOWN,
-                FarAndWideCommands.EDIT_WAYPOINT::execute);
-
         binding("key.farandwide.toggle_route",
-                KeyModifier.NONE,
-                InputConstants.UNKNOWN,
+                KeyModifier.CONTROL,
+                key(GLFW.GLFW_KEY_A),
                 FarAndWideCommands.TOGGLE_ROUTE::execute);
 
         binding("key.farandwide.toggle_hud",
