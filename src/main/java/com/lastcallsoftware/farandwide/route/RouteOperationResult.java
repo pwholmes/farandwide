@@ -19,7 +19,8 @@ public enum RouteOperationResult {
     WAYPOINT_NOT_FOUND,
     INVALID_WAYPOINT,
     INVALID_CARGO_STATION,
-    SAME_CARGO_STATION;
+    SAME_CARGO_STATION,
+    CHUNK_LOADING_LIMIT;
 
     public String translationKey() {
         return "message.farandwide.operation." + name().toLowerCase(java.util.Locale.ROOT);

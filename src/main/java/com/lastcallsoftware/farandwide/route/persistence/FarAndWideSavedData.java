@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.FarAndWide;
@@ -43,6 +44,7 @@ public final class FarAndWideSavedData extends SavedData {
     private final List<Route> routes = new ArrayList<>();
     private final Map<Integer, RouteAssignment> assignmentsByAssignee = new HashMap<>();
     private final Map<Integer, Integer> selectedRouteByAssignee = new HashMap<>();
+    private final Map<UUID, Integer> vehicleAssigneeByUuid = new HashMap<>();
     private int nextRouteId = 1;
     private int nextAssigneeId = 1;
     private int nextWaypointId = 1;
@@ -55,6 +57,7 @@ public final class FarAndWideSavedData extends SavedData {
     public List<RouteAssignment> getAssignments() { return List.copyOf(assignmentsByAssignee.values()); }
     public Map<Integer, RouteAssignment> getAssignmentsByAssignee() { return Map.copyOf(assignmentsByAssignee); }
     Map<Integer, Integer> getSelectedRoutesByAssignee() { return Map.copyOf(selectedRouteByAssignee); }
+    Map<UUID, Integer> getVehicleAssigneesByUuid() { return Map.copyOf(vehicleAssigneeByUuid); }
     public int getNextRouteId() { return nextRouteId; }
     public int getNextAssigneeId() { return nextAssigneeId; }
     public int getNextWaypointId() { return nextWaypointId; }
@@ -76,6 +79,26 @@ public final class FarAndWideSavedData extends SavedData {
 
     public int getSelectedRouteId(int assigneeId) {
         return selectedRouteByAssignee.getOrDefault(assigneeId, 0);
+    }
+
+    /** Returns the stable assignee ID associated with a persistent vehicle UUID. */
+    public int getVehicleAssigneeId(UUID vehicleUuid) {
+        return vehicleAssigneeByUuid.getOrDefault(vehicleUuid, 0);
+    }
+
+    /** Records the identity bridge required to validate entity-owned chunk tickets. */
+    public boolean associateVehicle(UUID vehicleUuid, int assigneeId) {
+        if (vehicleUuid == null || assigneeId <= 0 || getAssignment(assigneeId) == null) {
+            return false;
+        }
+        boolean changed = vehicleAssigneeByUuid.entrySet().removeIf(
+                entry -> entry.getValue() == assigneeId && !entry.getKey().equals(vehicleUuid));
+        Integer previous = vehicleAssigneeByUuid.put(vehicleUuid, assigneeId);
+        changed |= previous == null || previous != assigneeId;
+        if (changed) {
+            setDirty();
+        }
+        return changed;
     }
 
     public boolean setSelectedRouteId(int assigneeId, int routeId) {
@@ -120,6 +143,7 @@ public final class FarAndWideSavedData extends SavedData {
         if (assignmentsByAssignee.remove(assigneeId) == null) {
             return false;
         }
+        vehicleAssigneeByUuid.values().removeIf(mappedAssigneeId -> mappedAssigneeId == assigneeId);
         setDirty();
         return true;
     }
@@ -133,6 +157,8 @@ public final class FarAndWideSavedData extends SavedData {
         assignmentsByAssignee.put(targetAssigneeId, new RouteAssignment(
                 source.getRouteId(), targetAssigneeId, source.getTargetWaypointIndex(),
                 source.getTraversalDirection(), source.getTraversalTypeOverride(), source.isActive()));
+        vehicleAssigneeByUuid.values().removeIf(
+                mappedAssigneeId -> mappedAssigneeId == sourceAssigneeId || mappedAssigneeId == targetAssigneeId);
         setDirty();
         return true;
     }
@@ -305,7 +331,12 @@ public final class FarAndWideSavedData extends SavedData {
         if (!removed) {
             return false;
         }
-        assignmentsByAssignee.values().removeIf(assignment -> assignment.getRouteId() == routeId);
+        Set<Integer> removedAssigneeIds = assignmentsByAssignee.entrySet().stream()
+                .filter(entry -> entry.getValue().getRouteId() == routeId)
+                .map(Map.Entry::getKey)
+                .collect(java.util.stream.Collectors.toSet());
+        assignmentsByAssignee.keySet().removeAll(removedAssigneeIds);
+        vehicleAssigneeByUuid.values().removeIf(removedAssigneeIds::contains);
         selectedRouteByAssignee.values().removeIf(selectedRouteId -> selectedRouteId == routeId);
         setDirty();
         return true;
@@ -354,7 +385,8 @@ public final class FarAndWideSavedData extends SavedData {
 
     static FarAndWideSavedData restore(int dataVersion, int savedNextRouteId, int savedNextAssigneeId,
             int savedNextWaypointId,
-            List<Route> routes, Map<Integer, RouteAssignment> assignments, Map<Integer, Integer> selectedRoutes) {
+            List<Route> routes, Map<Integer, RouteAssignment> assignments, Map<Integer, Integer> selectedRoutes,
+            Map<UUID, Integer> vehicleAssignees) {
         /*
          * Repair records independently instead of rejecting the complete save.
          * A damaged assignment must not destroy unrelated valid routes. Repairs
@@ -424,6 +456,18 @@ public final class FarAndWideSavedData extends SavedData {
             }
         });
         if (data.selectedRouteByAssignee.size() != selectedRoutes.size()) {
+            repaired = true;
+        }
+
+        vehicleAssignees.forEach((vehicleUuid, assigneeId) -> {
+            if (vehicleUuid != null && data.getAssignment(assigneeId) != null
+                    && !data.vehicleAssigneeByUuid.containsValue(assigneeId)) {
+                data.vehicleAssigneeByUuid.put(vehicleUuid, assigneeId);
+            } else {
+                FarAndWide.LOGGER.warn("Skipping stale or duplicate vehicle association for assignee {}", assigneeId);
+            }
+        });
+        if (data.vehicleAssigneeByUuid.size() != vehicleAssignees.size()) {
             repaired = true;
         }
 

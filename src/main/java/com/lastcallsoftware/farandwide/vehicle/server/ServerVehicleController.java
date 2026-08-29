@@ -34,6 +34,11 @@ public final class ServerVehicleController {
         }
     }
 
+    /** Returns whether this entity has both navigation and actuation support. */
+    public static boolean supports(Entity vehicle) {
+        return findNavigator(vehicle) != null && findActuator(vehicle) != null;
+    }
+
     private static VehicleNavigator findNavigator(Entity vehicle) {
         return NAVIGATORS.stream().filter(navigator -> navigator.supports(vehicle)).findFirst().orElse(null);
     }

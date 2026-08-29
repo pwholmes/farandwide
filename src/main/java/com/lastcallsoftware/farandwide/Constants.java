@@ -65,7 +65,7 @@ public final class Constants {
     }
 
     public static final class Persistence {
-        public static final int CURRENT_DATA_VERSION = 2;
+        public static final int CURRENT_DATA_VERSION = 3;
 
         private Persistence() {
         }

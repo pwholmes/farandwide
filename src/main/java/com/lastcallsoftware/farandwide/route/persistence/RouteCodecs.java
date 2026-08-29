@@ -15,10 +15,12 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import net.minecraft.resources.Identifier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -94,6 +96,11 @@ public final class RouteCodecs {
             Codec.INT.fieldOf("routeId").forGetter(SelectedRouteEntry::routeId))
             .apply(instance, SelectedRouteEntry::new));
 
+    private static final Codec<VehicleAssigneeEntry> VEHICLE_ASSIGNEE_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
+            UUIDUtil.CODEC.fieldOf("vehicleUuid").forGetter(VehicleAssigneeEntry::vehicleUuid),
+            Codec.INT.fieldOf("assigneeId").forGetter(VehicleAssigneeEntry::assigneeId))
+            .apply(instance, VehicleAssigneeEntry::new));
+
     /** Root codec supplied to Minecraft's {@code SavedDataType}. */
     static final Codec<FarAndWideSavedData> SAVED_DATA = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.optionalFieldOf("dataVersion", Constants.Persistence.CURRENT_DATA_VERSION)
@@ -105,7 +112,9 @@ public final class RouteCodecs {
             ASSIGNMENT_ENTRY.listOf().optionalFieldOf("assignments", List.of())
                     .forGetter(RouteCodecs::assignmentEntries),
             SELECTED_ROUTE_ENTRY.listOf().optionalFieldOf("selectedRoutes", List.of())
-                    .forGetter(RouteCodecs::selectedRouteEntries))
+                    .forGetter(RouteCodecs::selectedRouteEntries),
+            VEHICLE_ASSIGNEE_ENTRY.listOf().optionalFieldOf("vehicleAssignees", List.of())
+                    .forGetter(RouteCodecs::vehicleAssigneeEntries))
             .apply(instance, RouteCodecs::savedData));
 
     private RouteCodecs() {
@@ -153,15 +162,24 @@ public final class RouteCodecs {
                 .toList();
     }
 
+    private static List<VehicleAssigneeEntry> vehicleAssigneeEntries(FarAndWideSavedData data) {
+        return data.getVehicleAssigneesByUuid().entrySet().stream()
+                .map(entry -> new VehicleAssigneeEntry(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
     private static FarAndWideSavedData savedData(int dataVersion, int nextRouteId, int nextAssigneeId,
             int nextWaypointId,
-            List<Route> routes, List<AssignmentEntry> assignments, List<SelectedRouteEntry> selectedRoutes) {
+            List<Route> routes, List<AssignmentEntry> assignments, List<SelectedRouteEntry> selectedRoutes,
+            List<VehicleAssigneeEntry> vehicleAssignees) {
         Map<Integer, RouteAssignment> assignmentsByAssignee = assignments.stream().collect(Collectors.toMap(
                 AssignmentEntry::assigneeId, AssignmentEntry::assignment, (first, ignored) -> first));
         Map<Integer, Integer> selectedRouteByAssignee = selectedRoutes.stream().collect(Collectors.toMap(
                 SelectedRouteEntry::assigneeId, SelectedRouteEntry::routeId, (first, ignored) -> first));
+        Map<UUID, Integer> vehicleAssigneeByUuid = vehicleAssignees.stream().collect(Collectors.toMap(
+                VehicleAssigneeEntry::vehicleUuid, VehicleAssigneeEntry::assigneeId, (first, ignored) -> first));
         return FarAndWideSavedData.restore(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
-                assignmentsByAssignee, selectedRouteByAssignee);
+                assignmentsByAssignee, selectedRouteByAssignee, vehicleAssigneeByUuid);
     }
 
     private static <E extends Enum<E>> Codec<E> enumCodec(Class<E> enumClass) {
@@ -174,5 +192,8 @@ public final class RouteCodecs {
     }
 
     private record SelectedRouteEntry(int assigneeId, int routeId) {
+    }
+
+    private record VehicleAssigneeEntry(UUID vehicleUuid, int assigneeId) {
     }
 }

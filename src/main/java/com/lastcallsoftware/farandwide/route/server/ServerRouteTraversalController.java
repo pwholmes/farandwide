@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
+import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.CargoBehavior;
 import com.lastcallsoftware.farandwide.route.CargoOperation;
@@ -16,10 +17,12 @@ import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
+import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
 import com.lastcallsoftware.farandwide.vehicle.server.cargo.CargoVehicleInventory;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
@@ -83,14 +86,23 @@ public final class ServerRouteTraversalController {
             Entity entity, int assigneeId,
             RouteAssignment assignment) {
         if (!assignment.isActive()) {
+            VehicleChunkLoadingManager.release(entity);
             return;
         }
         Route route = data.getRoute(assignment.getRouteId());
         if (route == null) {
             if (data.setAssignmentActive(assigneeId, false)) {
                 ServerVehicleController.stop(entity);
+                VehicleChunkLoadingManager.release(entity);
                 syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
             }
+            return;
+        }
+        if (!VehicleChunkLoadingManager.update(entity, assigneeId)) {
+            data.setAssignmentActive(assigneeId, false);
+            ServerVehicleController.stop(entity);
+            syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
+            notifyControllingPlayer(server, entity, RouteOperationResult.CHUNK_LOADING_LIMIT);
             return;
         }
         Waypoint target = assignment.getTargetWaypointIndex() >= 0
@@ -112,7 +124,11 @@ public final class ServerRouteTraversalController {
             return;
         }
         if (advanceAssignment(data, assigneeId, route, assignment)) {
-            syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
+            RouteAssignment updated = data.getAssignment(assigneeId);
+            if (updated == null || !updated.isActive()) {
+                VehicleChunkLoadingManager.release(entity);
+            }
+            syncToControllingPlayer(server, entity, updated);
         }
     }
 
@@ -245,6 +261,15 @@ public final class ServerRouteTraversalController {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (player == assignee || player.getVehicle() == assignee) {
                 PacketDistributor.sendToPlayer(player, new AssignmentSnapshotPayload(assignee.getId(), assignment));
+            }
+        }
+    }
+
+    private static void notifyControllingPlayer(net.minecraft.server.MinecraftServer server, Entity assignee,
+            RouteOperationResult result) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player == assignee || player.getVehicle() == assignee) {
+                player.sendSystemMessage(Component.translatable(result.translationKey()));
             }
         }
     }
