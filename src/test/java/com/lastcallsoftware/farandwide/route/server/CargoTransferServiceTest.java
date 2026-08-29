@@ -105,6 +105,55 @@ class CargoTransferServiceTest {
     }
 
     @Test
+    void unloadThenLoadAppliesIndependentDirectionFilters() {
+        TestHandler vehicle = new TestHandler(3);
+        vehicle.set(0, TestResource.COAL, 10);
+        vehicle.set(1, TestResource.IRON, 8);
+        vehicle.set(2, TestResource.COPPER, 6);
+        TestHandler unloadStation = new TestHandler(2);
+        TestHandler loadStation = new TestHandler(2);
+        loadStation.set(0, TestResource.IRON, 5);
+        loadStation.set(1, TestResource.COPPER, 7);
+
+        var result = CargoTransferService.transferResources(
+                vehicle, java.util.Optional.of(loadStation), java.util.Optional.of(unloadStation),
+                CargoOperation.UNLOAD_THEN_LOAD,
+                resource -> resource == TestResource.IRON,
+                resource -> resource == TestResource.COAL);
+
+        assertEquals(10, result.unloaded());
+        assertEquals(5, result.loaded());
+        assertEquals(TestResource.IRON, vehicle.getResource(0));
+        assertEquals(5, vehicle.getAmountAsInt(0));
+        assertEquals(8, vehicle.getAmountAsInt(1));
+        assertEquals(6, vehicle.getAmountAsInt(2));
+        assertEquals(TestResource.COAL, unloadStation.getResource(0));
+        assertEquals(10, unloadStation.getAmountAsInt(0));
+        assertEquals(0, loadStation.getAmountAsInt(0));
+        assertEquals(7, loadStation.getAmountAsInt(1));
+    }
+
+    @Test
+    void timedTransferStepsRespectDifferentDirectionFilters() {
+        TestHandler vehicle = new TestHandler(2);
+        vehicle.set(0, TestResource.COAL, 10);
+        vehicle.set(1, TestResource.COPPER, 6);
+        TestHandler unloadStation = new TestHandler(1);
+        TestHandler loadStation = new TestHandler(2);
+        loadStation.set(0, TestResource.IRON, 5);
+        loadStation.set(1, TestResource.COPPER, 7);
+
+        assertEquals(10, CargoTransferService.transferOneStack(
+                vehicle, unloadStation, resource -> resource == TestResource.COAL));
+        assertEquals(5, CargoTransferService.transferOneStack(
+                loadStation, vehicle, resource -> resource == TestResource.IRON));
+
+        assertEquals(TestResource.COPPER, vehicle.getResource(1));
+        assertEquals(6, vehicle.getAmountAsInt(1));
+        assertEquals(7, loadStation.getAmountAsInt(1));
+    }
+
+    @Test
     void timedTransferMovesNoMoreThanOneStackPerStep() {
         TestHandler source = new TestHandler(2);
         source.set(0, TestResource.IRON, 64);
@@ -146,7 +195,7 @@ class CargoTransferServiceTest {
     }
 
     private enum TestResource implements Resource {
-        EMPTY, IRON, COAL;
+        EMPTY, IRON, COAL, COPPER;
 
         @Override
         public boolean isEmpty() { return this == EMPTY; }

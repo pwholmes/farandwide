@@ -129,8 +129,7 @@ public final class CargoTransferService {
     }
 
     static boolean matches(CargoFilter filter, ItemResource resource) {
-        return filter.mode() == CargoFilter.Mode.ALL
-                || filter.itemIds().contains(BuiltInRegistries.ITEM.getKey(resource.getItem()));
+        return filter.allows(BuiltInRegistries.ITEM.getKey(resource.getItem()));
     }
 
     public record TransferResult(int unloaded, int loaded) {

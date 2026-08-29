@@ -2,12 +2,14 @@ package com.lastcallsoftware.farandwide.route.network.payload;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.CargoBehavior;
 import com.lastcallsoftware.farandwide.route.CargoFilter;
 import com.lastcallsoftware.farandwide.route.CargoOperation;
 import com.lastcallsoftware.farandwide.route.CargoStationBinding;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
 import io.netty.buffer.Unpooled;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -53,5 +55,34 @@ class WaypointMutationPayloadTest {
         assertEquals(WaypointMutationPayload.Action.DELETE, payload.mutation());
         assertEquals(7, payload.routeId());
         assertEquals(91, payload.waypointId());
+    }
+
+    @Test
+    void requestRoundTripAcceptsTheMaximumFilterSize() {
+        List<Identifier> itemIds = identifiers(Constants.Network.MAX_FILTER_ITEMS);
+        CargoBehavior behavior = new CargoBehavior(
+                CargoOperation.LOAD,
+                CargoFilter.allowList(itemIds),
+                CargoFilter.all(),
+                Optional.of(new CargoStationBinding(new BlockPos(4, 65, -8), Direction.UP)),
+                Optional.empty());
+        WaypointMutationPayload sent = new WaypointMutationPayload(
+                WaypointMutationPayload.Action.CREATE, 12, 0, Vec3.ZERO,
+                Identifier.parse("minecraft:overworld"), WaypointAction.cargo(behavior), -1, 3.5);
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);
+
+        WaypointMutationPayload.STREAM_CODEC.encode(buffer, sent);
+        WaypointMutationPayload received = WaypointMutationPayload.STREAM_CODEC.decode(buffer);
+
+        assertEquals(itemIds, ((WaypointAction.Cargo) received.waypointAction()).behavior().loadFilter().itemIds());
+    }
+
+    private static List<Identifier> identifiers(int count) {
+        List<Identifier> result = new ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            result.add(Identifier.parse("farandwide:filter_item_" + index));
+        }
+        return result;
     }
 }
