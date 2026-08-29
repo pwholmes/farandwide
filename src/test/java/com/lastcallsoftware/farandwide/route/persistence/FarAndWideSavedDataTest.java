@@ -11,6 +11,7 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.CargoBehavior;
 import com.lastcallsoftware.farandwide.route.CargoFilter;
@@ -164,6 +165,49 @@ class FarAndWideSavedDataTest {
         assertEquals(TraversalType.LOOP, restoredAssignment.getTraversalTypeOverride());
         assertFalse(restoredAssignment.isActive());
         assertEquals(route.getId(), restored.getSelectedRouteId(assigneeId));
+    }
+
+    @Test
+    void vehicleIdentitySurvivesRoundTripAndIsRemovedWithAssignment() {
+        FarAndWideSavedData original = new FarAndWideSavedData();
+        Route route = original.createRoute();
+        original.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int assigneeId = original.allocateAssigneeId();
+        original.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        UUID vehicleUuid = UUID.fromString("fb3fb68f-b3c4-4d8f-8d70-b51ce76e9abc");
+
+        assertTrue(original.associateVehicle(vehicleUuid, assigneeId));
+
+        FarAndWideSavedData restored = roundTrip(original);
+        assertEquals(assigneeId, restored.getVehicleAssigneeId(vehicleUuid));
+        assertTrue(restored.removeAssignment(assigneeId));
+        assertEquals(0, restored.getVehicleAssigneeId(vehicleUuid));
+        assertEquals(0, roundTrip(restored).getVehicleAssigneeId(vehicleUuid));
+    }
+
+    @Test
+    void vehicleIdentityRequiresAnExistingAssignment() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        UUID vehicleUuid = UUID.fromString("6e0c1347-aa49-4314-8711-ff4b2f94910b");
+
+        assertFalse(data.associateVehicle(vehicleUuid, 42));
+        assertEquals(0, data.getVehicleAssigneeId(vehicleUuid));
+    }
+
+    @Test
+    void deletingRouteRemovesVehicleIdentityWithItsAssignment() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        UUID vehicleUuid = UUID.fromString("6153653d-300b-462c-85cb-e046d620bd3a");
+        data.associateVehicle(vehicleUuid, assigneeId);
+
+        assertTrue(data.deleteRoute(route.getId()));
+
+        assertEquals(0, data.getVehicleAssigneeId(vehicleUuid));
+        assertNull(data.getAssignment(assigneeId));
     }
 
     @Test

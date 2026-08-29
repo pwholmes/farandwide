@@ -7,6 +7,7 @@ import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.server.ServerRouteTraversalController;
 import com.lastcallsoftware.farandwide.route.server.ServerMountTransitionController;
+import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
 import com.mojang.logging.LogUtils;
 
 // import net.minecraft.core.registries.BuiltInRegistries;
@@ -27,6 +28,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 // import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.config.ModConfig;
 // import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 // import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
@@ -82,6 +84,8 @@ public class FarAndWide {
         // Register the Deferred Register to the mod event bus so items get registered
         // ITEMS.register(modEventBus);
         FarAndWideAttachments.ATTACHMENT_TYPES.register(modEventBus);
+        VehicleChunkLoadingManager.register(modEventBus);
+        modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);
         // Register the Deferred Register to the mod event bus so tabs get registered
         //CREATIVE_MODE_TABS.register(modEventBus);
 
@@ -125,5 +129,6 @@ public class FarAndWide {
         FarAndWideSavedData data = FarAndWideSavedData.get(event.getServer());
         LOGGER.info("Loaded Far and Wide route data ({} routes, next route ID {})",
                 data.getRoutes().size(), data.getNextRouteId());
+        VehicleChunkLoadingManager.logStatus();
     }
 }

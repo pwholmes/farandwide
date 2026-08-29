@@ -11,6 +11,7 @@ import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
+import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
 import java.util.List;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
@@ -153,7 +154,10 @@ public final class RouteService {
         FarAndWideSavedData data = data(player);
         Entity assignee = controlledAssignee(player);
         int assigneeId = assigneeId(assignee, data);
-        if (unassignRoute(data, assigneeId, () -> ServerVehicleController.stop(assignee))) {
+        if (unassignRoute(data, assigneeId, () -> {
+            ServerVehicleController.stop(assignee);
+            VehicleChunkLoadingManager.release(assignee);
+        })) {
             return RouteOperationResult.SUCCESS;
         }
         Route route = data.getRoute(routeId);
@@ -168,6 +172,13 @@ public final class RouteService {
         }
         RouteAssignment assignment = data.assignRoute(
                 routeId, assigneeId, assignee.position(), dimension(assignee));
+        if (assignment != null && assignment.isActive()) {
+            if (!VehicleChunkLoadingManager.update(assignee, assigneeId)) {
+                data.setAssignmentActive(assigneeId, false);
+                player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
+                        RouteOperationResult.CHUNK_LOADING_LIMIT.translationKey()));
+            }
+        }
         return assignment == null
                 ? RouteOperationResult.NO_WAYPOINT_IN_DIMENSION
                 : RouteOperationResult.SUCCESS;
@@ -361,6 +372,7 @@ public final class RouteService {
                         : null;
                 if (assignment != null && assignment.getRouteId() == routeId) {
                     ServerVehicleController.stop(entity);
+                    VehicleChunkLoadingManager.release(entity);
                 }
             }
         }
