@@ -228,8 +228,12 @@ class FarAndWideSavedDataTest {
         Route route = original.createRoute();
         CargoBehavior behavior = new CargoBehavior(
                 CargoOperation.UNLOAD_THEN_LOAD,
-                CargoFilter.allowList(List.of(Identifier.parse("minecraft:coal"))),
-                CargoFilter.allowList(List.of(Identifier.parse("minecraft:iron_ingot"))),
+                CargoFilter.allowList(List.of(
+                        Identifier.parse("minecraft:coal"),
+                        Identifier.parse("missing_mod:charcoal_briquette"))),
+                CargoFilter.allowList(List.of(
+                        Identifier.parse("minecraft:iron_ingot"),
+                        Identifier.parse("minecraft:copper_ingot"))),
                 Optional.of(new CargoStationBinding(new BlockPos(5, 63, 9), Direction.UP)),
                 Optional.of(new CargoStationBinding(new BlockPos(6, 63, 9), Direction.EAST)));
         assertTrue(original.addWaypoint(route.getId(), new Waypoint(
