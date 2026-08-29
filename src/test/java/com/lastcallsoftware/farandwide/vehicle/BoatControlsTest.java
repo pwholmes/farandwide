@@ -40,4 +40,17 @@ class BoatControlsTest {
         assertTrue(input.left());
         assertTrue(input.forward());
     }
+
+    @Test
+    void ignoresSmallHeadingErrorsSoTurningMomentumCanSettle() {
+        double desiredYaw = Math.toRadians(7.0);
+        Vec3 target = new Vec3(-Math.sin(desiredYaw), 0.0, Math.cos(desiredYaw));
+
+        BoatControls.Input input = BoatControls.from(
+                0.0F, NavigationIntent.toward(Vec3.ZERO, target), false);
+
+        assertFalse(input.left());
+        assertFalse(input.right());
+        assertTrue(input.forward());
+    }
 }

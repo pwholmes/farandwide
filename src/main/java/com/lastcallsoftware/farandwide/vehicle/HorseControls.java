@@ -13,9 +13,12 @@ public final class HorseControls {
     public static Input from(float currentYaw, NavigationIntent intent, boolean movesWhileTurning) {
         float desiredYaw = (float) Math.toDegrees(Math.atan2(-intent.direction().x, intent.direction().z));
         float yawError = Mth.wrapDegrees(desiredYaw - currentYaw);
+        float turn = Math.abs(yawError) <= Constants.Vehicles.EQUINE_HEADING_DEAD_ZONE_DEGREES
+                ? 0.0F
+                : Mth.clamp(yawError, -Constants.Vehicles.EQUINE_MAX_TURN_PER_TICK,
+                        Constants.Vehicles.EQUINE_MAX_TURN_PER_TICK);
         return new Input(
-                currentYaw + Mth.clamp(yawError, -Constants.Vehicles.EQUINE_MAX_TURN_PER_TICK,
-                        Constants.Vehicles.EQUINE_MAX_TURN_PER_TICK),
+                currentYaw + turn,
                 movesWhileTurning || Math.abs(yawError) <= Constants.Vehicles.EQUINE_FACING_TARGET_TOLERANCE ? 1.0F : 0.0F,
                 Math.abs(yawError) <= Constants.Vehicles.EQUINE_FACING_TARGET_TOLERANCE);
     }

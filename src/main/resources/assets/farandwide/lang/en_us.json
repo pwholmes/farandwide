@@ -92,7 +92,6 @@
   "screen.farandwide.cargo_filter.mode": "Filter mode",
   "screen.farandwide.cargo_filter.search": "Search items",
   "screen.farandwide.cargo_filter.search_hint": "Search by item name or ID...",
-  "screen.farandwide.cargo_filter.switch_to_select": "Choose Selected items only to edit the item list.",
   "screen.farandwide.cargo_filter.no_results": "No matching items",
   "screen.farandwide.cargo_filter.empty_selection": "Select at least one item.",
   "screen.farandwide.cargo_filter.item_unavailable": "Item is not currently registered",

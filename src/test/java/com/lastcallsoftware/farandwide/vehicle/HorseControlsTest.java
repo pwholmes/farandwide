@@ -44,4 +44,17 @@ class HorseControlsTest {
         assertEquals(1.0F, input.forward());
         assertFalse(input.facingTarget());
     }
+
+    @Test
+    void ignoresTinyHeadingCorrectionsToPreventSteeringWiggle() {
+        double desiredYaw = Math.toRadians(0.5);
+        Vec3 target = new Vec3(-Math.sin(desiredYaw), 0.0, Math.cos(desiredYaw));
+
+        HorseControls.Input input = HorseControls.from(
+                0.0F, NavigationIntent.toward(Vec3.ZERO, target), false);
+
+        assertEquals(0.0F, input.yaw());
+        assertEquals(1.0F, input.forward());
+        assertTrue(input.facingTarget());
+    }
 }

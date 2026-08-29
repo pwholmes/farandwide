@@ -37,12 +37,14 @@ public final class Constants {
 
     public static final class Vehicles {
         public static final boolean BOATS_MOVE_WHILE_TURNING = false;
-        public static final float BOAT_TURN_DEAD_ZONE_DEGREES = 5.0F;
+        /** Allows vanilla boat turning momentum to settle without counter-steering. */
+        public static final float BOAT_TURN_DEAD_ZONE_DEGREES = 8.0F;
         public static final float SERVER_BOAT_MAX_TURN_PER_TICK = 2.0F;
         public static final double SERVER_BOAT_ACCELERATION = 0.04;
         public static final boolean EQUINES_MOVE_WHILE_TURNING = false;
         public static final boolean PLAYER_MOVES_WHILE_TURNING = false;
         public static final float EQUINE_MAX_TURN_PER_TICK = 4.0F;
+        public static final float EQUINE_HEADING_DEAD_ZONE_DEGREES = 1.0F;
         public static final float EQUINE_FACING_TARGET_TOLERANCE = 5.0F;
         public static final double EQUINE_MOVEMENT_SPEED_MODIFIER = 1.0;
         public static final double EQUINE_TURNING_SPEED_RATIO = 0.2;

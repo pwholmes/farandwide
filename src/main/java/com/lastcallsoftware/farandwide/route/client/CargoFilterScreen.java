@@ -157,11 +157,7 @@ final class CargoFilterScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(font, title, width / 2, 12, 0xFFFFFFFF);
 
-        if (state.mode() == CargoFilter.Mode.ALL) {
-            graphics.centeredText(font,
-                    Component.translatable("screen.farandwide.cargo_filter.switch_to_select"),
-                    width / 2, GRID_TOP + 8, 0xFFAAAAAA);
-        } else {
+        if (state.mode() == CargoFilter.Mode.ALLOW_LIST) {
             extractSelectedItems(graphics, mouseX, mouseY);
         }
 
