@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import org.eclipse.jdt.annotation.NonNull;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.resources.Identifier;
@@ -40,7 +41,7 @@ class RouteSnapshotPayloadTest {
 
         RouteSnapshotPayload payload = RouteSnapshotPayload.from(data, original.getId());
         List<Route> reconstructed = payload.routes().stream()
-                .map(RouteSnapshotPayload.RouteSnapshot::toRoute)
+                .map((RouteSnapshotPayload.@NonNull RouteSnapshot route) -> route.toRoute())
                 .toList();
 
         assertEquals(original.getId(), payload.selectedRouteId());

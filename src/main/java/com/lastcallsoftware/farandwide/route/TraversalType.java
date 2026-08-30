@@ -4,7 +4,9 @@ import com.mojang.serialization.Codec;
 
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 
+@NonNullByDefault
 public enum TraversalType {
     ONE_WAY("one_way"),
     LOOP("loop"),

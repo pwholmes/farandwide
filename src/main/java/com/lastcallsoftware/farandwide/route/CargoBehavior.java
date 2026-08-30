@@ -2,8 +2,10 @@ package com.lastcallsoftware.farandwide.route;
 
 import java.util.Objects;
 import java.util.Optional;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /** Cargo settings with independent filters and station bindings for each transfer direction. */
+@NonNullByDefault
 public record CargoBehavior(CargoOperation operation, CargoFilter loadFilter, CargoFilter unloadFilter,
         Optional<CargoStationBinding> loadStation, Optional<CargoStationBinding> unloadStation) {
     public CargoBehavior {

@@ -25,6 +25,7 @@ import net.neoforged.neoforge.common.world.chunk.TicketController;
 import net.neoforged.neoforge.common.world.chunk.TicketHelper;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import org.eclipse.jdt.annotation.NonNull;
 
 /** Maintains a small moving forced-chunk window around active route vehicles. */
 public final class VehicleChunkLoadingManager {
@@ -188,7 +189,7 @@ public final class VehicleChunkLoadingManager {
         int windows = trackedVehicleCount();
         int chunkOwnerships = WINDOWS_BY_LEVEL.values().stream()
                 .flatMap(levelWindows -> levelWindows.values().stream())
-                .mapToInt(Set::size)
+                .mapToInt((@NonNull Set<ChunkPos> window) -> window.size())
                 .sum();
         FarAndWide.LOGGER.info("Vehicle chunk loading: {} tracked vehicles, {} chunk ownerships, radius {}, limit {}",
                 windows, chunkOwnerships, Config.VEHICLE_CHUNK_RADIUS.get(),

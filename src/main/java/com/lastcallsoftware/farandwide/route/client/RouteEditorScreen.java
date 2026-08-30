@@ -13,6 +13,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import org.eclipse.jdt.annotation.NonNull;
 
 /** A small name editor used for both creating and renaming routes. */
 public class RouteEditorScreen extends Screen {
@@ -75,7 +76,7 @@ public class RouteEditorScreen extends Screen {
                 : route.getTraversalType();
         int traversalY = fieldY + 32;
         traversalTypeButton = addRenderableWidget(CycleButton
-                .builder(TraversalType::getDisplayName, initialTraversalType)
+                .builder((@NonNull TraversalType traversalType) -> traversalType.getDisplayName(), initialTraversalType)
                 .withValues(TraversalType.values())
                 .withTooltip(type -> Tooltip.create(type.getDescription()))
                 .create(

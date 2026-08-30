@@ -19,6 +19,7 @@ import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import org.eclipse.jdt.annotation.NonNull;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteOperationResultPayload;
@@ -64,7 +65,8 @@ public class FarAndWideClient {
     static void registerClientPayloadHandlers(RegisterClientPayloadHandlersEvent event) {
         event.register(RouteSnapshotPayload.TYPE,
                 (payload, context) -> RouteManager.replaceRoutesFromServer(
-                        payload.routes().stream().map(RouteSnapshotPayload.RouteSnapshot::toRoute).toList(),
+                        payload.routes().stream()
+                                .map((RouteSnapshotPayload.@NonNull RouteSnapshot route) -> route.toRoute()).toList(),
                         payload.selectedRouteId()));
         event.register(AssignmentSnapshotPayload.TYPE,
                 (payload, context) -> RouteManager.replaceAssignmentFromServer(payload.entityId(), payload.assignment()));

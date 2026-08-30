@@ -16,6 +16,7 @@ import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import net.neoforged.neoforge.client.settings.KeyModifier;
 import net.neoforged.neoforge.common.NeoForge;
+import org.eclipse.jdt.annotation.NonNull;
 
 public final class FarAndWideKeyBindings {
     public static final KeyMapping.Category FAR_AND_WIDE_CATEGORY = new KeyMapping.Category(
@@ -87,7 +88,7 @@ public final class FarAndWideKeyBindings {
     }
 
     private static void onClientTick(ClientTickEvent.Post event) {
-        BINDINGS.forEach(BindingDefinition::processClicks);
+        BINDINGS.forEach((FarAndWideKeyBindings.@NonNull BindingDefinition binding) -> binding.processClicks());
     }
 
     private static BindingDefinition binding(

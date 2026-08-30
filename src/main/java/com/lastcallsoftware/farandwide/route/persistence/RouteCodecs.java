@@ -22,6 +22,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.world.phys.Vec3;
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /**
  * Defines the on-disk format for all route persistence.
@@ -36,86 +38,107 @@ import net.minecraft.world.phys.Vec3;
  * that requires relationships between records—such as an assignment's route
  * existing—is performed by {@link FarAndWideSavedData#restore} after decoding.
  */
+@NonNullByDefault
 public final class RouteCodecs {
     private static final Codec<CargoOperation> CARGO_OPERATION = enumCodec(CargoOperation.class);
     private static final Codec<CargoFilter.Mode> CARGO_FILTER_MODE = enumCodec(CargoFilter.Mode.class);
     private static final Codec<Direction> DIRECTION = enumCodec(Direction.class);
     private static final Codec<CargoFilter> CARGO_FILTER = RecordCodecBuilder.create(instance -> instance.group(
-            CARGO_FILTER_MODE.fieldOf("mode").forGetter(CargoFilter::mode),
-            Identifier.CODEC.listOf().optionalFieldOf("items", List.of()).forGetter(CargoFilter::itemIds))
-            .apply(instance, CargoFilter::new));
+            CARGO_FILTER_MODE.fieldOf("mode").forGetter((@NonNull CargoFilter filter) -> filter.mode()),
+            Identifier.CODEC.listOf().optionalFieldOf("items", List.of()).forGetter((@NonNull CargoFilter filter) -> filter.itemIds()))
+            .apply(instance, (CargoFilter.@NonNull Mode mode, @NonNull List<Identifier> itemIds) -> new CargoFilter(mode, itemIds)));
     private static final Codec<CargoStationBinding> CARGO_STATION = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.fieldOf("x").forGetter(binding -> binding.position().getX()),
             Codec.INT.fieldOf("y").forGetter(binding -> binding.position().getY()),
             Codec.INT.fieldOf("z").forGetter(binding -> binding.position().getZ()),
-            DIRECTION.fieldOf("side").forGetter(CargoStationBinding::accessSide))
-            .apply(instance, (x, y, z, side) -> new CargoStationBinding(new BlockPos(x, y, z), side)));
+            DIRECTION.fieldOf("side").forGetter((@NonNull CargoStationBinding binding) -> binding.accessSide()))
+            .apply(instance, (@NonNull Integer x, @NonNull Integer y, @NonNull Integer z, @NonNull Direction side) -> new CargoStationBinding(new BlockPos(x, y, z), side)));
     private static final Codec<CargoBehavior> CARGO_BEHAVIOR = RecordCodecBuilder.create(instance -> instance.group(
-            CARGO_OPERATION.fieldOf("operation").forGetter(CargoBehavior::operation),
-            CARGO_FILTER.fieldOf("loadFilter").forGetter(CargoBehavior::loadFilter),
-            CARGO_FILTER.fieldOf("unloadFilter").forGetter(CargoBehavior::unloadFilter),
-            CARGO_STATION.optionalFieldOf("loadStation").forGetter(CargoBehavior::loadStation),
-            CARGO_STATION.optionalFieldOf("unloadStation").forGetter(CargoBehavior::unloadStation),
-            CARGO_STATION.optionalFieldOf("station").forGetter(behavior -> Optional.empty()))
-            .apply(instance, RouteCodecs::cargoBehavior));
+            CARGO_OPERATION.fieldOf("operation").forGetter((@NonNull CargoBehavior behavior) -> behavior.operation()),
+            CARGO_FILTER.fieldOf("loadFilter").forGetter((@NonNull CargoBehavior behavior) -> behavior.loadFilter()),
+            CARGO_FILTER.fieldOf("unloadFilter").forGetter((@NonNull CargoBehavior behavior) -> behavior.unloadFilter()),
+            CARGO_STATION.optionalFieldOf("loadStation").forGetter((@NonNull CargoBehavior behavior) -> behavior.loadStation()),
+            CARGO_STATION.optionalFieldOf("unloadStation").forGetter((@NonNull CargoBehavior behavior) -> behavior.unloadStation()),
+            CARGO_STATION.optionalFieldOf("station").forGetter((@NonNull CargoBehavior behavior) -> Optional.empty()))
+            .apply(instance, (@NonNull CargoOperation operation, @NonNull CargoFilter loadFilter,
+                    @NonNull CargoFilter unloadFilter, @NonNull Optional<CargoStationBinding> loadStation,
+                    @NonNull Optional<CargoStationBinding> unloadStation, @NonNull Optional<CargoStationBinding> legacyStation)
+                    -> cargoBehavior(operation, loadFilter, unloadFilter, loadStation, unloadStation, legacyStation)));
     private static final Codec<Waypoint> WAYPOINT = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.INT.optionalFieldOf("id", 0).forGetter(Waypoint::id),
-            Codec.DOUBLE.fieldOf("x").forGetter(waypoint -> waypoint.position().x),
-            Codec.DOUBLE.fieldOf("y").forGetter(waypoint -> waypoint.position().y),
-            Codec.DOUBLE.fieldOf("z").forGetter(waypoint -> waypoint.position().z),
-            Identifier.CODEC.optionalFieldOf("dimension", Waypoint.DEFAULT_DIMENSION).forGetter(Waypoint::dimension),
+            Codec.INT.optionalFieldOf("id", 0).forGetter((@NonNull Waypoint waypoint) -> waypoint.id()),
+            Codec.DOUBLE.fieldOf("x").forGetter((@NonNull Waypoint waypoint) -> waypoint.position().x),
+            Codec.DOUBLE.fieldOf("y").forGetter((@NonNull Waypoint waypoint) -> waypoint.position().y),
+            Codec.DOUBLE.fieldOf("z").forGetter((@NonNull Waypoint waypoint) -> waypoint.position().z),
+            Identifier.CODEC.optionalFieldOf("dimension", Waypoint.DEFAULT_DIMENSION).forGetter((@NonNull Waypoint waypoint) -> waypoint.dimension()),
             Codec.DOUBLE.optionalFieldOf("arrivalRadius", Constants.Waypoints.DEFAULT_ARRIVAL_RADIUS)
-                    .forGetter(Waypoint::arrivalRadius),
-            CARGO_BEHAVIOR.optionalFieldOf("cargo").forGetter(RouteCodecs::cargoBehavior))
-            .apply(instance, RouteCodecs::waypoint));
+                    .forGetter((@NonNull Waypoint waypoint) -> waypoint.arrivalRadius()),
+            CARGO_BEHAVIOR.optionalFieldOf("cargo").forGetter((@NonNull Waypoint waypoint) -> cargoBehavior(waypoint)))
+            .apply(instance, (@NonNull Integer id, @NonNull Double x, @NonNull Double y, @NonNull Double z,
+                    @NonNull Identifier dimension, @NonNull Double arrivalRadius,
+                    @NonNull Optional<CargoBehavior> cargoBehavior)
+                    -> waypoint(id, x, y, z, dimension, arrivalRadius, cargoBehavior)));
 
     private static final Codec<Route> ROUTE = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.INT.fieldOf("id").forGetter(Route::getId),
-            Codec.STRING.fieldOf("name").forGetter(Route::getName),
-            TraversalType.CODEC.fieldOf("traversalType").forGetter(Route::getTraversalType),
-            WAYPOINT.listOf().fieldOf("waypoints").forGetter(Route::getWaypoints))
-            .apply(instance, RouteCodecs::route));
+            Codec.INT.fieldOf("id").forGetter((@NonNull Route route) -> route.getId()),
+            Codec.STRING.fieldOf("name").forGetter((@NonNull Route route) -> route.getName()),
+            TraversalType.CODEC.fieldOf("traversalType").forGetter((@NonNull Route route) -> route.getTraversalType()),
+            WAYPOINT.listOf().fieldOf("waypoints").forGetter((@NonNull Route route) -> route.getWaypoints()))
+            .apply(instance, (@NonNull Integer id, @NonNull String name, @NonNull TraversalType traversalType,
+                    @NonNull List<Waypoint> waypoints) -> route(id, name, traversalType, waypoints)));
 
     private static final Codec<RouteAssignment> ASSIGNMENT = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.INT.fieldOf("routeId").forGetter(RouteAssignment::getRouteId),
-            Codec.INT.fieldOf("assigneeId").forGetter(RouteAssignment::getAssigneeId),
-            Codec.INT.fieldOf("targetWaypointIndex").forGetter(RouteAssignment::getTargetWaypointIndex),
-            Codec.INT.fieldOf("traversalDirection").forGetter(RouteAssignment::getTraversalDirection),
+            Codec.INT.fieldOf("routeId").forGetter((@NonNull RouteAssignment assignment) -> assignment.getRouteId()),
+            Codec.INT.fieldOf("assigneeId").forGetter((@NonNull RouteAssignment assignment) -> assignment.getAssigneeId()),
+            Codec.INT.fieldOf("targetWaypointIndex").forGetter((@NonNull RouteAssignment assignment) -> assignment.getTargetWaypointIndex()),
+            Codec.INT.fieldOf("traversalDirection").forGetter((@NonNull RouteAssignment assignment) -> assignment.getTraversalDirection()),
             TraversalType.CODEC.optionalFieldOf("traversalTypeOverride")
                     .forGetter(assignment -> Optional.ofNullable(assignment.getTraversalTypeOverride())),
-            Codec.BOOL.fieldOf("active").forGetter(RouteAssignment::isActive))
-            .apply(instance, RouteCodecs::assignment));
+            Codec.BOOL.fieldOf("active").forGetter((@NonNull RouteAssignment assignment) -> assignment.isActive()))
+            .apply(instance, (@NonNull Integer routeId, @NonNull Integer assigneeId,
+                    @NonNull Integer targetWaypointIndex, @NonNull Integer traversalDirection,
+                    @NonNull Optional<TraversalType> traversalTypeOverride, @NonNull Boolean active)
+                    -> assignment(routeId, assigneeId, targetWaypointIndex, traversalDirection,
+                            traversalTypeOverride, active)));
 
     private static final Codec<AssignmentEntry> ASSIGNMENT_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.INT.fieldOf("assigneeId").forGetter(AssignmentEntry::assigneeId),
-            ASSIGNMENT.fieldOf("assignment").forGetter(AssignmentEntry::assignment))
-            .apply(instance, AssignmentEntry::new));
+            Codec.INT.fieldOf("assigneeId").forGetter((@NonNull AssignmentEntry entry) -> entry.assigneeId()),
+            ASSIGNMENT.fieldOf("assignment").forGetter((@NonNull AssignmentEntry entry) -> entry.assignment()))
+            .apply(instance, (@NonNull Integer assigneeId, @NonNull RouteAssignment assignment)
+                    -> new AssignmentEntry(assigneeId, assignment)));
 
     private static final Codec<SelectedRouteEntry> SELECTED_ROUTE_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
-            Codec.INT.fieldOf("assigneeId").forGetter(SelectedRouteEntry::assigneeId),
-            Codec.INT.fieldOf("routeId").forGetter(SelectedRouteEntry::routeId))
-            .apply(instance, SelectedRouteEntry::new));
+            Codec.INT.fieldOf("assigneeId").forGetter((@NonNull SelectedRouteEntry entry) -> entry.assigneeId()),
+            Codec.INT.fieldOf("routeId").forGetter((@NonNull SelectedRouteEntry entry) -> entry.routeId()))
+            .apply(instance, (@NonNull Integer assigneeId, @NonNull Integer routeId)
+                    -> new SelectedRouteEntry(assigneeId, routeId)));
 
     private static final Codec<VehicleAssigneeEntry> VEHICLE_ASSIGNEE_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
-            UUIDUtil.CODEC.fieldOf("vehicleUuid").forGetter(VehicleAssigneeEntry::vehicleUuid),
-            Codec.INT.fieldOf("assigneeId").forGetter(VehicleAssigneeEntry::assigneeId))
-            .apply(instance, VehicleAssigneeEntry::new));
+            UUIDUtil.CODEC.fieldOf("vehicleUuid").forGetter((@NonNull VehicleAssigneeEntry entry) -> entry.vehicleUuid()),
+            Codec.INT.fieldOf("assigneeId").forGetter((@NonNull VehicleAssigneeEntry entry) -> entry.assigneeId()))
+            .apply(instance, (@NonNull UUID vehicleUuid, @NonNull Integer assigneeId)
+                    -> new VehicleAssigneeEntry(vehicleUuid, assigneeId)));
 
     /** Root codec supplied to Minecraft's {@code SavedDataType}. */
     static final Codec<FarAndWideSavedData> SAVED_DATA = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.optionalFieldOf("dataVersion", Constants.Persistence.CURRENT_DATA_VERSION)
-                    .forGetter(data -> Constants.Persistence.CURRENT_DATA_VERSION),
-            Codec.INT.optionalFieldOf("nextRouteId", 1).forGetter(FarAndWideSavedData::getNextRouteId),
-            Codec.INT.optionalFieldOf("nextAssigneeId", 1).forGetter(FarAndWideSavedData::getNextAssigneeId),
-            Codec.INT.optionalFieldOf("nextWaypointId", 1).forGetter(FarAndWideSavedData::getNextWaypointId),
-            ROUTE.listOf().optionalFieldOf("routes", List.of()).forGetter(FarAndWideSavedData::getRoutes),
+                    .forGetter((@NonNull FarAndWideSavedData data) -> Constants.Persistence.CURRENT_DATA_VERSION),
+            Codec.INT.optionalFieldOf("nextRouteId", 1).forGetter((@NonNull FarAndWideSavedData data) -> data.getNextRouteId()),
+            Codec.INT.optionalFieldOf("nextAssigneeId", 1).forGetter((@NonNull FarAndWideSavedData data) -> data.getNextAssigneeId()),
+            Codec.INT.optionalFieldOf("nextWaypointId", 1).forGetter((@NonNull FarAndWideSavedData data) -> data.getNextWaypointId()),
+            ROUTE.listOf().optionalFieldOf("routes", List.of()).forGetter((@NonNull FarAndWideSavedData data) -> data.getRoutes()),
             ASSIGNMENT_ENTRY.listOf().optionalFieldOf("assignments", List.of())
-                    .forGetter(RouteCodecs::assignmentEntries),
+                    .forGetter((@NonNull FarAndWideSavedData data) -> assignmentEntries(data)),
             SELECTED_ROUTE_ENTRY.listOf().optionalFieldOf("selectedRoutes", List.of())
-                    .forGetter(RouteCodecs::selectedRouteEntries),
+                    .forGetter((@NonNull FarAndWideSavedData data) -> selectedRouteEntries(data)),
             VEHICLE_ASSIGNEE_ENTRY.listOf().optionalFieldOf("vehicleAssignees", List.of())
-                    .forGetter(RouteCodecs::vehicleAssigneeEntries))
-            .apply(instance, RouteCodecs::savedData));
+                    .forGetter((@NonNull FarAndWideSavedData data) -> vehicleAssigneeEntries(data)))
+            .apply(instance, (@NonNull Integer dataVersion, @NonNull Integer nextRouteId,
+                    @NonNull Integer nextAssigneeId, @NonNull Integer nextWaypointId,
+                    @NonNull List<Route> routes, @NonNull List<AssignmentEntry> assignments,
+                    @NonNull List<SelectedRouteEntry> selectedRoutes,
+                    @NonNull List<VehicleAssigneeEntry> vehicleAssignees)
+                    -> savedData(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
+                            assignments, selectedRoutes, vehicleAssignees)));
 
     private RouteCodecs() {
     }
@@ -152,19 +175,19 @@ public final class RouteCodecs {
 
     private static List<AssignmentEntry> assignmentEntries(FarAndWideSavedData data) {
         return data.getAssignmentsByAssignee().entrySet().stream()
-                .map(entry -> new AssignmentEntry(entry.getKey(), entry.getValue()))
+                .map((Map.@NonNull Entry<Integer, RouteAssignment> entry) -> new AssignmentEntry(entry.getKey(), entry.getValue()))
                 .toList();
     }
 
     private static List<SelectedRouteEntry> selectedRouteEntries(FarAndWideSavedData data) {
         return data.getSelectedRoutesByAssignee().entrySet().stream()
-                .map(entry -> new SelectedRouteEntry(entry.getKey(), entry.getValue()))
+                .map((Map.@NonNull Entry<Integer, Integer> entry) -> new SelectedRouteEntry(entry.getKey(), entry.getValue()))
                 .toList();
     }
 
     private static List<VehicleAssigneeEntry> vehicleAssigneeEntries(FarAndWideSavedData data) {
         return data.getVehicleAssigneesByUuid().entrySet().stream()
-                .map(entry -> new VehicleAssigneeEntry(entry.getKey(), entry.getValue()))
+                .map((Map.@NonNull Entry<UUID, Integer> entry) -> new VehicleAssigneeEntry(entry.getKey(), entry.getValue()))
                 .toList();
     }
 
@@ -173,11 +196,11 @@ public final class RouteCodecs {
             List<Route> routes, List<AssignmentEntry> assignments, List<SelectedRouteEntry> selectedRoutes,
             List<VehicleAssigneeEntry> vehicleAssignees) {
         Map<Integer, RouteAssignment> assignmentsByAssignee = assignments.stream().collect(Collectors.toMap(
-                AssignmentEntry::assigneeId, AssignmentEntry::assignment, (first, ignored) -> first));
+                entry -> entry.assigneeId(), entry -> entry.assignment(), (first, ignored) -> first));
         Map<Integer, Integer> selectedRouteByAssignee = selectedRoutes.stream().collect(Collectors.toMap(
-                SelectedRouteEntry::assigneeId, SelectedRouteEntry::routeId, (first, ignored) -> first));
+                entry -> entry.assigneeId(), entry -> entry.routeId(), (first, ignored) -> first));
         Map<UUID, Integer> vehicleAssigneeByUuid = vehicleAssignees.stream().collect(Collectors.toMap(
-                VehicleAssigneeEntry::vehicleUuid, VehicleAssigneeEntry::assigneeId, (first, ignored) -> first));
+                entry -> entry.vehicleUuid(), entry -> entry.assigneeId(), (first, ignored) -> first));
         return FarAndWideSavedData.restore(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
                 assignmentsByAssignee, selectedRouteByAssignee, vehicleAssigneeByUuid);
     }

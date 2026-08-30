@@ -19,6 +19,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import org.eclipse.jdt.annotation.NonNull;
 
 /** Searchable item-registry editor for one cargo transfer direction. */
 final class CargoFilterScreen extends Screen {
@@ -301,7 +302,7 @@ final class CargoFilterScreen extends Screen {
         }
         entries.sort(Comparator
                 .comparing((CargoFilterEditorState.Entry entry) -> entry.displayName().toLowerCase(Locale.ROOT))
-                .thenComparing(CargoFilterEditorState.Entry::itemId));
+                .thenComparing((CargoFilterEditorState.@NonNull Entry entry) -> entry.itemId()));
         return entries;
     }
 }

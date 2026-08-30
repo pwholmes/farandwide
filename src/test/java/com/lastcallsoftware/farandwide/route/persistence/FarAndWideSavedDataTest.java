@@ -22,6 +22,7 @@ import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
 import net.minecraft.resources.Identifier;
+import org.eclipse.jdt.annotation.NonNull;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
@@ -51,10 +52,10 @@ class FarAndWideSavedDataTest {
         FarAndWideSavedData restored = RouteCodecs.SAVED_DATA.parse(JsonOps.INSTANCE, saved).getOrThrow();
         List<Waypoint> waypoints = restored.getRoute(4).getWaypoints();
 
-        assertEquals(List.of(1, 2), waypoints.stream().map(Waypoint::id).toList());
+        assertEquals(List.of(1, 2), waypoints.stream().map((@NonNull Waypoint waypoint) -> waypoint.id()).toList());
         assertEquals(List.of(new Vec3(1, 64, 3), new Vec3(9, 70, 2)),
-                waypoints.stream().map(Waypoint::position).toList());
-        assertEquals(List.of(OVERWORLD, NETHER), waypoints.stream().map(Waypoint::dimension).toList());
+                waypoints.stream().map((@NonNull Waypoint waypoint) -> waypoint.position()).toList());
+        assertEquals(List.of(OVERWORLD, NETHER), waypoints.stream().map((@NonNull Waypoint waypoint) -> waypoint.dimension()).toList());
         assertTrue(waypoints.stream().allMatch(waypoint -> waypoint.action() instanceof WaypointAction.Normal));
     }
 
@@ -126,7 +127,7 @@ class FarAndWideSavedDataTest {
 
         route = data.getRoute(route.getId());
         assertEquals(List.of(firstId, thirdId, secondId),
-                route.getWaypoints().stream().map(Waypoint::id).toList());
+                route.getWaypoints().stream().map((@NonNull Waypoint waypoint) -> waypoint.id()).toList());
         assertEquals(2, data.getAssignment(assigneeId).getTargetWaypointIndex());
     }
 

@@ -9,6 +9,7 @@ import com.lastcallsoftware.farandwide.Constants;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.resources.Identifier;
+import org.eclipse.jdt.annotation.NonNull;
 import org.junit.jupiter.api.Test;
 
 class CargoFilterEditorStateTest {
@@ -123,6 +124,6 @@ class CargoFilterEditorStateTest {
     }
 
     private static List<Identifier> ids(List<CargoFilterEditorState.Entry> entries) {
-        return entries.stream().map(CargoFilterEditorState.Entry::itemId).toList();
+        return entries.stream().map((CargoFilterEditorState.@NonNull Entry entry) -> entry.itemId()).toList();
     }
 }

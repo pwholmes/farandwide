@@ -5,8 +5,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.resources.Identifier;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /** Item selection for one direction of a cargo transfer. */
+@NonNullByDefault
 public record CargoFilter(Mode mode, List<Identifier> itemIds) {
     public CargoFilter {
         Objects.requireNonNull(mode, "mode");

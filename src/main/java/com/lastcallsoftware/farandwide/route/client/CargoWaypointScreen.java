@@ -23,6 +23,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.phys.Vec3;
 import java.util.Optional;
+import org.eclipse.jdt.annotation.NonNull;
 
 /** Reusable create/edit screen for normal and cargo waypoint behavior. */
 public final class CargoWaypointScreen extends Screen {
@@ -122,7 +123,7 @@ public final class CargoWaypointScreen extends Screen {
 
         // Behavior (Normal vs Cargo)
         addRenderableWidget(CycleButton
-                .builder(BehaviorType::displayName, selectedBehavior)
+                .builder((CargoWaypointScreen.@NonNull BehaviorType behavior) -> behavior.displayName(), selectedBehavior)
                 .withValues(BehaviorType.values())
                 .create(left, yPos, CONTROL_WIDTH, 20,
                         Component.translatable("screen.farandwide.cargo_waypoint.behavior"),

@@ -1,6 +1,8 @@
 package com.lastcallsoftware.farandwide.route;
 
 import java.util.List;
+import java.util.Objects;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /**
  * The complete persisted definition of a route.
@@ -16,8 +18,11 @@ import java.util.List;
  * important: without it, callers could still mutate the waypoint list behind
  * the record's back.
  */
+@NonNullByDefault
 public record Route(int id, String name, TraversalType traversalType, List<Waypoint> waypoints) {
     public Route {
+        name = Objects.requireNonNull(name, "name");
+        traversalType = Objects.requireNonNull(traversalType, "traversalType");
         waypoints = List.copyOf(waypoints);
     }
 

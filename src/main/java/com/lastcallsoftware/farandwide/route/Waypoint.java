@@ -4,8 +4,10 @@ import com.lastcallsoftware.farandwide.Constants;
 import java.util.Objects;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
+import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /** A stable, server-owned point in a route and the action performed there. */
+@NonNullByDefault
 public record Waypoint(int id, Vec3 position, Identifier dimension, WaypointAction action, double arrivalRadius) {
     public static final Identifier DEFAULT_DIMENSION = Identifier.withDefaultNamespace("overworld");
 

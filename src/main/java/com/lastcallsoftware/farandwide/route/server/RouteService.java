@@ -17,6 +17,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
+import org.eclipse.jdt.annotation.NonNull;
 
 /**
  * Authoritative entry point for player-initiated route operations.
@@ -209,7 +210,7 @@ public final class RouteService {
         if (assignments.isEmpty()) {
             return RouteOperationResult.NO_ASSIGNMENT;
         }
-        boolean active = assignments.stream().noneMatch(RouteAssignment::isActive);
+        boolean active = assignments.stream().noneMatch((@NonNull RouteAssignment assignment) -> assignment.isActive());
         data.setRouteAssignmentsActive(routeId, active);
         if (!active) {
             stopLoadedAssignees(player, data, routeId);

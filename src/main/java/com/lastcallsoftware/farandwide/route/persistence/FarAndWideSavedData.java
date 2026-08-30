@@ -21,6 +21,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.world.phys.Vec3;
+import org.eclipse.jdt.annotation.NonNull;
 
 /**
  * Server-owned, world-scoped route storage.
@@ -333,7 +334,7 @@ public final class FarAndWideSavedData extends SavedData {
         }
         Set<Integer> removedAssigneeIds = assignmentsByAssignee.entrySet().stream()
                 .filter(entry -> entry.getValue().getRouteId() == routeId)
-                .map(Map.Entry::getKey)
+                .map((Map.@NonNull Entry<Integer, RouteAssignment> entry) -> entry.getKey())
                 .collect(java.util.stream.Collectors.toSet());
         assignmentsByAssignee.keySet().removeAll(removedAssigneeIds);
         vehicleAssigneeByUuid.values().removeIf(removedAssigneeIds::contains);
@@ -399,7 +400,7 @@ public final class FarAndWideSavedData extends SavedData {
         Set<Integer> waypointIds = new HashSet<>();
         int highestPersistedWaypointId = routes.stream()
                 .flatMap(route -> route.getWaypoints().stream())
-                .mapToInt(Waypoint::id)
+                .mapToInt((@NonNull Waypoint waypoint) -> waypoint.id())
                 .max().orElse(0);
         data.nextWaypointId = Math.max(savedNextWaypointId, highestPersistedWaypointId + 1);
         for (Route route : routes) {
@@ -471,12 +472,12 @@ public final class FarAndWideSavedData extends SavedData {
             repaired = true;
         }
 
-        int highestRouteId = data.routes.stream().mapToInt(Route::getId).max().orElse(0);
+        int highestRouteId = data.routes.stream().mapToInt((@NonNull Route route) -> route.getId()).max().orElse(0);
         // Include rejected records when finding the allocator floor. Their IDs
         // may still exist on entity attachments, so reusing one would alias two
         // logically different assignees.
-        int highestAssignmentId = assignments.keySet().stream().mapToInt(Integer::intValue).max().orElse(0);
-        int highestSelectionId = selectedRoutes.keySet().stream().mapToInt(Integer::intValue).max().orElse(0);
+        int highestAssignmentId = assignments.keySet().stream().mapToInt((@NonNull Integer id) -> id.intValue()).max().orElse(0);
+        int highestSelectionId = selectedRoutes.keySet().stream().mapToInt((@NonNull Integer id) -> id.intValue()).max().orElse(0);
         int highestAssigneeId = Math.max(highestAssignmentId, highestSelectionId);
         data.nextRouteId = Math.max(savedNextRouteId, highestRouteId + 1);
         data.nextAssigneeId = Math.max(savedNextAssigneeId, highestAssigneeId + 1);
