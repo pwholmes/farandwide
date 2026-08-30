@@ -18,11 +18,11 @@ logoFile="farandwide.png" #optional
 logoBlur=false
 
 # The authors of the mod, displayed in the mod UI (optional)
-authors="Paul Holmes"
+authors="Cognitive Failure"
 
 # The description text for the mod (multi line!) (#mandatory)
 description='''
-Far And Wide lets you automate travel and cargo transport in Minecraft using Routes and Waypoints.
+Automate travel and cargo transport using Routes and Waypoints.
 '''
 
 # Dependencies

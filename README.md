@@ -61,4 +61,4 @@ Please report bugs and feature requests through the project’s issue tracker.
 
 ## License
 
-MIT.
+The game uses the MIT license, fully described in LICENSE.txt.
