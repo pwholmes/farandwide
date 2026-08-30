@@ -146,6 +146,12 @@ tasks.named('test', Test).configure {
     useJUnitPlatform()
 }
 
+tasks.named('jar', Jar).configure {
+    from(rootProject.file('LICENSE.txt')) {
+        into 'META-INF'
+    }
+}
+
 // This block of code expands all declared replace properties in the specified resource targets.
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {

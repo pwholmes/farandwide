@@ -1,25 +1,64 @@
+# Far And Wide
 
-Installation information
-=======
+**Far And Wide** lets you record routes and automate repeat travel and cargo transport in Minecraft.
 
-This template repository can be directly cloned to get you started with a new
-mod. Simply create a new repository cloned from this one, by following the
-instructions provided by [GitHub](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template).
+Create a route, add waypoints while travelling it manually, assign the route to a vehicle, and activate it. The vehicle will then follow the route automatically.
 
-Once you have your clone, simply open the repository in the IDE of your choice. The usual recommendation for an IDE is either IntelliJ IDEA or Eclipse.
+## Requirements
 
-If at any point you are missing libraries in your IDE, or you've run into problems you can
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-{this does not affect your code} and then start the process again.
+- Minecraft 26.2
+- NeoForge 26.2.0.66
+- Far And Wide 1.0.0
 
-Mapping Names:
-============
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/NeoForged/NeoForm/blob/main/Mojang.md
+Install the JAR in the instance’s `mods` folder. For multiplayer, install it on both the client and server.
 
-Additional Resources: 
-==========
-Community Documentation: https://docs.neoforged.net/  
-NeoForged Discord: https://discord.neoforged.net/
+## Supported Vehicles
+
+- Boats
+- Horses
+- Donkeys
+- Mules
+- The player
+
+Cargo transport is supported by:
+
+- Chest boats
+- Donkeys and mules equipped with chests
+
+## Quick start
+
+1. Open the Far And Wide command menu (default: `Ctrl + F`).
+2. Create a Route and choose its traversal type:
+   - **One Way** — stops at the final waypoint.
+   - **Loop** — returns to the first waypoint after the last.
+   - **Reverse** — reverses direction at each end.
+3. Travel the intended Route manually, pressing `K` to add Waypoints.
+4. Mount a supported Vehicle and use **Assign Route** (default: `Ctrl + G`)
+5. Use **Toggle Route** (default: `Ctrl + A`) to start or pause it.
+6. You may dismount the Vehicle at any time and it will keep moving along the Route.
+
+All controls are configurable in Minecraft’s Controls menu under the **Far And Wide** heading.
+
+If you want to minimize the number of mapped keys the mod uses to avoid conflicts with other mods, all you really need is a mapping for the Far And Wide command menu -- everything else can be accessed from there.
+
+## Cargo routes
+
+Edit any Waypoint by 'using' it (default: right-click) and change it into a Cargo Waypoint.  Configure it to load items, unload items, or both, and connect nearby inventories as 'Stations'.
+
+Item filters can restrict which items a Vehicle loads or unloads.  Cargo Stations can use compatible inventory blocks such as chests, barrels, hoppers, and furnaces.
+
+## Important route-safety notes
+
+Vehicles navigate directly toward their next waypoint —- they do not pathfind around obstacles.  Make sure your Routes avoid walls, lava, and other hazards.
+
+Routes can also keep nearby chunks loaded while an assigned Vehicle is travelling.  Server operators can configure the chunk-loading radius around a Vehicle and maximum number of chunk-loaded vehicles.
+
+## Help and feedback
+
+Use the in-game **Far And Wide Help** screen from the command menu for guided instructions.
+
+Please report bugs and feature requests through the project’s issue tracker.
+
+## License
+
+MIT.
