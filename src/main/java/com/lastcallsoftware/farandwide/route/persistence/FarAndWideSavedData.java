@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -15,8 +16,10 @@ import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
+import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
@@ -46,6 +49,8 @@ public final class FarAndWideSavedData extends SavedData {
     private final Map<Integer, RouteAssignment> assignmentsByAssignee = new HashMap<>();
     private final Map<Integer, Integer> selectedRouteByAssignee = new HashMap<>();
     private final Map<UUID, Integer> vehicleAssigneeByUuid = new HashMap<>();
+    private final Map<UUID, VehicleIdentity> vehicleIdentityByUuid = new HashMap<>();
+    private final Map<UUID, VehicleLocation> vehicleLocationByUuid = new HashMap<>();
     private int nextRouteId = 1;
     private int nextAssigneeId = 1;
     private int nextWaypointId = 1;
@@ -59,6 +64,8 @@ public final class FarAndWideSavedData extends SavedData {
     public Map<Integer, RouteAssignment> getAssignmentsByAssignee() { return Map.copyOf(assignmentsByAssignee); }
     Map<Integer, Integer> getSelectedRoutesByAssignee() { return Map.copyOf(selectedRouteByAssignee); }
     Map<UUID, Integer> getVehicleAssigneesByUuid() { return Map.copyOf(vehicleAssigneeByUuid); }
+    Map<UUID, VehicleIdentity> getVehicleIdentitiesByUuid() { return Map.copyOf(vehicleIdentityByUuid); }
+    Map<UUID, VehicleLocation> getVehicleLocationsByUuid() { return Map.copyOf(vehicleLocationByUuid); }
     public int getNextRouteId() { return nextRouteId; }
     public int getNextAssigneeId() { return nextAssigneeId; }
     public int getNextWaypointId() { return nextWaypointId; }
@@ -87,19 +94,139 @@ public final class FarAndWideSavedData extends SavedData {
         return vehicleAssigneeByUuid.getOrDefault(vehicleUuid, 0);
     }
 
+    /** Resolves the persistent vehicle UUID associated with an assignment. */
+    public Optional<UUID> getVehicleUuid(int assigneeId) {
+        return vehicleAssigneeByUuid.entrySet().stream()
+                .filter(entry -> entry.getValue() == assigneeId)
+                .map((Map.@NonNull Entry<UUID, Integer> entry) -> entry.getKey())
+                .findFirst();
+    }
+
+    public Optional<VehicleLocation> getVehicleLocation(UUID vehicleUuid) {
+        return Optional.ofNullable(vehicleLocationByUuid.get(vehicleUuid));
+    }
+
+    /** Records a restart location, avoiding dirty writes when the value has not changed. */
+    public boolean updateVehicleLocation(UUID vehicleUuid, Identifier dimension, BlockPos position) {
+        if (!vehicleAssigneeByUuid.containsKey(vehicleUuid) || dimension == null || position == null) {
+            return false;
+        }
+        VehicleLocation location = new VehicleLocation(dimension, position.immutable());
+        if (location.equals(vehicleLocationByUuid.get(vehicleUuid))) {
+            return false;
+        }
+        vehicleLocationByUuid.put(vehicleUuid, location);
+        setDirty();
+        return true;
+    }
+
+    public boolean isVehicleAssignee(int assigneeId) {
+        return vehicleAssigneeByUuid.containsValue(assigneeId);
+    }
+
+    /** Returns every vehicle-backed assignment without exposing persistent UUIDs to clients. */
+    public List<VehicleRouteAssignment> getVehicleRouteAssignments() {
+        return vehicleAssigneeByUuid.entrySet().stream()
+                .map(entry -> {
+                    RouteAssignment assignment = getAssignment(entry.getValue());
+                    VehicleIdentity identity = vehicleIdentityByUuid.get(entry.getKey());
+                    if (assignment == null) {
+                        return null;
+                    }
+                    String name = identity == null
+                            ? "Vehicle " + entry.getValue()
+                            : identity.displayName();
+                    return new VehicleRouteAssignment(
+                            entry.getValue(), assignment.getRouteId(), name,
+                            assignment.getTargetWaypointIndex(), assignment.isActive(), Optional.empty());
+                })
+                .filter(java.util.Objects::nonNull)
+                .sorted(java.util.Comparator.comparing(
+                                (@NonNull VehicleRouteAssignment assignment) -> assignment.displayName())
+                        .thenComparingInt(
+                                (@NonNull VehicleRouteAssignment assignment) -> assignment.assigneeId()))
+                .toList();
+    }
+
     /** Records the identity bridge required to validate entity-owned chunk tickets. */
     public boolean associateVehicle(UUID vehicleUuid, int assigneeId) {
         if (vehicleUuid == null || assigneeId <= 0 || getAssignment(assigneeId) == null) {
             return false;
         }
-        boolean changed = vehicleAssigneeByUuid.entrySet().removeIf(
-                entry -> entry.getValue() == assigneeId && !entry.getKey().equals(vehicleUuid));
+        Set<UUID> replacedVehicles = vehicleAssigneeByUuid.entrySet().stream()
+                .filter(entry -> entry.getValue() == assigneeId && !entry.getKey().equals(vehicleUuid))
+                .map((Map.@NonNull Entry<UUID, Integer> entry) -> entry.getKey())
+                .collect(java.util.stream.Collectors.toSet());
+        boolean changed = vehicleAssigneeByUuid.keySet().removeAll(replacedVehicles);
+        vehicleLocationByUuid.keySet().removeAll(replacedVehicles);
         Integer previous = vehicleAssigneeByUuid.put(vehicleUuid, assigneeId);
         changed |= previous == null || previous != assigneeId;
         if (changed) {
             setDirty();
         }
         return changed;
+    }
+
+    /**
+     * Associates an assignment with a vehicle and allocates its permanent friendly
+     * name the first time that UUID is encountered.
+     */
+    public boolean registerVehicle(UUID vehicleUuid, int assigneeId, String vehicleTypeKey) {
+        if (vehicleUuid == null || getAssignment(assigneeId) == null
+                || vehicleTypeKey == null || vehicleTypeKey.isBlank()) {
+            return false;
+        }
+        boolean changed = associateVehicle(vehicleUuid, assigneeId);
+        if (!vehicleIdentityByUuid.containsKey(vehicleUuid)) {
+            String normalizedType = normalizeVehicleType(vehicleTypeKey);
+            int number = vehicleIdentityByUuid.values().stream()
+                    .filter(identity -> identity.typeKey().equals(normalizedType))
+                    .mapToInt((FarAndWideSavedData.@NonNull VehicleIdentity identity) -> identity.number())
+                    .max()
+                    .orElse(0) + 1;
+            vehicleIdentityByUuid.put(vehicleUuid, new VehicleIdentity(
+                    normalizedType, number, createDisplayName(normalizedType, number)));
+            setDirty();
+            changed = true;
+        }
+        return changed;
+    }
+
+    private static String normalizeVehicleType(String vehicleTypeKey) {
+        String type = vehicleTypeKey.trim().toLowerCase(java.util.Locale.ROOT);
+        if (type.endsWith("_boat")) {
+            return "boat";
+        }
+        if (type.endsWith("_raft")) {
+            return "raft";
+        }
+        return type;
+    }
+
+    private static String friendlyTypeName(String typeKey) {
+        StringBuilder name = new StringBuilder(typeKey.length());
+        boolean capitalize = true;
+        for (int index = 0; index < typeKey.length(); index++) {
+            char character = typeKey.charAt(index);
+            if (character == '_' || character == '-') {
+                name.append(' ');
+                capitalize = true;
+            } else {
+                name.append(capitalize ? Character.toUpperCase(character) : character);
+                capitalize = false;
+            }
+        }
+        return name.toString();
+    }
+
+    private static String createDisplayName(String typeKey, int number) {
+        String suffix = " " + number;
+        String typeName = friendlyTypeName(typeKey);
+        int maximumTypeLength = Math.max(1, Constants.Network.MAX_VEHICLE_NAME_LENGTH - suffix.length());
+        if (typeName.length() > maximumTypeLength) {
+            typeName = typeName.substring(0, maximumTypeLength).stripTrailing();
+        }
+        return typeName + suffix;
     }
 
     public boolean setSelectedRouteId(int assigneeId, int routeId) {
@@ -144,7 +271,12 @@ public final class FarAndWideSavedData extends SavedData {
         if (assignmentsByAssignee.remove(assigneeId) == null) {
             return false;
         }
-        vehicleAssigneeByUuid.values().removeIf(mappedAssigneeId -> mappedAssigneeId == assigneeId);
+        Set<UUID> removedVehicles = vehicleAssigneeByUuid.entrySet().stream()
+                .filter(entry -> entry.getValue() == assigneeId)
+                .map((Map.@NonNull Entry<UUID, Integer> entry) -> entry.getKey())
+                .collect(java.util.stream.Collectors.toSet());
+        vehicleAssigneeByUuid.keySet().removeAll(removedVehicles);
+        vehicleLocationByUuid.keySet().removeAll(removedVehicles);
         setDirty();
         return true;
     }
@@ -157,9 +289,14 @@ public final class FarAndWideSavedData extends SavedData {
         }
         assignmentsByAssignee.put(targetAssigneeId, new RouteAssignment(
                 source.getRouteId(), targetAssigneeId, source.getTargetWaypointIndex(),
-                source.getTraversalDirection(), source.getTraversalTypeOverride(), source.isActive()));
-        vehicleAssigneeByUuid.values().removeIf(
-                mappedAssigneeId -> mappedAssigneeId == sourceAssigneeId || mappedAssigneeId == targetAssigneeId);
+                source.getTraversalDirection(), source.getTraversalTypeOverride(), source.isActive(),
+                source.isRestartAnchor()));
+        Set<UUID> removedVehicles = vehicleAssigneeByUuid.entrySet().stream()
+                .filter(entry -> entry.getValue() == sourceAssigneeId || entry.getValue() == targetAssigneeId)
+                .map((Map.@NonNull Entry<UUID, Integer> entry) -> entry.getKey())
+                .collect(java.util.stream.Collectors.toSet());
+        vehicleAssigneeByUuid.keySet().removeAll(removedVehicles);
+        vehicleLocationByUuid.keySet().removeAll(removedVehicles);
         setDirty();
         return true;
     }
@@ -171,7 +308,8 @@ public final class FarAndWideSavedData extends SavedData {
         }
         assignmentsByAssignee.put(assigneeId, new RouteAssignment(
                 assignment.getRouteId(), assignment.getAssigneeId(), assignment.getTargetWaypointIndex(),
-                assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), active));
+                assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), active,
+                assignment.isRestartAnchor()));
         setDirty();
         return true;
     }
@@ -192,9 +330,25 @@ public final class FarAndWideSavedData extends SavedData {
         if (assignment == null) {
             return false;
         }
-        assignmentsByAssignee.put(assigneeId, new RouteAssignment(
+        return replaceAssignmentTraversalState(
+                assignment, targetWaypointIndex, traversalDirection, assignment.isActive(), false);
+    }
+
+    /** Stops an assignment while preparing its target and direction for a later restart. */
+    public boolean stopAssignmentAtWaypoint(int assigneeId, int targetWaypointIndex, int traversalDirection) {
+        RouteAssignment assignment = getAssignment(assigneeId);
+        if (assignment == null) {
+            return false;
+        }
+        return replaceAssignmentTraversalState(assignment, targetWaypointIndex, traversalDirection, false, true);
+    }
+
+    private boolean replaceAssignmentTraversalState(
+            RouteAssignment assignment, int targetWaypointIndex, int traversalDirection, boolean active,
+            boolean restartAnchor) {
+        assignmentsByAssignee.put(assignment.getAssigneeId(), new RouteAssignment(
                 assignment.getRouteId(), assignment.getAssigneeId(), targetWaypointIndex,
-                traversalDirection, assignment.getTraversalTypeOverride(), assignment.isActive()));
+                traversalDirection, assignment.getTraversalTypeOverride(), active, restartAnchor));
         setDirty();
         return true;
     }
@@ -206,7 +360,8 @@ public final class FarAndWideSavedData extends SavedData {
         }
         assignmentsByAssignee.put(assigneeId, new RouteAssignment(
                 assignment.getRouteId(), assignment.getAssigneeId(), assignment.getTargetWaypointIndex(),
-                assignment.getTraversalDirection(), traversalTypeOverride, assignment.isActive()));
+                assignment.getTraversalDirection(), traversalTypeOverride, assignment.isActive(),
+                assignment.isRestartAnchor()));
         setDirty();
         return true;
     }
@@ -297,7 +452,8 @@ public final class FarAndWideSavedData extends SavedData {
             if (assignment != null && assignment.getRouteId() == routeId && targetIndex >= 0) {
                 assignmentsByAssignee.put(entry.getKey(), new RouteAssignment(
                         assignment.getRouteId(), assignment.getAssigneeId(), targetIndex,
-                        assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), assignment.isActive()));
+                        assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), assignment.isActive(),
+                        assignment.isRestartAnchor()));
             }
         }
     }
@@ -337,7 +493,12 @@ public final class FarAndWideSavedData extends SavedData {
                 .map((Map.@NonNull Entry<Integer, RouteAssignment> entry) -> entry.getKey())
                 .collect(java.util.stream.Collectors.toSet());
         assignmentsByAssignee.keySet().removeAll(removedAssigneeIds);
-        vehicleAssigneeByUuid.values().removeIf(removedAssigneeIds::contains);
+        Set<UUID> removedVehicles = vehicleAssigneeByUuid.entrySet().stream()
+                .filter(entry -> removedAssigneeIds.contains(entry.getValue()))
+                .map((Map.@NonNull Entry<UUID, Integer> entry) -> entry.getKey())
+                .collect(java.util.stream.Collectors.toSet());
+        vehicleAssigneeByUuid.keySet().removeAll(removedVehicles);
+        vehicleLocationByUuid.keySet().removeAll(removedVehicles);
         selectedRouteByAssignee.values().removeIf(selectedRouteId -> selectedRouteId == routeId);
         setDirty();
         return true;
@@ -387,7 +548,8 @@ public final class FarAndWideSavedData extends SavedData {
     static FarAndWideSavedData restore(int dataVersion, int savedNextRouteId, int savedNextAssigneeId,
             int savedNextWaypointId,
             List<Route> routes, Map<Integer, RouteAssignment> assignments, Map<Integer, Integer> selectedRoutes,
-            Map<UUID, Integer> vehicleAssignees) {
+            Map<UUID, Integer> vehicleAssignees, Map<UUID, VehicleIdentity> vehicleIdentities,
+            Map<UUID, VehicleLocation> vehicleLocations) {
         /*
          * Repair records independently instead of rejecting the complete save.
          * A damaged assignment must not destroy unrelated valid routes. Repairs
@@ -446,7 +608,7 @@ public final class FarAndWideSavedData extends SavedData {
             }
             data.assignmentsByAssignee.put(assigneeId, new RouteAssignment(
                     assignment.getRouteId(), assigneeId, targetIndex, direction,
-                    assignment.getTraversalTypeOverride(), assignment.isActive()));
+                    assignment.getTraversalTypeOverride(), assignment.isActive(), assignment.isRestartAnchor()));
         }
 
         selectedRoutes.forEach((assigneeId, routeId) -> {
@@ -472,6 +634,29 @@ public final class FarAndWideSavedData extends SavedData {
             repaired = true;
         }
 
+        for (Map.Entry<UUID, VehicleIdentity> entry : vehicleIdentities.entrySet()) {
+            UUID vehicleUuid = entry.getKey();
+            VehicleIdentity identity = entry.getValue();
+            if (vehicleUuid != null && identity != null && !identity.typeKey().isBlank()
+                    && identity.number() > 0 && !identity.displayName().isBlank()
+                    && identity.displayName().length() <= Constants.Network.MAX_VEHICLE_NAME_LENGTH) {
+                data.vehicleIdentityByUuid.put(vehicleUuid, identity);
+            } else {
+                repaired = true;
+            }
+        }
+
+        for (Map.Entry<UUID, VehicleLocation> entry : vehicleLocations.entrySet()) {
+            UUID vehicleUuid = entry.getKey();
+            VehicleLocation location = entry.getValue();
+            if (vehicleUuid != null && location != null && location.dimension() != null
+                    && location.position() != null && data.vehicleAssigneeByUuid.containsKey(vehicleUuid)) {
+                data.vehicleLocationByUuid.put(vehicleUuid, location);
+            } else {
+                repaired = true;
+            }
+        }
+
         int highestRouteId = data.routes.stream().mapToInt((@NonNull Route route) -> route.getId()).max().orElse(0);
         // Include rejected records when finding the allocator floor. Their IDs
         // may still exist on entity attachments, so reusing one would alias two
@@ -494,5 +679,13 @@ public final class FarAndWideSavedData extends SavedData {
             data.setDirty();
         }
         return data;
+    }
+
+    /** Persistent human-readable identity retained even while a vehicle is unassigned. */
+    public record VehicleIdentity(String typeKey, int number, String displayName) {
+    }
+
+    /** Last known location used to reacquire an unloaded assigned vehicle. */
+    public record VehicleLocation(Identifier dimension, BlockPos position) {
     }
 }

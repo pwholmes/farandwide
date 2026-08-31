@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleAssignmentsSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
@@ -119,7 +120,8 @@ public final class ServerRouteTraversalController {
         }
 
         ServerVehicleController.stop(entity);
-        if (target.action() instanceof WaypointAction.Cargo cargo
+        if (!isOneWayRestartAnchor(route, assignment)
+                && target.action() instanceof WaypointAction.Cargo cargo
                 && !processCargo(assigneeId, route.getId(), entity, target, cargo.behavior())) {
             return;
         }
@@ -129,15 +131,29 @@ public final class ServerRouteTraversalController {
                 VehicleChunkLoadingManager.release(entity);
             }
             syncToControllingPlayer(server, entity, updated);
+            PacketDistributor.sendToAllPlayers(
+                    new VehicleAssignmentsSnapshotPayload(RouteService.getVehicleRouteAssignments(server)));
         }
     }
 
     static boolean processArrival(FarAndWideSavedData data, int assigneeId, Route route,
             RouteAssignment assignment, Waypoint target, Consumer<CargoBehavior> cargoProcessor) {
-        if (target.action() instanceof WaypointAction.Cargo cargo) {
+        if (!isOneWayRestartAnchor(route, assignment)
+                && target.action() instanceof WaypointAction.Cargo cargo) {
             cargoProcessor.accept(cargo.behavior());
         }
         return advanceAssignment(data, assigneeId, route, assignment);
+    }
+
+    private static boolean isOneWayRestartAnchor(Route route, RouteAssignment assignment) {
+        if (!assignment.isRestartAnchor()
+                || assignment.getTraversalType(route) != com.lastcallsoftware.farandwide.route.TraversalType.ONE_WAY
+                || route.getWaypoints().size() <= 1) {
+            return false;
+        }
+        int target = assignment.getTargetWaypointIndex();
+        return target == 0 && assignment.getTraversalDirection() > 0
+                || target == route.getWaypoints().size() - 1 && assignment.getTraversalDirection() < 0;
     }
 
     private static boolean processCargo(int assigneeId, int routeId, Entity entity, Waypoint waypoint,
@@ -235,9 +251,12 @@ public final class ServerRouteTraversalController {
         }
         return switch (assignment.getTraversalType(route)) {
             case ONE_WAY -> {
-                int next = assignment.getTargetWaypointIndex() + 1;
+                int next = assignment.getTargetWaypointIndex() + assignment.getTraversalDirection();
                 if (next >= waypointCount) {
-                    yield data.setAssignmentActive(assigneeId, false);
+                    yield data.stopAssignmentAtWaypoint(assigneeId, waypointCount - 1, -1);
+                }
+                if (next < 0) {
+                    yield data.stopAssignmentAtWaypoint(assigneeId, 0, 1);
                 }
                 yield data.updateAssignmentProgress(assigneeId, next, assignment.getTraversalDirection());
             }

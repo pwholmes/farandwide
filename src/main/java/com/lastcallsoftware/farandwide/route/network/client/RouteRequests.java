@@ -7,8 +7,12 @@ import com.lastcallsoftware.farandwide.route.network.payload.AssignmentMutationP
 import com.lastcallsoftware.farandwide.route.network.payload.RequestAssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RequestRouteSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.RouteActivationMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.SelectRoutePayload;
 import com.lastcallsoftware.farandwide.route.network.payload.WaypointMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleActivationMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleUnassignmentMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleWaypointMutationPayload;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
@@ -85,6 +89,22 @@ public final class RouteRequests {
 
     public static void toggleAssignment() {
         send(new AssignmentMutationPayload(AssignmentMutationPayload.Action.TOGGLE_ACTIVE, 0));
+    }
+
+    public static void setRouteAssignmentsActive(int routeId, boolean active) {
+        send(new RouteActivationMutationPayload(routeId, active));
+    }
+
+    public static void moveVehicleTargetWaypoint(int assigneeId, int delta) {
+        send(new VehicleWaypointMutationPayload(assigneeId, delta));
+    }
+
+    public static void setVehicleAssignmentActive(int assigneeId, boolean active) {
+        send(new VehicleActivationMutationPayload(assigneeId, active));
+    }
+
+    public static void unassignVehicle(int assigneeId) {
+        send(new VehicleUnassignmentMutationPayload(assigneeId));
     }
 
     private static RouteMutationPayload routeMutation(RouteMutationPayload.Action action, int routeId) {

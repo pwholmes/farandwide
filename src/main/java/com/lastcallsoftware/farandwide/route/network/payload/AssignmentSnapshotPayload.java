@@ -39,6 +39,7 @@ public record AssignmentSnapshotPayload(int entityId, RouteAssignment assignment
         buffer.writeBoolean(value.getTraversalTypeOverride() != null);
         if (value.getTraversalTypeOverride() != null) buffer.writeVarInt(value.getTraversalTypeOverride().ordinal());
         buffer.writeBoolean(value.isActive());
+        buffer.writeBoolean(value.isRestartAnchor());
     }
 
     private static AssignmentSnapshotPayload read(RegistryFriendlyByteBuf buffer) {
@@ -53,7 +54,9 @@ public record AssignmentSnapshotPayload(int entityId, RouteAssignment assignment
             if (ordinal < 0 || ordinal >= TraversalType.values().length) throw new IllegalArgumentException("Invalid traversal type");
             override = TraversalType.values()[ordinal];
         }
+        boolean active = buffer.readBoolean();
+        boolean restartAnchor = buffer.readBoolean();
         return new AssignmentSnapshotPayload(entityId,
-                new RouteAssignment(routeId, entityId, target, direction, override, buffer.readBoolean()));
+                new RouteAssignment(routeId, entityId, target, direction, override, active, restartAnchor));
     }
 }

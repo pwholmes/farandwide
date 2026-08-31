@@ -6,6 +6,7 @@ import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
+import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 import com.lastcallsoftware.farandwide.route.network.client.RouteRequests;
 
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ import net.minecraft.world.phys.Vec3;
 public class RouteManager {
     private static List<Route> routes = new ArrayList<>();
     private static final Map<Integer, RouteAssignment> assignmentsByEntity = new HashMap<>();
+    private static List<VehicleRouteAssignment> vehicleRouteAssignments = new ArrayList<>();
     private static Route selectedRoute = null;
     private static long routeStateRevision;
     private static boolean requestedServerSnapshot;
@@ -55,6 +57,7 @@ public class RouteManager {
     public static void clearClientState() {
         routes.clear();
         assignmentsByEntity.clear();
+        vehicleRouteAssignments.clear();
         selectedRoute = null;
         requestedServerSnapshot = false;
         requestedAssignmentEntityId = Integer.MIN_VALUE;
@@ -88,6 +91,13 @@ public class RouteManager {
         Minecraft minecraft = Minecraft.getInstance();
         if (!requestedServerSnapshot && minecraft.getConnection() != null) {
             requestedServerSnapshot = true;
+            RouteRequests.requestRoutes();
+        }
+    }
+
+    /** Refreshes management data even when the connection's initial snapshot was already received. */
+    public static void refreshServerSnapshot() {
+        if (Minecraft.getInstance().getConnection() != null) {
             RouteRequests.requestRoutes();
         }
     }
@@ -269,6 +279,46 @@ public class RouteManager {
             return riddenAssignment;
         }
         return getAssignment(minecraft.player.getId());
+    }
+
+    public static void replaceVehicleAssignmentsFromServer(List<VehicleRouteAssignment> assignments) {
+        vehicleRouteAssignments = new ArrayList<>(assignments);
+        routeStateRevision++;
+    }
+
+    public static List<VehicleRouteAssignment> getVehicleAssignments(int routeId) {
+        return vehicleRouteAssignments.stream()
+                .filter(assignment -> assignment.routeId() == routeId)
+                .toList();
+    }
+
+    /** A route is running as soon as any one of its assigned vehicles is active. */
+    public static boolean isRouteActive(int routeId) {
+        return vehicleRouteAssignments.stream()
+                .anyMatch(assignment -> assignment.routeId() == routeId && assignment.active());
+    }
+
+    public static void moveVehicleTargetWaypoint(int assigneeId, int delta) {
+        RouteRequests.moveVehicleTargetWaypoint(assigneeId, delta);
+    }
+
+    public static void setVehicleAssignmentActive(int assigneeId, boolean active) {
+        RouteRequests.setVehicleAssignmentActive(assigneeId, active);
+    }
+
+    public static void unassignVehicle(int assigneeId) {
+        RouteRequests.unassignVehicle(assigneeId);
+    }
+
+    public static void setRouteAssignmentsActive(int routeId, boolean active) {
+        RouteRequests.setRouteAssignmentsActive(routeId, active);
+    }
+
+    /** Returns whether an assignment belongs to the route currently selected for display. */
+    static boolean isSelectedRouteAssigned(Route selectedRoute, RouteAssignment assignment) {
+        return selectedRoute != null
+                && assignment != null
+                && assignment.getRouteId() == selectedRoute.getId();
     }
 
     public static void synchronizeSelectedRouteWithNavigation() {

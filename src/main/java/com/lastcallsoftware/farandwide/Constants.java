@@ -59,13 +59,15 @@ public final class Constants {
         public static final int MAX_WAYPOINTS_PER_ROUTE = 16_384;
         public static final int MAX_FILTER_ITEMS = 1_024;
         public static final int MAX_IDENTIFIER_LENGTH = 256;
+        public static final int MAX_VEHICLE_ASSIGNMENTS = 1_024;
+        public static final int MAX_VEHICLE_NAME_LENGTH = 64;
 
         private Network() {
         }
     }
 
     public static final class Persistence {
-        public static final int CURRENT_DATA_VERSION = 3;
+        public static final int CURRENT_DATA_VERSION = 6;
 
         private Persistence() {
         }
@@ -76,7 +78,7 @@ public final class Constants {
         public static final int CARGO_WAYPOINT_CONTROL_WIDTH = 240;
         public static final int CARGO_WAYPOINT_SAVE_BUTTON_Y = 144;
         public static final int ROUTE_LIST_TOP = 40;
-        public static final int ROUTE_PANEL_WIDTH = 260;
+        public static final int ROUTE_PANEL_WIDTH = 300;
         public static final int ROUTE_BUTTON_WIDTH = 60;
         public static final int ROUTE_BUTTON_GAP = 4;
         public static final int ROUTE_TRAVERSAL_ICON_SIZE = 16;

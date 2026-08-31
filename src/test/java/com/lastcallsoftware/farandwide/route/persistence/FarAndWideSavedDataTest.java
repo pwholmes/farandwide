@@ -187,6 +187,98 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void vehicleLocationSurvivesRoundTripAndIsRemovedWithAssignment() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        UUID vehicleUuid = UUID.fromString("1b981ca8-c082-43aa-8812-53758f520ceb");
+        BlockPos position = new BlockPos(124, 64, -38);
+        data.registerVehicle(vehicleUuid, assigneeId, "oak_boat");
+
+        assertTrue(data.updateVehicleLocation(vehicleUuid, OVERWORLD, position));
+        assertFalse(data.updateVehicleLocation(vehicleUuid, OVERWORLD, position));
+
+        FarAndWideSavedData restored = roundTrip(data);
+        assertEquals(new FarAndWideSavedData.VehicleLocation(OVERWORLD, position),
+                restored.getVehicleLocation(vehicleUuid).orElseThrow());
+
+        assertTrue(restored.removeAssignment(assigneeId));
+        assertTrue(restored.getVehicleLocation(vehicleUuid).isEmpty());
+        assertTrue(roundTrip(restored).getVehicleLocation(vehicleUuid).isEmpty());
+    }
+
+    @Test
+    void oneWayRestartAnchorSurvivesRoundTrip() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(10, 0, 0), OVERWORLD));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(assigneeId, true);
+
+        assertTrue(data.stopAssignmentAtWaypoint(assigneeId, 1, -1));
+
+        RouteAssignment restored = roundTrip(data).getAssignment(assigneeId);
+        assertFalse(restored.isActive());
+        assertEquals(1, restored.getTargetWaypointIndex());
+        assertEquals(-1, restored.getTraversalDirection());
+        assertTrue(restored.isRestartAnchor());
+    }
+
+    @Test
+    void friendlyVehicleNamesAreStableGlobalAndPersisted() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int boatOneId = data.allocateAssigneeId();
+        int boatTwoId = data.allocateAssigneeId();
+        int horseOneId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), boatOneId, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), boatTwoId, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), horseOneId, Vec3.ZERO, OVERWORLD);
+        UUID boatOne = UUID.fromString("10000000-0000-0000-0000-000000000001");
+        UUID boatTwo = UUID.fromString("10000000-0000-0000-0000-000000000002");
+        UUID horseOne = UUID.fromString("10000000-0000-0000-0000-000000000003");
+
+        assertTrue(data.registerVehicle(boatOne, boatOneId, "oak_boat"));
+        assertTrue(data.registerVehicle(boatTwo, boatTwoId, "spruce_boat"));
+        assertTrue(data.registerVehicle(horseOne, horseOneId, "horse"));
+        assertEquals(List.of("Boat 1", "Boat 2", "Horse 1"), data.getVehicleRouteAssignments().stream()
+                .map(assignment -> assignment.displayName()).toList());
+
+        FarAndWideSavedData restored = roundTrip(data);
+        assertEquals(List.of("Boat 1", "Boat 2", "Horse 1"), restored.getVehicleRouteAssignments().stream()
+                .map(assignment -> assignment.displayName()).toList());
+
+        assertTrue(restored.removeAssignment(boatOneId));
+        restored.assignRoute(route.getId(), boatOneId, Vec3.ZERO, OVERWORLD);
+        assertTrue(restored.registerVehicle(boatOne, boatOneId, "boat"));
+        assertEquals("Boat 1", restored.getVehicleRouteAssignments().stream()
+                .filter(assignment -> assignment.assigneeId() == boatOneId)
+                .findFirst().orElseThrow().displayName());
+    }
+
+    @Test
+    void updatingOneVehicleWaypointDoesNotChangeAnother() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(10, 0, 0), OVERWORLD));
+        int first = data.allocateAssigneeId();
+        int second = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), first, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), second, Vec3.ZERO, OVERWORLD);
+
+        assertTrue(data.updateAssignmentProgress(first, 1, 1));
+
+        assertEquals(1, data.getAssignment(first).getTargetWaypointIndex());
+        assertEquals(0, data.getAssignment(second).getTargetWaypointIndex());
+    }
+
+    @Test
     void vehicleIdentityRequiresAnExistingAssignment() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         UUID vehicleUuid = UUID.fromString("6e0c1347-aa49-4314-8711-ff4b2f94910b");
@@ -358,6 +450,26 @@ class FarAndWideSavedDataTest {
         assertFalse(data.getAssignment(first).isActive());
         assertFalse(data.getAssignment(second).isActive());
         assertTrue(data.getAssignment(unrelated).isActive());
+    }
+
+    @Test
+    void individualActivationDoesNotChangeOtherAssignmentsOnTheRoute() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int first = data.allocateAssigneeId();
+        int second = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), first, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), second, Vec3.ZERO, OVERWORLD);
+
+        assertTrue(data.setAssignmentActive(first, true));
+
+        assertTrue(data.getAssignment(first).isActive());
+        assertFalse(data.getAssignment(second).isActive());
+
+        assertTrue(data.setRouteAssignmentsActive(route.getId(), true));
+        assertTrue(data.getAssignment(first).isActive());
+        assertTrue(data.getAssignment(second).isActive());
     }
 
     @Test

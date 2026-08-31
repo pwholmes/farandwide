@@ -23,6 +23,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteOperationResultPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleAssignmentsSnapshotPayload;
 
 /*
  * Physical-client bootstrap. This class is the only top-level place that wires
@@ -70,6 +71,8 @@ public class FarAndWideClient {
                         payload.selectedRouteId()));
         event.register(AssignmentSnapshotPayload.TYPE,
                 (payload, context) -> RouteManager.replaceAssignmentFromServer(payload.entityId(), payload.assignment()));
+        event.register(VehicleAssignmentsSnapshotPayload.TYPE,
+                (payload, context) -> RouteManager.replaceVehicleAssignmentsFromServer(payload.assignments()));
         event.register(RouteOperationResultPayload.TYPE,
                 (payload, context) -> RouteManager.handleOperationResult(payload.result()));
     }

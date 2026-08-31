@@ -8,11 +8,15 @@ import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
+import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
 import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -173,6 +177,12 @@ public final class RouteService {
         }
         RouteAssignment assignment = data.assignRoute(
                 routeId, assigneeId, assignee.position(), dimension(assignee));
+        if (assignment != null && assignee != player) {
+            net.minecraft.resources.Identifier entityType =
+                    net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(assignee.getType());
+            data.registerVehicle(assignee.getUUID(), assigneeId, entityType.getPath());
+            data.updateVehicleLocation(assignee.getUUID(), dimension(assignee), assignee.blockPosition());
+        }
         if (assignment != null && assignment.isActive()) {
             if (!VehicleChunkLoadingManager.update(assignee, assigneeId)) {
                 data.setAssignmentActive(assigneeId, false);
@@ -183,6 +193,62 @@ public final class RouteService {
         return assignment == null
                 ? RouteOperationResult.NO_WAYPOINT_IN_DIMENSION
                 : RouteOperationResult.SUCCESS;
+    }
+
+    /** Moves only the requested vehicle assignment to an adjacent waypoint. */
+    public static RouteOperationResult moveVehicleTargetWaypoint(ServerPlayer player, int assigneeId, int delta) {
+        if (delta != -1 && delta != 1) {
+            return RouteOperationResult.INVALID_WAYPOINT;
+        }
+        FarAndWideSavedData data = data(player);
+        boolean isVehicle = data.isVehicleAssignee(assigneeId);
+        RouteAssignment assignment = data.getAssignment(assigneeId);
+        Route route = assignment == null ? null : data.getRoute(assignment.getRouteId());
+        if (!isVehicle || assignment == null) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        int target = assignment.getTargetWaypointIndex() + delta;
+        if (route == null || target < 0 || target >= route.getWaypoints().size()) {
+            return RouteOperationResult.INVALID_WAYPOINT;
+        }
+        return data.updateAssignmentProgress(assigneeId, target, assignment.getTraversalDirection())
+                ? RouteOperationResult.SUCCESS
+                : RouteOperationResult.INVALID_WAYPOINT;
+    }
+
+    /** Sets one vehicle's active state without changing other assignments on its route. */
+    public static RouteOperationResult setVehicleAssignmentActive(
+            ServerPlayer player, int assigneeId, boolean active) {
+        FarAndWideSavedData data = data(player);
+        RouteAssignment assignment = data.getAssignment(assigneeId);
+        if (!data.isVehicleAssignee(assigneeId) || assignment == null) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        if (assignment.isActive() == active) {
+            return RouteOperationResult.SUCCESS;
+        }
+        return active
+                ? activateVehicleAssignment(player, data, assigneeId)
+                : deactivateVehicleAssignment(player, data, assigneeId);
+    }
+
+    /** Stops and removes one vehicle assignment, including any chunk-loading window. */
+    public static RouteOperationResult unassignVehicle(ServerPlayer player, int assigneeId) {
+        FarAndWideSavedData data = data(player);
+        if (!data.isVehicleAssignee(assigneeId) || data.getAssignment(assigneeId) == null) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        UUID vehicleUuid = data.getVehicleUuid(assigneeId).orElse(null);
+        Entity entity = vehicleUuid == null ? null : findLoadedEntity(player.level().getServer(), vehicleUuid);
+        boolean removed = unassignRoute(data, assigneeId, () -> {
+            if (entity != null) {
+                ServerVehicleController.stop(entity);
+                VehicleChunkLoadingManager.release(entity);
+            } else if (vehicleUuid != null) {
+                VehicleChunkLoadingManager.release(vehicleUuid);
+            }
+        });
+        return removed ? RouteOperationResult.SUCCESS : RouteOperationResult.NO_ASSIGNMENT;
     }
 
     /** Removes an existing assignment, stopping it first only when it is navigating. */
@@ -211,11 +277,44 @@ public final class RouteService {
             return RouteOperationResult.NO_ASSIGNMENT;
         }
         boolean active = assignments.stream().noneMatch((@NonNull RouteAssignment assignment) -> assignment.isActive());
-        data.setRouteAssignmentsActive(routeId, active);
-        if (!active) {
-            stopLoadedAssignees(player, data, routeId);
+        return setRouteAssignmentsActive(player, routeId, active);
+    }
+
+    /** Sets every assignment on a specific route to the requested active state. */
+    public static RouteOperationResult setRouteAssignmentsActive(ServerPlayer player, int routeId, boolean active) {
+        FarAndWideSavedData data = data(player);
+        if (data.getRoute(routeId) == null) {
+            return RouteOperationResult.ROUTE_NOT_FOUND;
         }
-        return RouteOperationResult.SUCCESS;
+        List<RouteAssignment> assignments = data.getAssignments().stream()
+                .filter(assignment -> assignment.getRouteId() == routeId)
+                .toList();
+        if (assignments.isEmpty()) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        if (!active) {
+            data.setRouteAssignmentsActive(routeId, false);
+            stopLoadedAssignees(player, data, routeId);
+            return RouteOperationResult.SUCCESS;
+        }
+
+        RouteOperationResult firstFailure = RouteOperationResult.SUCCESS;
+        for (RouteAssignment assignment : assignments) {
+            if (assignment.isActive()) {
+                continue;
+            }
+            RouteOperationResult result;
+            if (data.isVehicleAssignee(assignment.getAssigneeId())) {
+                result = activateVehicleAssignment(player, data, assignment.getAssigneeId());
+            } else {
+                data.setAssignmentActive(assignment.getAssigneeId(), true);
+                result = RouteOperationResult.SUCCESS;
+            }
+            if (firstFailure == RouteOperationResult.SUCCESS && result != RouteOperationResult.SUCCESS) {
+                firstFailure = result;
+            }
+        }
+        return firstFailure;
     }
 
     public static RouteOperationResult createWaypoint(ServerPlayer player, int routeId, Vec3 position,
@@ -365,6 +464,52 @@ public final class RouteService {
         return CargoStationResolver.find(level, waypointPosition, arrivalRadius, station).isPresent();
     }
 
+    private static RouteOperationResult activateVehicleAssignment(
+            ServerPlayer player, FarAndWideSavedData data, int assigneeId) {
+        UUID vehicleUuid = data.getVehicleUuid(assigneeId).orElse(null);
+        if (vehicleUuid == null) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        Entity entity = findLoadedEntity(player.level().getServer(), vehicleUuid);
+        if (entity != null) {
+            data.setAssignmentActive(assigneeId, true);
+            if (!VehicleChunkLoadingManager.update(entity, assigneeId)) {
+                data.setAssignmentActive(assigneeId, false);
+                return RouteOperationResult.CHUNK_LOADING_LIMIT;
+            }
+            return RouteOperationResult.SUCCESS;
+        }
+
+        FarAndWideSavedData.VehicleLocation location = data.getVehicleLocation(vehicleUuid).orElse(null);
+        if (location == null) {
+            return RouteOperationResult.VEHICLE_LOCATION_UNAVAILABLE;
+        }
+        data.setAssignmentActive(assigneeId, true);
+        RouteOperationResult result = VehicleChunkLoadingManager.activateStoredVehicle(
+                player.level().getServer(), vehicleUuid, assigneeId, location, player.getUUID());
+        if (result != RouteOperationResult.SUCCESS) {
+            data.setAssignmentActive(assigneeId, false);
+        }
+        return result;
+    }
+
+    private static RouteOperationResult deactivateVehicleAssignment(
+            ServerPlayer player, FarAndWideSavedData data, int assigneeId) {
+        UUID vehicleUuid = data.getVehicleUuid(assigneeId).orElse(null);
+        if (vehicleUuid == null) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        Entity entity = findLoadedEntity(player.level().getServer(), vehicleUuid);
+        data.setAssignmentActive(assigneeId, false);
+        if (entity != null) {
+            ServerVehicleController.stop(entity);
+            VehicleChunkLoadingManager.release(entity);
+        } else {
+            VehicleChunkLoadingManager.release(vehicleUuid);
+        }
+        return RouteOperationResult.SUCCESS;
+    }
+
     private static void stopLoadedAssignees(ServerPlayer player, FarAndWideSavedData data, int routeId) {
         for (net.minecraft.server.level.ServerLevel level : player.level().getServer().getAllLevels()) {
             for (Entity entity : level.getAllEntities()) {
@@ -377,6 +522,11 @@ public final class RouteService {
                 }
             }
         }
+        data.getVehicleRouteAssignments().stream()
+                .filter(assignment -> assignment.routeId() == routeId)
+                .map(assignment -> data.getVehicleUuid(assignment.assigneeId()))
+                .flatMap((@NonNull Optional<UUID> vehicleUuid) -> vehicleUuid.stream())
+                .forEach(VehicleChunkLoadingManager::release);
     }
 
     private static FarAndWideSavedData data(ServerPlayer player) {
@@ -406,6 +556,49 @@ public final class RouteService {
                 0.0,
                 look.z * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE);
         return new Waypoint(position, dimension(player));
+    }
+
+    public static List<VehicleRouteAssignment> getVehicleRouteAssignments(ServerPlayer player) {
+        return getVehicleRouteAssignments(player.level().getServer());
+    }
+
+    public static List<VehicleRouteAssignment> getVehicleRouteAssignments(MinecraftServer server) {
+        FarAndWideSavedData data = FarAndWideSavedData.get(server);
+        return data.getVehicleRouteAssignments().stream()
+                .map(assignment -> data.getVehicleUuid(assignment.assigneeId())
+                        .map(vehicleUuid -> {
+                            Entity entity = findLoadedEntity(server, vehicleUuid);
+                            if (entity != null) {
+                                return assignment.withPosition(
+                                        entity.level().dimension().identifier(), entity.blockPosition());
+                            }
+                            return data.getVehicleLocation(vehicleUuid)
+                                    .map(location -> assignment.withLastKnownPosition(
+                                            location.dimension(), location.position()))
+                                    .orElse(assignment);
+                        })
+                        .orElse(assignment))
+                .toList();
+    }
+
+    /** Returns the runtime-addressed assignment when this persistent vehicle is loaded. */
+    public static AssignmentState getLoadedVehicleAssignment(ServerPlayer player, int assigneeId) {
+        FarAndWideSavedData data = data(player);
+        RouteAssignment assignment = data.getAssignment(assigneeId);
+        Entity entity = data.getVehicleUuid(assigneeId)
+                .map(vehicleUuid -> findLoadedEntity(player.level().getServer(), vehicleUuid))
+                .orElse(null);
+        return assignment == null || entity == null ? null : new AssignmentState(entity.getId(), assignment);
+    }
+
+    private static Entity findLoadedEntity(MinecraftServer server, UUID entityUuid) {
+        for (ServerLevel level : server.getAllLevels()) {
+            Entity entity = level.getEntity(entityUuid);
+            if (entity != null) {
+                return entity;
+            }
+        }
+        return null;
     }
 
     /** Transport-neutral data needed to build a route snapshot. */

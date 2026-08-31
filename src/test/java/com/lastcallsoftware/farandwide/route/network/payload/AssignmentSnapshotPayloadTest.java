@@ -2,6 +2,7 @@ package com.lastcallsoftware.farandwide.route.network.payload;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.TraversalType;
@@ -17,7 +18,7 @@ class AssignmentSnapshotPayloadTest {
         int persistentAssigneeId = 42;
         int runtimeEntityId = 9001;
         RouteAssignment persisted = new RouteAssignment(
-                7, persistentAssigneeId, 3, -1, TraversalType.LOOP, false);
+                7, persistentAssigneeId, 3, -1, TraversalType.LOOP, false, true);
         AssignmentSnapshotPayload sent = new AssignmentSnapshotPayload(runtimeEntityId, persisted);
         RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
                 Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);
@@ -32,5 +33,6 @@ class AssignmentSnapshotPayloadTest {
         assertEquals(-1, received.assignment().getTraversalDirection());
         assertEquals(TraversalType.LOOP, received.assignment().getTraversalTypeOverride());
         assertFalse(received.assignment().isActive());
+        assertTrue(received.assignment().isRestartAnchor());
     }
 }

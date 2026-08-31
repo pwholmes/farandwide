@@ -19,9 +19,10 @@ package com.lastcallsoftware.farandwide.route;
  * to the current runtime entity ID so client code can look up the loaded entity.
  *
  * <p>{@code traversalDirection} is {@code 1} while moving toward increasing
- * waypoint indices and {@code -1} while reversing. It matters only for reverse
- * traversal. A null override means the assignment follows the route's own
- * traversal type.
+ * waypoint indices and {@code -1} while reversing. Reverse routes use it while
+ * running; one-way routes retain it while stopped so the next manual start
+ * travels away from the endpoint just reached. A null override means the
+ * assignment follows the route's own traversal type.
  *
  * <p>Like {@link Route}, this is immutable so every permanent change must pass
  * through saved data and therefore cannot silently omit {@code setDirty()}.
@@ -32,10 +33,16 @@ public record RouteAssignment(
         int targetWaypointIndex,
         int traversalDirection,
         TraversalType traversalTypeOverride,
-        boolean active) {
+        boolean active,
+        boolean restartAnchor) {
 
     public RouteAssignment(int routeId, int assigneeId, int targetWaypointIndex) {
-        this(routeId, assigneeId, targetWaypointIndex, 1, null, false);
+        this(routeId, assigneeId, targetWaypointIndex, 1, null, false, false);
+    }
+
+    public RouteAssignment(int routeId, int assigneeId, int targetWaypointIndex, int traversalDirection,
+            TraversalType traversalTypeOverride, boolean active) {
+        this(routeId, assigneeId, targetWaypointIndex, traversalDirection, traversalTypeOverride, active, false);
     }
 
     public int getRouteId() { return routeId; }
@@ -44,6 +51,7 @@ public record RouteAssignment(
     public int getTraversalDirection() { return traversalDirection; }
     public TraversalType getTraversalTypeOverride() { return traversalTypeOverride; }
     public boolean isActive() { return active; }
+    public boolean isRestartAnchor() { return restartAnchor; }
 
     public TraversalType getTraversalType(Route route) {
         return traversalTypeOverride == null ? route.getTraversalType() : traversalTypeOverride;

@@ -74,8 +74,14 @@ public final class RouteNavigationHud {
         }
 
         RouteAssignment assignment = RouteManager.getNavigationAssignment();
+        if (!RouteManager.isSelectedRouteAssigned(selectedRoute, assignment)) {
+            hasDisplayedAngle = false;
+            drawRouteNameOnly(event.getGuiGraphics(), minecraft, selectedRoute);
+            return;
+        }
+
         Waypoint target = RouteManager.getTargetWaypoint(assignment);
-        if (assignment == null || target == null) {
+        if (target == null) {
             hasDisplayedAngle = false;
             drawRouteNameOnly(event.getGuiGraphics(), minecraft, selectedRoute);
             return;
@@ -154,7 +160,7 @@ public final class RouteNavigationHud {
         graphics.centeredText(minecraft.font, label, centerX, centerY + 12, 0xFFFFFFFF);
     }
 
-    /** Draws the selected route title when there is no assignment for the current subject. */
+    /** Draws the selected route title when it has no compatible navigation assignment. */
     private static void drawRouteNameOnly(GuiGraphicsExtractor graphics, Minecraft minecraft, Route route) {
         Component routeName = Component.literal(route.getName());
         int titleWidth = TRAVERSAL_ICON_SIZE + TITLE_GAP + minecraft.font.width(routeName);

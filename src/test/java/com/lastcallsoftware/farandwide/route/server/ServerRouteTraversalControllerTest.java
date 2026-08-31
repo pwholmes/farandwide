@@ -22,16 +22,47 @@ class ServerRouteTraversalControllerTest {
     private static final Identifier OVERWORLD = Identifier.parse("minecraft:overworld");
 
     @Test
-    void oneWayStopsAfterFinalWaypoint() {
-        Fixture fixture = fixture(TraversalType.ONE_WAY, 2);
-        fixture.data.updateAssignmentProgress(fixture.assigneeId, 1, 1);
+    void oneWayStopsAfterFinalWaypointAndPreparesReverseLeg() {
+        Fixture fixture = fixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
 
         assertTrue(ServerRouteTraversalController.advanceAssignment(
                 fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
 
         RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
         assertFalse(result.isActive());
-        assertEquals(1, result.getTargetWaypointIndex());
+        assertEquals(2, result.getTargetWaypointIndex());
+        assertEquals(-1, result.getTraversalDirection());
+        assertTrue(result.isRestartAnchor());
+    }
+
+    @Test
+    void oneWayStopsAfterFirstWaypointAndPreparesForwardLeg() {
+        Fixture fixture = fixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 0, -1);
+
+        assertTrue(ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+
+        RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
+        assertFalse(result.isActive());
+        assertEquals(0, result.getTargetWaypointIndex());
+        assertEquals(1, result.getTraversalDirection());
+        assertTrue(result.isRestartAnchor());
+    }
+
+    @Test
+    void oneWayContinuesBackwardBetweenEndpoints() {
+        Fixture fixture = fixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 1, -1);
+
+        assertTrue(ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+
+        RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
+        assertTrue(result.isActive());
+        assertEquals(0, result.getTargetWaypointIndex());
+        assertEquals(-1, result.getTraversalDirection());
     }
 
     @Test
@@ -80,6 +111,48 @@ class ServerRouteTraversalControllerTest {
 
         assertEquals(1, processed.get());
         assertEquals(1, fixture.data.getAssignment(fixture.assigneeId).getTargetWaypointIndex());
+    }
+
+    @Test
+    void oneWayEndpointCargoKeepsEndpointAsRestartTarget() {
+        Fixture fixture = cargoFixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        AtomicInteger processed = new AtomicInteger();
+        RouteAssignment assignment = fixture.data.getAssignment(fixture.assigneeId);
+
+        assertTrue(ServerRouteTraversalController.processArrival(
+                fixture.data, fixture.assigneeId, fixture.route, assignment,
+                fixture.route.getWaypoints().get(2), behavior -> processed.incrementAndGet()));
+
+        RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
+        assertEquals(1, processed.get());
+        assertFalse(result.isActive());
+        assertEquals(2, result.getTargetWaypointIndex());
+        assertEquals(-1, result.getTraversalDirection());
+    }
+
+    @Test
+    void oneWayRestartAnchorSkipsRepeatedCargoAndBeginsReverseLeg() {
+        Fixture fixture = cargoFixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        AtomicInteger processed = new AtomicInteger();
+        RouteAssignment finalApproach = fixture.data.getAssignment(fixture.assigneeId);
+        ServerRouteTraversalController.processArrival(
+                fixture.data, fixture.assigneeId, fixture.route, finalApproach,
+                fixture.route.getWaypoints().get(2), behavior -> processed.incrementAndGet());
+        fixture.data.setAssignmentActive(fixture.assigneeId, true);
+
+        RouteAssignment restart = fixture.data.getAssignment(fixture.assigneeId);
+        assertTrue(ServerRouteTraversalController.processArrival(
+                fixture.data, fixture.assigneeId, fixture.route, restart,
+                fixture.route.getWaypoints().get(2), behavior -> processed.incrementAndGet()));
+
+        RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
+        assertEquals(1, processed.get());
+        assertTrue(result.isActive());
+        assertEquals(1, result.getTargetWaypointIndex());
+        assertEquals(-1, result.getTraversalDirection());
+        assertFalse(result.isRestartAnchor());
     }
 
     @Test

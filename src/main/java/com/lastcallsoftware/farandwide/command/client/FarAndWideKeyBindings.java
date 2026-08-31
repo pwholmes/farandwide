@@ -49,8 +49,8 @@ public final class FarAndWideKeyBindings {
                 FarAndWideCommands.DESELECT_ROUTE::execute);
 
         binding("key.farandwide.assign_route",
-                KeyModifier.NONE,
-                InputConstants.UNKNOWN,
+                KeyModifier.CONTROL,
+                key(GLFW.GLFW_KEY_G),
                 FarAndWideCommands.ASSIGN_ROUTE::execute);
 
         binding("key.farandwide.add_or_remove_waypoint",

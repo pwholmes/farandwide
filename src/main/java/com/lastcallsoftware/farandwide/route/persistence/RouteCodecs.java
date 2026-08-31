@@ -93,12 +93,15 @@ public final class RouteCodecs {
             Codec.INT.fieldOf("traversalDirection").forGetter((@NonNull RouteAssignment assignment) -> assignment.getTraversalDirection()),
             TraversalType.CODEC.optionalFieldOf("traversalTypeOverride")
                     .forGetter(assignment -> Optional.ofNullable(assignment.getTraversalTypeOverride())),
-            Codec.BOOL.fieldOf("active").forGetter((@NonNull RouteAssignment assignment) -> assignment.isActive()))
+            Codec.BOOL.fieldOf("active").forGetter((@NonNull RouteAssignment assignment) -> assignment.isActive()),
+            Codec.BOOL.optionalFieldOf("restartAnchor", false)
+                    .forGetter((@NonNull RouteAssignment assignment) -> assignment.isRestartAnchor()))
             .apply(instance, (@NonNull Integer routeId, @NonNull Integer assigneeId,
                     @NonNull Integer targetWaypointIndex, @NonNull Integer traversalDirection,
-                    @NonNull Optional<TraversalType> traversalTypeOverride, @NonNull Boolean active)
+                    @NonNull Optional<TraversalType> traversalTypeOverride, @NonNull Boolean active,
+                    @NonNull Boolean restartAnchor)
                     -> assignment(routeId, assigneeId, targetWaypointIndex, traversalDirection,
-                            traversalTypeOverride, active)));
+                            traversalTypeOverride, active, restartAnchor)));
 
     private static final Codec<AssignmentEntry> ASSIGNMENT_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.fieldOf("assigneeId").forGetter((@NonNull AssignmentEntry entry) -> entry.assigneeId()),
@@ -118,6 +121,26 @@ public final class RouteCodecs {
             .apply(instance, (@NonNull UUID vehicleUuid, @NonNull Integer assigneeId)
                     -> new VehicleAssigneeEntry(vehicleUuid, assigneeId)));
 
+    private static final Codec<VehicleIdentityEntry> VEHICLE_IDENTITY_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
+            UUIDUtil.CODEC.fieldOf("vehicleUuid").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.vehicleUuid()),
+            Codec.STRING.fieldOf("typeKey").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().typeKey()),
+            Codec.INT.fieldOf("number").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().number()),
+            Codec.STRING.fieldOf("displayName").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().displayName()))
+            .apply(instance, (@NonNull UUID vehicleUuid, @NonNull String typeKey, @NonNull Integer number,
+                    @NonNull String displayName) -> new VehicleIdentityEntry(vehicleUuid,
+                            new FarAndWideSavedData.VehicleIdentity(typeKey, number, displayName))));
+
+    private static final Codec<VehicleLocationEntry> VEHICLE_LOCATION_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
+            UUIDUtil.CODEC.fieldOf("vehicleUuid").forGetter((@NonNull VehicleLocationEntry entry) -> entry.vehicleUuid()),
+            Identifier.CODEC.fieldOf("dimension").forGetter((@NonNull VehicleLocationEntry entry) -> entry.location().dimension()),
+            Codec.INT.fieldOf("x").forGetter((@NonNull VehicleLocationEntry entry) -> entry.location().position().getX()),
+            Codec.INT.fieldOf("y").forGetter((@NonNull VehicleLocationEntry entry) -> entry.location().position().getY()),
+            Codec.INT.fieldOf("z").forGetter((@NonNull VehicleLocationEntry entry) -> entry.location().position().getZ()))
+            .apply(instance, (@NonNull UUID vehicleUuid, @NonNull Identifier dimension,
+                    @NonNull Integer x, @NonNull Integer y, @NonNull Integer z)
+                    -> new VehicleLocationEntry(vehicleUuid,
+                            new FarAndWideSavedData.VehicleLocation(dimension, new BlockPos(x, y, z)))));
+
     /** Root codec supplied to Minecraft's {@code SavedDataType}. */
     static final Codec<FarAndWideSavedData> SAVED_DATA = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.optionalFieldOf("dataVersion", Constants.Persistence.CURRENT_DATA_VERSION)
@@ -131,14 +154,20 @@ public final class RouteCodecs {
             SELECTED_ROUTE_ENTRY.listOf().optionalFieldOf("selectedRoutes", List.of())
                     .forGetter((@NonNull FarAndWideSavedData data) -> selectedRouteEntries(data)),
             VEHICLE_ASSIGNEE_ENTRY.listOf().optionalFieldOf("vehicleAssignees", List.of())
-                    .forGetter((@NonNull FarAndWideSavedData data) -> vehicleAssigneeEntries(data)))
+                    .forGetter((@NonNull FarAndWideSavedData data) -> vehicleAssigneeEntries(data)),
+            VEHICLE_IDENTITY_ENTRY.listOf().optionalFieldOf("vehicleIdentities", List.of())
+                    .forGetter((@NonNull FarAndWideSavedData data) -> vehicleIdentityEntries(data)),
+            VEHICLE_LOCATION_ENTRY.listOf().optionalFieldOf("vehicleLocations", List.of())
+                    .forGetter((@NonNull FarAndWideSavedData data) -> vehicleLocationEntries(data)))
             .apply(instance, (@NonNull Integer dataVersion, @NonNull Integer nextRouteId,
                     @NonNull Integer nextAssigneeId, @NonNull Integer nextWaypointId,
                     @NonNull List<Route> routes, @NonNull List<AssignmentEntry> assignments,
                     @NonNull List<SelectedRouteEntry> selectedRoutes,
-                    @NonNull List<VehicleAssigneeEntry> vehicleAssignees)
+                    @NonNull List<VehicleAssigneeEntry> vehicleAssignees,
+                    @NonNull List<VehicleIdentityEntry> vehicleIdentities,
+                    @NonNull List<VehicleLocationEntry> vehicleLocations)
                     -> savedData(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
-                            assignments, selectedRoutes, vehicleAssignees)));
+                            assignments, selectedRoutes, vehicleAssignees, vehicleIdentities, vehicleLocations)));
 
     private RouteCodecs() {
     }
@@ -168,9 +197,10 @@ public final class RouteCodecs {
     }
 
     private static RouteAssignment assignment(int routeId, int assigneeId, int targetWaypointIndex,
-            int traversalDirection, Optional<TraversalType> traversalTypeOverride, boolean active) {
+            int traversalDirection, Optional<TraversalType> traversalTypeOverride, boolean active,
+            boolean restartAnchor) {
         return new RouteAssignment(routeId, assigneeId, targetWaypointIndex, traversalDirection,
-                traversalTypeOverride.orElse(null), active);
+                traversalTypeOverride.orElse(null), active, restartAnchor);
     }
 
     private static List<AssignmentEntry> assignmentEntries(FarAndWideSavedData data) {
@@ -191,18 +221,40 @@ public final class RouteCodecs {
                 .toList();
     }
 
+    private static List<VehicleIdentityEntry> vehicleIdentityEntries(FarAndWideSavedData data) {
+        return data.getVehicleIdentitiesByUuid().entrySet().stream()
+                .map((Map.@NonNull Entry<UUID, FarAndWideSavedData.VehicleIdentity> entry)
+                        -> new VehicleIdentityEntry(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private static List<VehicleLocationEntry> vehicleLocationEntries(FarAndWideSavedData data) {
+        return data.getVehicleLocationsByUuid().entrySet().stream()
+                .map((Map.@NonNull Entry<UUID, FarAndWideSavedData.VehicleLocation> entry)
+                        -> new VehicleLocationEntry(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
     private static FarAndWideSavedData savedData(int dataVersion, int nextRouteId, int nextAssigneeId,
             int nextWaypointId,
             List<Route> routes, List<AssignmentEntry> assignments, List<SelectedRouteEntry> selectedRoutes,
-            List<VehicleAssigneeEntry> vehicleAssignees) {
+            List<VehicleAssigneeEntry> vehicleAssignees, List<VehicleIdentityEntry> vehicleIdentities,
+            List<VehicleLocationEntry> vehicleLocations) {
         Map<Integer, RouteAssignment> assignmentsByAssignee = assignments.stream().collect(Collectors.toMap(
                 entry -> entry.assigneeId(), entry -> entry.assignment(), (first, ignored) -> first));
         Map<Integer, Integer> selectedRouteByAssignee = selectedRoutes.stream().collect(Collectors.toMap(
                 entry -> entry.assigneeId(), entry -> entry.routeId(), (first, ignored) -> first));
         Map<UUID, Integer> vehicleAssigneeByUuid = vehicleAssignees.stream().collect(Collectors.toMap(
                 entry -> entry.vehicleUuid(), entry -> entry.assigneeId(), (first, ignored) -> first));
+        Map<UUID, FarAndWideSavedData.VehicleIdentity> vehicleIdentityByUuid = vehicleIdentities.stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.vehicleUuid(), entry -> entry.identity(), (first, ignored) -> first));
+        Map<UUID, FarAndWideSavedData.VehicleLocation> vehicleLocationByUuid = vehicleLocations.stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.vehicleUuid(), entry -> entry.location(), (first, ignored) -> first));
         return FarAndWideSavedData.restore(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
-                assignmentsByAssignee, selectedRouteByAssignee, vehicleAssigneeByUuid);
+                assignmentsByAssignee, selectedRouteByAssignee, vehicleAssigneeByUuid, vehicleIdentityByUuid,
+                vehicleLocationByUuid);
     }
 
     private static <E extends Enum<E>> Codec<E> enumCodec(Class<E> enumClass) {
@@ -218,5 +270,11 @@ public final class RouteCodecs {
     }
 
     private record VehicleAssigneeEntry(UUID vehicleUuid, int assigneeId) {
+    }
+
+    private record VehicleIdentityEntry(UUID vehicleUuid, FarAndWideSavedData.VehicleIdentity identity) {
+    }
+
+    private record VehicleLocationEntry(UUID vehicleUuid, FarAndWideSavedData.VehicleLocation location) {
     }
 }

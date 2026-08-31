@@ -14,8 +14,8 @@ version="${mod_version}" #mandatory
 displayName="${mod_name}" #mandatory
 
 # A file name (in the root of the mod JAR) containing a logo for display
-logoFile="farandwide.png" #optional
-logoBlur=false
+iconFile="farandwide.png" #optional
+iconBlur=false
 
 # The authors of the mod, displayed in the mod UI (optional)
 authors="Cognitive Failure"
