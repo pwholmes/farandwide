@@ -59,7 +59,7 @@ public final class Constants {
         public static final int MAX_WAYPOINTS_PER_ROUTE = 16_384;
         public static final int MAX_FILTER_ITEMS = 1_024;
         public static final int MAX_IDENTIFIER_LENGTH = 256;
-        public static final int MAX_VEHICLE_ASSIGNMENTS = 1_024;
+        public static final int MAX_VEHICLE_ASSIGNMENTS = 1_025;
         public static final int MAX_VEHICLE_NAME_LENGTH = 64;
 
         private Network() {

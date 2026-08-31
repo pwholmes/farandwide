@@ -12,7 +12,7 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
-/** Server-to-client replacement snapshot used by the Route Management screen. */
+/** Server-to-client replacement snapshot of rows used by the Route Management screen. */
 public record VehicleAssignmentsSnapshotPayload(List<VehicleRouteAssignment> assignments)
         implements CustomPacketPayload {
     public static final Type<VehicleAssignmentsSnapshotPayload> TYPE = new Type<>(

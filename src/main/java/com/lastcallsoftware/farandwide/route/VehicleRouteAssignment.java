@@ -6,7 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.Identifier;
 
 /**
- * Read-only management view of one persistent vehicle route assignment.
+ * Read-only management view of one persistent vehicle or player route assignment.
  *
  * <p>The stable assignee ID is used for mutations. The display name is only a
  * human-readable label and is never used as an identity key.

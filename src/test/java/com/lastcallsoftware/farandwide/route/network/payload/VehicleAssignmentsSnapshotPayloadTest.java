@@ -24,7 +24,10 @@ class VehicleAssignmentsSnapshotPayloadTest {
                 new VehicleRouteAssignment(84, 7, "Horse 1", 1).withLastKnownPosition(
                         Identifier.fromNamespaceAndPath("minecraft", "the_nether"),
                         new BlockPos(-20, 70, 18)),
-                new VehicleRouteAssignment(126, 7, "Boat 2", 0)));
+                new VehicleRouteAssignment(126, 7, "Boat 2", 0),
+                new VehicleRouteAssignment(168, 7, "Paul (Player)", 2, true).withPosition(
+                        Identifier.fromNamespaceAndPath("minecraft", "overworld"),
+                        new BlockPos(10, 65, 20))));
         RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
                 Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);
 

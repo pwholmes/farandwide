@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.UUID;
 
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.Waypoint;
@@ -58,5 +59,23 @@ class RouteServiceTest {
         assertTrue(stopped.get());
         assertNull(data.getAssignment(assigneeId));
         assertFalse(RouteService.unassignRoute(data, assigneeId, () -> stopped.set(true)));
+    }
+
+    @Test
+    void managementMutationsAllowVehiclesAndTheRequestingPlayerButNotOtherPlayers() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int requestingPlayer = data.allocateAssigneeId();
+        int otherPlayer = data.allocateAssigneeId();
+        int vehicle = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), requestingPlayer, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), otherPlayer, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), vehicle, Vec3.ZERO, OVERWORLD);
+        data.registerVehicle(UUID.fromString("30000000-0000-0000-0000-000000000001"), vehicle, "boat");
+
+        assertTrue(RouteService.isManagedAssignee(data, requestingPlayer, requestingPlayer));
+        assertTrue(RouteService.isManagedAssignee(data, vehicle, requestingPlayer));
+        assertFalse(RouteService.isManagedAssignee(data, otherPlayer, requestingPlayer));
     }
 }

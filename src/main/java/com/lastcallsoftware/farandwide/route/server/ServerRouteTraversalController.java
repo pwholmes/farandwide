@@ -6,7 +6,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
-import com.lastcallsoftware.farandwide.route.network.payload.VehicleAssignmentsSnapshotPayload;
+import com.lastcallsoftware.farandwide.route.network.RouteNetwork;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
@@ -131,8 +131,7 @@ public final class ServerRouteTraversalController {
                 VehicleChunkLoadingManager.release(entity);
             }
             syncToControllingPlayer(server, entity, updated);
-            PacketDistributor.sendToAllPlayers(
-                    new VehicleAssignmentsSnapshotPayload(RouteService.getVehicleRouteAssignments(server)));
+            RouteNetwork.broadcastVehicleAssignments(server);
         }
     }
 
