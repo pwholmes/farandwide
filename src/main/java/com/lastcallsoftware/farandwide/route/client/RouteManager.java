@@ -204,7 +204,7 @@ public class RouteManager {
         sendOverlayMessage("message.farandwide.route_assigned", route.getName());
     }
 
-    /** Assigns the selected route, or unassigns the controlled assignee when one is already assigned. */
+    /** Assigns or replaces with the selected route; selecting the same route (or none) unassigns it. */
     public static void toggleRouteAssignment() {
         Route route = getCurrentRoute();
         RouteRequests.assignRoute(route == null ? 0 : route.getId());

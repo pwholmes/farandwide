@@ -159,40 +159,78 @@ public final class RouteService {
         FarAndWideSavedData data = data(player);
         Entity assignee = controlledAssignee(player);
         int assigneeId = assigneeId(assignee, data);
-        if (unassignRoute(data, assigneeId, () -> {
-            ServerVehicleController.stop(assignee);
-            VehicleChunkLoadingManager.release(assignee);
-        })) {
+        RouteOperationResult result = assignRoute(
+                data,
+                routeId,
+                data.getSelectedRouteId(assigneeId(player, data)),
+                assigneeId,
+                assignee.position(),
+                dimension(assignee),
+                () -> {
+                    ServerVehicleController.stop(assignee);
+                    VehicleChunkLoadingManager.release(assignee);
+                });
+        if (result != RouteOperationResult.SUCCESS) {
+            return result;
+        }
+
+        RouteAssignment assignment = data.getAssignment(assigneeId);
+        // A successful request with no remaining assignment was the intentional
+        // toggle-off case (same selected route, or no selected route).
+        if (assignment == null) {
             return RouteOperationResult.SUCCESS;
         }
-        Route route = data.getRoute(routeId);
-        if (route == null) {
-            return RouteOperationResult.ROUTE_NOT_FOUND;
-        }
-        if (route.getWaypoints().isEmpty()) {
-            return RouteOperationResult.NO_WAYPOINTS;
-        }
-        if (data.getSelectedRouteId(assigneeId(player, data)) != routeId) {
-            return RouteOperationResult.ROUTE_NOT_FOUND;
-        }
-        RouteAssignment assignment = data.assignRoute(
-                routeId, assigneeId, assignee.position(), dimension(assignee));
-        if (assignment != null && assignee != player) {
+        if (assignee != player) {
             net.minecraft.resources.Identifier entityType =
                     net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(assignee.getType());
             data.registerVehicle(assignee.getUUID(), assigneeId, entityType.getPath());
+            data.updateVehicleCustomName(
+                    assignee.getUUID(), assignee.getCustomName() == null ? null : assignee.getCustomName().getString());
             data.updateVehicleLocation(assignee.getUUID(), dimension(assignee), assignee.blockPosition());
         }
-        if (assignment != null && assignment.isActive()) {
+        if (assignment.isActive()) {
             if (!VehicleChunkLoadingManager.update(assignee, assigneeId)) {
                 data.setAssignmentActive(assigneeId, false);
                 player.sendSystemMessage(net.minecraft.network.chat.Component.translatable(
                         RouteOperationResult.CHUNK_LOADING_LIMIT.translationKey()));
             }
         }
-        return assignment == null
-                ? RouteOperationResult.NO_WAYPOINT_IN_DIMENSION
-                : RouteOperationResult.SUCCESS;
+        return RouteOperationResult.SUCCESS;
+    }
+
+    static RouteOperationResult assignRoute(
+            FarAndWideSavedData data,
+            int requestedRouteId,
+            int selectedRouteId,
+            int assigneeId,
+            Vec3 assigneePosition,
+            net.minecraft.resources.Identifier assigneeDimension,
+            Runnable stopExistingAssignment) {
+        RouteAssignment existing = data.getAssignment(assigneeId);
+        if (existing != null
+                && (requestedRouteId == 0 || existing.getRouteId() == requestedRouteId)) {
+            unassignRoute(data, assigneeId, stopExistingAssignment);
+            return RouteOperationResult.SUCCESS;
+        }
+        Route route = data.getRoute(requestedRouteId);
+        if (route == null) {
+            return RouteOperationResult.ROUTE_NOT_FOUND;
+        }
+        if (route.getWaypoints().isEmpty()) {
+            return RouteOperationResult.NO_WAYPOINTS;
+        }
+        if (selectedRouteId != requestedRouteId) {
+            return RouteOperationResult.ROUTE_NOT_FOUND;
+        }
+        RouteAssignment assignment = data.assignRoute(
+                requestedRouteId, assigneeId, assigneePosition, assigneeDimension);
+        if (assignment == null) {
+            return RouteOperationResult.NO_WAYPOINT_IN_DIMENSION;
+        }
+        if (existing != null && existing.isActive()) {
+            stopExistingAssignment.run();
+        }
+        return RouteOperationResult.SUCCESS;
     }
 
     /** Moves only the requested vehicle assignment to an adjacent waypoint. */
@@ -601,7 +639,13 @@ public final class RouteService {
                         .map(vehicleUuid -> {
                             Entity entity = findLoadedEntity(server, vehicleUuid);
                             if (entity != null) {
-                                return assignment.withPosition(
+                                String customName = entity.getCustomName() == null
+                                        ? null
+                                        : entity.getCustomName().getString();
+                                data.updateVehicleCustomName(vehicleUuid, customName);
+                                VehicleRouteAssignment namedAssignment = assignment.withDisplayName(
+                                        data.getVehicleDisplayName(vehicleUuid).orElse(assignment.displayName()));
+                                return namedAssignment.withPosition(
                                         entity.level().dimension().identifier(), entity.blockPosition());
                             }
                             return data.getVehicleLocation(vehicleUuid)

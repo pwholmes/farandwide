@@ -1,6 +1,7 @@
 package com.lastcallsoftware.farandwide.route.server;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -8,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
 
 import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 
@@ -77,5 +79,78 @@ class RouteServiceTest {
         assertTrue(RouteService.isManagedAssignee(data, requestingPlayer, requestingPlayer));
         assertTrue(RouteService.isManagedAssignee(data, vehicle, requestingPlayer));
         assertFalse(RouteService.isManagedAssignee(data, otherPlayer, requestingPlayer));
+    }
+
+    @Test
+    void assigningTheExistingRouteTogglesTheAssignmentOff() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = routeWithWaypoint(data, OVERWORLD);
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(assigneeId, true);
+        AtomicBoolean stopped = new AtomicBoolean();
+
+        assertEquals(RouteOperationResult.SUCCESS, RouteService.assignRoute(
+                data, route.getId(), route.getId(), assigneeId, Vec3.ZERO, OVERWORLD,
+                () -> stopped.set(true)));
+
+        assertNull(data.getAssignment(assigneeId));
+        assertTrue(stopped.get());
+    }
+
+    @Test
+    void assigningWithNoSelectedRouteTogglesTheAssignmentOff() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = routeWithWaypoint(data, OVERWORLD);
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+
+        assertEquals(RouteOperationResult.SUCCESS, RouteService.assignRoute(
+                data, 0, 0, assigneeId, Vec3.ZERO, OVERWORLD, () -> {}));
+
+        assertNull(data.getAssignment(assigneeId));
+    }
+
+    @Test
+    void assigningADifferentSelectedRouteReplacesTheExistingRoute() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route routeA = routeWithWaypoint(data, OVERWORLD);
+        Route routeB = routeWithWaypoint(data, OVERWORLD);
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(routeA.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(assigneeId, true);
+        AtomicBoolean stopped = new AtomicBoolean();
+
+        assertEquals(RouteOperationResult.SUCCESS, RouteService.assignRoute(
+                data, routeB.getId(), routeB.getId(), assigneeId, Vec3.ZERO, OVERWORLD,
+                () -> stopped.set(true)));
+
+        assertEquals(routeB.getId(), data.getAssignment(assigneeId).getRouteId());
+        assertTrue(stopped.get());
+    }
+
+    @Test
+    void failedReplacementPreservesTheExistingAssignment() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route routeA = routeWithWaypoint(data, OVERWORLD);
+        Route routeB = routeWithWaypoint(data, Identifier.parse("minecraft:the_nether"));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(routeA.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(assigneeId, true);
+        AtomicBoolean stopped = new AtomicBoolean();
+
+        assertEquals(RouteOperationResult.NO_WAYPOINT_IN_DIMENSION, RouteService.assignRoute(
+                data, routeB.getId(), routeB.getId(), assigneeId, Vec3.ZERO, OVERWORLD,
+                () -> stopped.set(true)));
+
+        assertEquals(routeA.getId(), data.getAssignment(assigneeId).getRouteId());
+        assertTrue(data.getAssignment(assigneeId).isActive());
+        assertFalse(stopped.get());
+    }
+
+    private static Route routeWithWaypoint(FarAndWideSavedData data, Identifier dimension) {
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, dimension));
+        return data.getRoute(route.getId());
     }
 }

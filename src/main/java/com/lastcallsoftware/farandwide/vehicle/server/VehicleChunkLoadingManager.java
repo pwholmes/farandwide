@@ -67,7 +67,10 @@ public final class VehicleChunkLoadingManager {
         UUID owner = vehicle.getUUID();
         net.minecraft.resources.Identifier entityType =
                 net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType());
-        FarAndWideSavedData.get(level.getServer()).registerVehicle(owner, assigneeId, entityType.getPath());
+        FarAndWideSavedData data = FarAndWideSavedData.get(level.getServer());
+        data.registerVehicle(owner, assigneeId, entityType.getPath());
+        data.updateVehicleCustomName(
+                owner, vehicle.getCustomName() == null ? null : vehicle.getCustomName().getString());
         rememberLocation(vehicle, false);
         PENDING_ACTIVATIONS.remove(owner);
         boolean alreadyTracked = isTracked(owner);

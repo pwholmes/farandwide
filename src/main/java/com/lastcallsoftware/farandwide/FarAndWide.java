@@ -8,6 +8,7 @@ import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.server.ServerRouteTraversalController;
 import com.lastcallsoftware.farandwide.route.server.ServerMountTransitionController;
 import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
+import com.lastcallsoftware.farandwide.vehicle.server.BoatNameTagController;
 import com.mojang.logging.LogUtils;
 
 // import net.minecraft.core.registries.BuiltInRegistries;
@@ -91,6 +92,7 @@ public class FarAndWide {
 
         ServerRouteTraversalController.register();
         ServerMountTransitionController.register();
+        BoatNameTagController.register();
 
         // Register ourselves for server and other game events we are interested in.
         // Note that this is necessary if and only if we want *this* class (FarandWide) to respond directly to events.

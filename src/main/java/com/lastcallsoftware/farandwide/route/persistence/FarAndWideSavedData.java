@@ -106,6 +106,11 @@ public final class FarAndWideSavedData extends SavedData {
         return Optional.ofNullable(vehicleLocationByUuid.get(vehicleUuid));
     }
 
+    public Optional<String> getVehicleDisplayName(UUID vehicleUuid) {
+        return Optional.ofNullable(vehicleIdentityByUuid.get(vehicleUuid))
+                .map(VehicleIdentity::displayName);
+    }
+
     /** Records a restart location, avoiding dirty writes when the value has not changed. */
     public boolean updateVehicleLocation(UUID vehicleUuid, Identifier dimension, BlockPos position) {
         if (!vehicleAssigneeByUuid.containsKey(vehicleUuid) || dimension == null || position == null) {
@@ -190,6 +195,27 @@ public final class FarAndWideSavedData extends SavedData {
             changed = true;
         }
         return changed;
+    }
+
+    /**
+     * Mirrors an entity custom name for management display while it is unloaded.
+     * A blank name restores the generated type-and-number fallback.
+     */
+    public boolean updateVehicleCustomName(UUID vehicleUuid, String customName) {
+        VehicleIdentity identity = vehicleIdentityByUuid.get(vehicleUuid);
+        if (identity == null) {
+            return false;
+        }
+        String displayName = customName == null || customName.isBlank()
+                ? createDisplayName(identity.typeKey(), identity.number())
+                : customName.substring(0, Math.min(customName.length(), Constants.Network.MAX_VEHICLE_NAME_LENGTH));
+        if (identity.displayName().equals(displayName)) {
+            return false;
+        }
+        vehicleIdentityByUuid.put(vehicleUuid,
+                new VehicleIdentity(identity.typeKey(), identity.number(), displayName));
+        setDirty();
+        return true;
     }
 
     private static String normalizeVehicleType(String vehicleTypeKey) {

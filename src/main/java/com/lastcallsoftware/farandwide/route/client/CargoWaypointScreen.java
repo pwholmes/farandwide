@@ -143,10 +143,10 @@ public final class CargoWaypointScreen extends Screen {
             moveDownButton = addRenderableWidget(Button.builder(Component.literal("↓"), button -> moveWaypoint(1))
                     .bounds(left + 100, yPos, 20, 20)
                     .build());
-            radiusDecreaseButton = addRenderableWidget(Button.builder(Component.literal("+"), button -> adjustRadius(-1))
+            radiusDecreaseButton = addRenderableWidget(Button.builder(Component.literal("−"), button -> adjustRadius(-1))
                     .bounds(left + 124, yPos, 20, 20)
                     .build());
-            radiusIncreaseButton = addRenderableWidget(Button.builder(Component.literal("−"), button -> adjustRadius(1))
+            radiusIncreaseButton = addRenderableWidget(Button.builder(Component.literal("+"), button -> adjustRadius(1))
                     .bounds(left + CONTROL_WIDTH - 20, yPos, 20, 20)
                     .build());
             yPos += ROW_HEIGHT;

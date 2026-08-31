@@ -38,6 +38,11 @@ public record VehicleRouteAssignment(
                 Optional.of(new Position(dimension, blockPosition, false)));
     }
 
+    public VehicleRouteAssignment withDisplayName(String name) {
+        return new VehicleRouteAssignment(
+                assigneeId, routeId, name, targetWaypointIndex, active, position);
+    }
+
     /** Loaded vehicle location captured when the management snapshot was built. */
     public record Position(Identifier dimension, BlockPos blockPosition, boolean current) {
     }

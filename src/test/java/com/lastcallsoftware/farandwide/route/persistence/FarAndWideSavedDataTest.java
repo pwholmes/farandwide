@@ -262,6 +262,25 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void customVehicleNameOverridesAndCanRestoreTheGeneratedFallback() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        UUID boat = UUID.fromString("20000000-0000-0000-0000-000000000001");
+        data.registerVehicle(boat, assigneeId, "oak_boat");
+
+        assertTrue(data.updateVehicleCustomName(boat, "Sea Breeze"));
+        assertEquals("Sea Breeze", data.getVehicleRouteAssignments().getFirst().displayName());
+
+        FarAndWideSavedData restored = roundTrip(data);
+        assertEquals("Sea Breeze", restored.getVehicleRouteAssignments().getFirst().displayName());
+        assertTrue(restored.updateVehicleCustomName(boat, null));
+        assertEquals("Boat 1", restored.getVehicleRouteAssignments().getFirst().displayName());
+    }
+
+    @Test
     void updatingOneVehicleWaypointDoesNotChangeAnother() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();
