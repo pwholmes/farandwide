@@ -627,8 +627,10 @@ public final class RouteService {
                     playerAssignment.isActive()).withPosition(
                             player.level().dimension().identifier(), player.blockPosition()));
         }
-        assignments.sort(java.util.Comparator.comparing(VehicleRouteAssignment::displayName)
-                .thenComparingInt(VehicleRouteAssignment::assigneeId));
+        assignments.sort(java.util.Comparator.comparing(
+                        (@NonNull VehicleRouteAssignment assignment) -> assignment.displayName())
+                .thenComparingInt(
+                        (@NonNull VehicleRouteAssignment assignment) -> assignment.assigneeId()));
         return List.copyOf(assignments);
     }
 

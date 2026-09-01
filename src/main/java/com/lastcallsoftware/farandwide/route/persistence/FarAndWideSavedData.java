@@ -108,7 +108,7 @@ public final class FarAndWideSavedData extends SavedData {
 
     public Optional<String> getVehicleDisplayName(UUID vehicleUuid) {
         return Optional.ofNullable(vehicleIdentityByUuid.get(vehicleUuid))
-                .map(VehicleIdentity::displayName);
+                .map((FarAndWideSavedData.@NonNull VehicleIdentity identity) -> identity.displayName());
     }
 
     /** Records a restart location, avoiding dirty writes when the value has not changed. */
