@@ -329,6 +329,20 @@ public final class RouteService {
         return setRouteAssignmentsActive(player, routeId, active);
     }
 
+    /** Toggles only the vehicle currently ridden by the requesting player. */
+    public static RouteOperationResult toggleCurrentVehicle(ServerPlayer player) {
+        Entity vehicle = player.getVehicle();
+        if (vehicle == null) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        FarAndWideSavedData data = data(player);
+        int vehicleAssigneeId = assigneeId(vehicle, data);
+        RouteAssignment assignment = data.getAssignment(vehicleAssigneeId);
+        return assignment == null
+                ? RouteOperationResult.NO_ASSIGNMENT
+                : setVehicleAssignmentActive(player, vehicleAssigneeId, !assignment.isActive());
+    }
+
     /** Sets every assignment on a specific route to the requested active state. */
     public static RouteOperationResult setRouteAssignmentsActive(ServerPlayer player, int routeId, boolean active) {
         FarAndWideSavedData data = data(player);

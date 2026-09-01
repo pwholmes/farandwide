@@ -63,6 +63,11 @@ public final class FarAndWideKeyBindings {
                 key(GLFW.GLFW_KEY_A),
                 FarAndWideCommands.TOGGLE_ROUTE::execute);
 
+        binding("key.farandwide.toggle_vehicle",
+                KeyModifier.CONTROL,
+                key(GLFW.GLFW_KEY_V),
+                FarAndWideCommands.TOGGLE_VEHICLE::execute);
+
         binding("key.farandwide.toggle_hud",
                 KeyModifier.NONE,
                 InputConstants.UNKNOWN,

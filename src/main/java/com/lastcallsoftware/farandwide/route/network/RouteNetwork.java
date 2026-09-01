@@ -92,9 +92,11 @@ public final class RouteNetwork {
         registrar.playToServer(AssignmentMutationPayload.TYPE, AssignmentMutationPayload.STREAM_CODEC,
                 (payload, context) -> {
                     ServerPlayer player = (ServerPlayer) context.player();
-                    RouteOperationResult result = payload.action() == AssignmentMutationPayload.Action.ASSIGN
-                            ? RouteService.assignRoute(player, payload.routeId())
-                            : RouteService.toggleAssignment(player);
+                    RouteOperationResult result = switch (payload.action()) {
+                        case ASSIGN -> RouteService.assignRoute(player, payload.routeId());
+                        case TOGGLE_ACTIVE -> RouteService.toggleAssignment(player);
+                        case TOGGLE_VEHICLE -> RouteService.toggleCurrentVehicle(player);
+                    };
                     replyWithResult(context, result);
                     if (payload.action() == AssignmentMutationPayload.Action.TOGGLE_ACTIVE) {
                         sendAssignmentSnapshotsForRoute(player, RouteService.getSelectedRouteId(player));

@@ -91,6 +91,10 @@ public final class RouteRequests {
         send(new AssignmentMutationPayload(AssignmentMutationPayload.Action.TOGGLE_ACTIVE, 0));
     }
 
+    public static void toggleVehicle() {
+        send(new AssignmentMutationPayload(AssignmentMutationPayload.Action.TOGGLE_VEHICLE, 0));
+    }
+
     public static void setRouteAssignmentsActive(int routeId, boolean active) {
         send(new RouteActivationMutationPayload(routeId, active));
     }
