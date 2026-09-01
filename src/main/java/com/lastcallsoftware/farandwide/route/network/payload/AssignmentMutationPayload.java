@@ -7,7 +7,7 @@ import net.minecraft.resources.Identifier;
 
 /**
  * Client request to assign a route, toggle the selected route, or toggle the
- * vehicle the sender is riding.
+ * vehicle controlled by the sender, including the sender when they are on foot.
  *
  * <p>The server, not the client, decides whether the assignee is the player or
  * their ridden entity. {@code routeId} is used only for {@link Action#ASSIGN};

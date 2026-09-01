@@ -39,6 +39,8 @@ public final class Constants {
         public static final boolean BOATS_MOVE_WHILE_TURNING = false;
         /** Allows vanilla boat turning momentum to settle without counter-steering. */
         public static final float BOAT_TURN_DEAD_ZONE_DEGREES = 8.0F;
+        /** Applies mounted boat turn input every other tick to limit accumulated rotation. */
+        public static final int CLIENT_BOAT_TURN_INPUT_INTERVAL_TICKS = 2;
         public static final float SERVER_BOAT_MAX_TURN_PER_TICK = 2.0F;
         public static final double SERVER_BOAT_ACCELERATION = 0.04;
         public static final boolean EQUINES_MOVE_WHILE_TURNING = false;

@@ -348,10 +348,10 @@ public class RouteManager {
         RouteRequests.toggleAssignment();
     }
 
-    /** Asks the server to toggle the mounted vehicle's persistent assignment. */
+    /** Toggles the controlled vehicle, falling back to the player's own assignment. */
     public static void toggleCurrentVehicle() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.player.getVehicle() == null) {
+        if (minecraft.player == null) {
             return;
         }
         RouteRequests.toggleVehicle();

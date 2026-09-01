@@ -329,12 +329,9 @@ public final class RouteService {
         return setRouteAssignmentsActive(player, routeId, active);
     }
 
-    /** Toggles only the vehicle currently ridden by the requesting player. */
+    /** Toggles the ridden vehicle, or the player's own assignment when on foot. */
     public static RouteOperationResult toggleCurrentVehicle(ServerPlayer player) {
-        Entity vehicle = player.getVehicle();
-        if (vehicle == null) {
-            return RouteOperationResult.NO_ASSIGNMENT;
-        }
+        Entity vehicle = controlledAssignee(player);
         FarAndWideSavedData data = data(player);
         int vehicleAssigneeId = assigneeId(vehicle, data);
         RouteAssignment assignment = data.getAssignment(vehicleAssigneeId);
