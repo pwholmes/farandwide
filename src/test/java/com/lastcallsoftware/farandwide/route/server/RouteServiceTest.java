@@ -9,7 +9,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
 
 import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
+import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 
@@ -146,6 +148,43 @@ class RouteServiceTest {
         assertEquals(routeA.getId(), data.getAssignment(assigneeId).getRouteId());
         assertTrue(data.getAssignment(assigneeId).isActive());
         assertFalse(stopped.get());
+    }
+
+    @Test
+    void reversingDirectionRetargetsTheAdjacentWaypoint() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(0, 0, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(10, 0, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(20, 0, 0), OVERWORLD));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, new Vec3(5, 0, 0), OVERWORLD);
+        data.updateAssignmentProgress(assigneeId, 2, 1);
+
+        assertEquals(RouteOperationResult.SUCCESS, RouteService.reverseVehicleDirection(data, assigneeId));
+
+        RouteAssignment reversed = data.getAssignment(assigneeId);
+        assertEquals(-1, reversed.getTraversalDirection());
+        assertEquals(1, reversed.getTargetWaypointIndex());
+    }
+
+    @Test
+    void reversingLoopDirectionWrapsAtTheFirstWaypoint() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.setTraversalType(route.getId(), TraversalType.LOOP);
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(0, 0, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(10, 0, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(20, 0, 0), OVERWORLD));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        data.updateAssignmentProgress(assigneeId, 0, 1);
+
+        assertEquals(RouteOperationResult.SUCCESS, RouteService.reverseVehicleDirection(data, assigneeId));
+
+        RouteAssignment reversed = data.getAssignment(assigneeId);
+        assertEquals(-1, reversed.getTraversalDirection());
+        assertEquals(2, reversed.getTargetWaypointIndex());
     }
 
     private static Route routeWithWaypoint(FarAndWideSavedData data, Identifier dimension) {

@@ -143,7 +143,8 @@ public final class FarAndWideSavedData extends SavedData {
                             : identity.displayName();
                     return new VehicleRouteAssignment(
                             entry.getValue(), assignment.getRouteId(), name,
-                            assignment.getTargetWaypointIndex(), assignment.isActive(), Optional.empty());
+                            assignment.getTargetWaypointIndex(), assignment.getTraversalDirection(),
+                            assignment.isActive(), Optional.empty());
                 })
                 .filter(java.util.Objects::nonNull)
                 .sorted(java.util.Comparator.comparing(
@@ -332,12 +333,26 @@ public final class FarAndWideSavedData extends SavedData {
         if (assignment == null || assignment.isActive() == active) {
             return false;
         }
+        boolean restartAnchor = assignment.isRestartAnchor()
+                || active && isLegacyOneWayEndpoint(assignment);
         assignmentsByAssignee.put(assigneeId, new RouteAssignment(
                 assignment.getRouteId(), assignment.getAssigneeId(), assignment.getTargetWaypointIndex(),
                 assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), active,
-                assignment.isRestartAnchor()));
+                restartAnchor));
         setDirty();
         return true;
+    }
+
+    /** Recognizes completed endpoint state saved before explicit restart anchors existed. */
+    private boolean isLegacyOneWayEndpoint(RouteAssignment assignment) {
+        Route route = getRoute(assignment.getRouteId());
+        if (route == null || assignment.getTraversalType(route) != TraversalType.ONE_WAY
+                || route.getWaypoints().size() <= 1) {
+            return false;
+        }
+        int target = assignment.getTargetWaypointIndex();
+        return target == 0 && assignment.getTraversalDirection() < 0
+                || target == route.getWaypoints().size() - 1 && assignment.getTraversalDirection() > 0;
     }
 
     /** Sets the active state of every assignee using one route. */

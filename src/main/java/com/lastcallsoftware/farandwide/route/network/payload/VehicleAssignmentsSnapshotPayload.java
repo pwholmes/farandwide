@@ -34,6 +34,7 @@ public record VehicleAssignmentsSnapshotPayload(List<VehicleRouteAssignment> ass
             target.writeVarInt(assignment.routeId());
             target.writeUtf(assignment.displayName(), Constants.Network.MAX_VEHICLE_NAME_LENGTH);
             target.writeVarInt(assignment.targetWaypointIndex());
+            target.writeBoolean(assignment.traversalDirection() > 0);
             target.writeBoolean(assignment.active());
             target.writeBoolean(assignment.position().isPresent());
             assignment.position().ifPresent(position -> {
@@ -55,13 +56,14 @@ public record VehicleAssignmentsSnapshotPayload(List<VehicleRouteAssignment> ass
             int routeId = buffer.readVarInt();
             String displayName = buffer.readUtf(Constants.Network.MAX_VEHICLE_NAME_LENGTH);
             int targetWaypointIndex = buffer.readVarInt();
+            int traversalDirection = buffer.readBoolean() ? 1 : -1;
             boolean active = buffer.readBoolean();
             Optional<VehicleRouteAssignment.Position> position = buffer.readBoolean()
                     ? Optional.of(new VehicleRouteAssignment.Position(
                             buffer.readIdentifier(), buffer.readBlockPos(), buffer.readBoolean()))
                     : Optional.empty();
             assignments.add(new VehicleRouteAssignment(
-                    assigneeId, routeId, displayName, targetWaypointIndex, active, position));
+                    assigneeId, routeId, displayName, targetWaypointIndex, traversalDirection, active, position));
         }
         return new VehicleAssignmentsSnapshotPayload(assignments);
     }

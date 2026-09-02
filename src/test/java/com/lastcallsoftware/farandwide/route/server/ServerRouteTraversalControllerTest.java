@@ -32,7 +32,7 @@ class ServerRouteTraversalControllerTest {
         RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
         assertFalse(result.isActive());
         assertEquals(2, result.getTargetWaypointIndex());
-        assertEquals(-1, result.getTraversalDirection());
+        assertEquals(1, result.getTraversalDirection());
         assertTrue(result.isRestartAnchor());
     }
 
@@ -47,7 +47,7 @@ class ServerRouteTraversalControllerTest {
         RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
         assertFalse(result.isActive());
         assertEquals(0, result.getTargetWaypointIndex());
-        assertEquals(1, result.getTraversalDirection());
+        assertEquals(-1, result.getTraversalDirection());
         assertTrue(result.isRestartAnchor());
     }
 
@@ -128,7 +128,7 @@ class ServerRouteTraversalControllerTest {
         assertEquals(1, processed.get());
         assertFalse(result.isActive());
         assertEquals(2, result.getTargetWaypointIndex());
-        assertEquals(-1, result.getTraversalDirection());
+        assertEquals(1, result.getTraversalDirection());
     }
 
     @Test

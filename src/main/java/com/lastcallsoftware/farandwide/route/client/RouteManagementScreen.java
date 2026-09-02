@@ -387,6 +387,9 @@ public class RouteManagementScreen extends Screen {
                     Component.translatable(assignment.active()
                             ? "screen.farandwide.manage_routes.vehicle_active"
                             : "screen.farandwide.manage_routes.vehicle_inactive"),
+                    Component.translatable(assignment.traversalDirection() > 0
+                            ? "screen.farandwide.manage_routes.direction_positive"
+                            : "screen.farandwide.manage_routes.direction_negative"),
                     assignment.targetWaypointIndex() + 1,
                     route.getWaypoints().size());
         }
@@ -400,39 +403,59 @@ public class RouteManagementScreen extends Screen {
             drawActivationButton(graphics, x + activationXOffset, y, assignment.active());
             drawDeleteButton(graphics, x + deleteXOffset(), y);
             int centeredTextY = y + (CONTROL_SIZE - font.lineHeight) / 2;
-            graphics.text(font, Component.literal(assignment.displayName()), x + 24, centeredTextY, 0xFFD0D0D0);
+            Component vehicleName = Component.literal(assignment.displayName());
+            int vehicleNameX = x + 24;
+            graphics.text(font, vehicleName, vehicleNameX, centeredTextY, 0xFFD0D0D0);
 
             boolean canDecrease = assignment.targetWaypointIndex() > 0;
             boolean canIncrease = assignment.targetWaypointIndex() + 1 < route.getWaypoints().size();
             Component waypoint = waypointLabel();
             int minusXOffset = minusXOffset();
             drawStepButton(graphics, x + minusXOffset, y, "↑", canDecrease);
+            int directionXOffset = directionXOffset();
+            drawStepButton(
+                    graphics, x + directionXOffset, y, assignment.traversalDirection() > 0 ? "+" : "-", true);
             int plusXOffset = plusXOffset();
             int waypointX = x + minusXOffset + CONTROL_SIZE + WAYPOINT_TEXT_PADDING;
             graphics.text(font, waypoint, waypointX, centeredTextY, 0xFFFFFFFF);
             drawStepButton(graphics, x + plusXOffset, y, "↓", canIncrease);
 
             if (hovered) {
-                Component tooltip = inside(mouseX, mouseY, x + deleteXOffset(), y)
-                        ? Component.translatable(
-                                "screen.farandwide.manage_routes.unassign_vehicle", assignment.displayName())
-                        : inside(mouseX, mouseY, x + activationXOffset, y)
-                                ? Component.translatable(assignment.active()
-                                        ? "screen.farandwide.manage_routes.deactivate_vehicle"
-                                        : "screen.farandwide.manage_routes.activate_vehicle",
-                                        assignment.displayName())
-                                : assignment.position()
-                                .<Component>map(position -> Component.translatable(
-                                        position.current()
-                                                ? "screen.farandwide.manage_routes.vehicle_position"
-                                                : "screen.farandwide.manage_routes.vehicle_last_known_position",
-                                        position.blockPosition().getX(),
-                                        position.blockPosition().getY(),
-                                        position.blockPosition().getZ(),
-                                        position.dimension().toString()))
-                                .orElseGet(() -> Component.translatable(
-                                        "screen.farandwide.manage_routes.vehicle_position_unavailable"));
-                graphics.setTooltipForNextFrame(font, tooltip, mouseX, mouseY);
+                Component tooltip = null;
+                if (inside(mouseX, mouseY, x + directionXOffset, y)) {
+                    tooltip = Component.translatable(assignment.traversalDirection() > 0
+                            ? "screen.farandwide.manage_routes.reverse_negative"
+                            : "screen.farandwide.manage_routes.reverse_positive",
+                            assignment.displayName());
+                } else if (inside(mouseX, mouseY, x + minusXOffset, y)) {
+                    tooltip = Component.translatable("screen.farandwide.manage_routes.previous_waypoint");
+                } else if (inside(mouseX, mouseY, x + plusXOffset, y)) {
+                    tooltip = Component.translatable("screen.farandwide.manage_routes.next_waypoint");
+                } else if (inside(mouseX, mouseY, x + deleteXOffset(), y)) {
+                    tooltip = Component.translatable(
+                            "screen.farandwide.manage_routes.unassign_vehicle", assignment.displayName());
+                } else if (inside(mouseX, mouseY, x + activationXOffset, y)) {
+                    tooltip = Component.translatable(assignment.active()
+                            ? "screen.farandwide.manage_routes.deactivate_vehicle"
+                            : "screen.farandwide.manage_routes.activate_vehicle",
+                            assignment.displayName());
+                } else if (mouseX >= vehicleNameX && mouseX < vehicleNameX + font.width(vehicleName)
+                        && mouseY >= centeredTextY && mouseY < centeredTextY + font.lineHeight) {
+                    tooltip = assignment.position()
+                            .<Component>map(position -> Component.translatable(
+                                    position.current()
+                                            ? "screen.farandwide.manage_routes.vehicle_position"
+                                            : "screen.farandwide.manage_routes.vehicle_last_known_position",
+                                    position.blockPosition().getX(),
+                                    position.blockPosition().getY(),
+                                    position.blockPosition().getZ(),
+                                    position.dimension().toString()))
+                            .orElseGet(() -> Component.translatable(
+                                    "screen.farandwide.manage_routes.vehicle_position_unavailable"));
+                }
+                if (tooltip != null) {
+                    graphics.setTooltipForNextFrame(font, tooltip, mouseX, mouseY);
+                }
             }
         }
 
@@ -459,6 +482,10 @@ public class RouteManagementScreen extends Screen {
             }
             if (inside(event, x + activationXOffset(), y)) {
                 RouteManager.setVehicleAssignmentActive(assignment.assigneeId(), !assignment.active());
+                return true;
+            }
+            if (inside(event, x + directionXOffset(), y)) {
+                RouteManager.reverseVehicleDirection(assignment.assigneeId());
                 return true;
             }
             if (inside(event, x + minusXOffset(), y) && assignment.targetWaypointIndex() > 0) {
@@ -490,11 +517,15 @@ public class RouteManagementScreen extends Screen {
         }
 
         private int plusXOffset() {
-            return activationXOffset() - CONTROL_SIZE - CONTROL_GAP;
+            return directionXOffset() - CONTROL_SIZE - CONTROL_GAP;
         }
 
         private int minusXOffset() {
             return plusXOffset() - WAYPOINT_TEXT_PADDING * 2 - font.width(waypointLabel()) - CONTROL_SIZE;
+        }
+
+        private int directionXOffset() {
+            return activationXOffset() - CONTROL_SIZE - CONTROL_GAP;
         }
 
         private Component waypointLabel() {

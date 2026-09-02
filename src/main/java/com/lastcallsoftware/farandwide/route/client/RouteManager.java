@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.eclipse.jdt.annotation.NonNull;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
@@ -34,6 +36,7 @@ import net.minecraft.world.phys.Vec3;
 public class RouteManager {
     private static List<Route> routes = new ArrayList<>();
     private static final Map<Integer, RouteAssignment> assignmentsByEntity = new HashMap<>();
+    private static final Map<Integer, Integer> stableAssigneeIdsByEntity = new HashMap<>();
     private static List<VehicleRouteAssignment> vehicleRouteAssignments = new ArrayList<>();
     private static Route selectedRoute = null;
     private static long routeStateRevision;
@@ -57,6 +60,7 @@ public class RouteManager {
     public static void clearClientState() {
         routes.clear();
         assignmentsByEntity.clear();
+        stableAssigneeIdsByEntity.clear();
         vehicleRouteAssignments.clear();
         selectedRoute = null;
         requestedServerSnapshot = false;
@@ -239,11 +243,14 @@ public class RouteManager {
         RouteRequests.deleteWaypoint(route.getId(), waypointId);
     }
 
-    public static void replaceAssignmentFromServer(int entityId, RouteAssignment assignment) {
+    public static void replaceAssignmentFromServer(
+            int entityId, int stableAssigneeId, RouteAssignment assignment) {
         if (assignment == null) {
             assignmentsByEntity.remove(entityId);
+            stableAssigneeIdsByEntity.remove(entityId);
         } else {
             assignmentsByEntity.put(entityId, assignment);
+            stableAssigneeIdsByEntity.put(entityId, stableAssigneeId);
         }
     }
 
@@ -292,6 +299,19 @@ public class RouteManager {
                 .toList();
     }
 
+    /** Returns the same persistent friendly name shown by Route Management. */
+    public static String getManagedAssigneeDisplayName(int entityId) {
+        Integer stableAssigneeId = stableAssigneeIdsByEntity.get(entityId);
+        if (stableAssigneeId == null) {
+            return null;
+        }
+        return vehicleRouteAssignments.stream()
+                .filter(assignment -> assignment.assigneeId() == stableAssigneeId)
+                .map((@NonNull VehicleRouteAssignment assignment) -> assignment.displayName())
+                .findFirst()
+                .orElse(null);
+    }
+
     /** A route is running as soon as any one of its assigned vehicles is active. */
     public static boolean isRouteActive(int routeId) {
         return vehicleRouteAssignments.stream()
@@ -300,6 +320,19 @@ public class RouteManager {
 
     public static void moveVehicleTargetWaypoint(int assigneeId, int delta) {
         RouteRequests.moveVehicleTargetWaypoint(assigneeId, delta);
+    }
+
+    public static void reverseVehicleDirection(int assigneeId) {
+        RouteRequests.reverseVehicleDirection(assigneeId);
+    }
+
+    /** Reverses the ridden vehicle's assignment, or the player's assignment while on foot. */
+    public static void reverseVehicleDirection() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return;
+        }
+        RouteRequests.reverseVehicleDirection();
     }
 
     public static void setVehicleAssignmentActive(int assigneeId, boolean active) {

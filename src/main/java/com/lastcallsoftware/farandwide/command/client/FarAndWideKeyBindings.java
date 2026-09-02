@@ -68,10 +68,20 @@ public final class FarAndWideKeyBindings {
                 key(GLFW.GLFW_KEY_V),
                 FarAndWideCommands.TOGGLE_VEHICLE::execute);
 
+        binding("key.farandwide.reverse_vehicle",
+                KeyModifier.CONTROL,
+                key(GLFW.GLFW_KEY_U),
+                FarAndWideCommands.REVERSE_VEHICLE::execute);
+
         binding("key.farandwide.toggle_hud",
                 KeyModifier.NONE,
                 InputConstants.UNKNOWN,
                 FarAndWideCommands.TOGGLE_HUD::execute);
+
+        binding("key.farandwide.toggle_coordinates",
+                KeyModifier.NONE,
+                InputConstants.UNKNOWN,
+                FarAndWideCommands.TOGGLE_COORDINATES::execute);
 
         binding("key.farandwide.help_screen",
                 KeyModifier.NONE,

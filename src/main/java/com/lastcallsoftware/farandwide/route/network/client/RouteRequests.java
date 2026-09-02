@@ -11,6 +11,7 @@ import com.lastcallsoftware.farandwide.route.network.payload.RouteActivationMuta
 import com.lastcallsoftware.farandwide.route.network.payload.SelectRoutePayload;
 import com.lastcallsoftware.farandwide.route.network.payload.WaypointMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleActivationMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleDirectionMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleUnassignmentMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleWaypointMutationPayload;
 import net.minecraft.resources.Identifier;
@@ -101,6 +102,14 @@ public final class RouteRequests {
 
     public static void moveVehicleTargetWaypoint(int assigneeId, int delta) {
         send(new VehicleWaypointMutationPayload(assigneeId, delta));
+    }
+
+    public static void reverseVehicleDirection(int assigneeId) {
+        send(new VehicleDirectionMutationPayload(assigneeId));
+    }
+
+    public static void reverseVehicleDirection() {
+        send(new AssignmentMutationPayload(AssignmentMutationPayload.Action.REVERSE_VEHICLE, 0));
     }
 
     public static void setVehicleAssignmentActive(int assigneeId, boolean active) {

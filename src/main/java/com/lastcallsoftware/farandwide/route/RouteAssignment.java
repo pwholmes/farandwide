@@ -20,8 +20,9 @@ package com.lastcallsoftware.farandwide.route;
  *
  * <p>{@code traversalDirection} is {@code 1} while moving toward increasing
  * waypoint indices and {@code -1} while reversing. Reverse routes use it while
- * running; one-way routes retain it while stopped so the next manual start
- * travels away from the endpoint just reached. A null override means the
+ * running. A completed one-way route retains its outward direction and marks
+ * its endpoint as a restart anchor; after reactivation reacquires that endpoint,
+ * traversal reverses and begins the return leg. A null override means the
  * assignment follows the route's own traversal type.
  *
  * <p>Like {@link Route}, this is immutable so every permanent change must pass

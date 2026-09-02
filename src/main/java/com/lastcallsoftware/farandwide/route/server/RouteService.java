@@ -253,6 +253,45 @@ public final class RouteService {
                 : RouteOperationResult.INVALID_WAYPOINT;
     }
 
+    /** Reverses one managed assignee and immediately targets the route in its new direction. */
+    public static RouteOperationResult reverseVehicleDirection(ServerPlayer player, int assigneeId) {
+        FarAndWideSavedData data = data(player);
+        if (!isManagedAssignee(player, data, assigneeId)) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        return reverseVehicleDirection(data, assigneeId);
+    }
+
+    /** Reverses the ridden vehicle, or the requesting player's assignment while on foot. */
+    public static RouteOperationResult reverseCurrentVehicleDirection(ServerPlayer player) {
+        FarAndWideSavedData data = data(player);
+        return reverseVehicleDirection(data, assigneeId(controlledAssignee(player), data));
+    }
+
+    static RouteOperationResult reverseVehicleDirection(FarAndWideSavedData data, int assigneeId) {
+        RouteAssignment assignment = data.getAssignment(assigneeId);
+        Route route = assignment == null ? null : data.getRoute(assignment.getRouteId());
+        if (assignment == null) {
+            return RouteOperationResult.NO_ASSIGNMENT;
+        }
+        if (route == null || route.getWaypoints().isEmpty()) {
+            return RouteOperationResult.INVALID_WAYPOINT;
+        }
+
+        int direction = -assignment.getTraversalDirection();
+        int waypointCount = route.getWaypoints().size();
+        int target = assignment.getTargetWaypointIndex();
+        if (waypointCount > 1) {
+            int candidate = target + direction;
+            target = assignment.getTraversalType(route) == TraversalType.LOOP
+                    ? Math.floorMod(candidate, waypointCount)
+                    : Math.clamp(candidate, 0, waypointCount - 1);
+        }
+        return data.updateAssignmentProgress(assigneeId, target, direction)
+                ? RouteOperationResult.SUCCESS
+                : RouteOperationResult.INVALID_WAYPOINT;
+    }
+
     /** Sets one vehicle's active state without changing other assignments on its route. */
     public static RouteOperationResult setVehicleAssignmentActive(
             ServerPlayer player, int assigneeId, boolean active) {
@@ -635,6 +674,7 @@ public final class RouteService {
                     playerAssignment.getRouteId(),
                     player.getGameProfile().name() + " (Player)",
                     playerAssignment.getTargetWaypointIndex(),
+                    playerAssignment.getTraversalDirection(),
                     playerAssignment.isActive()).withPosition(
                             player.level().dimension().identifier(), player.blockPosition()));
         }

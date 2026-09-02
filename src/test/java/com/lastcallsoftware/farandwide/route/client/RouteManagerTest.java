@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.client;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -32,5 +33,17 @@ class RouteManagerTest {
         assertFalse(RouteManager.isRouteActive(2));
         assertTrue(RouteManager.getVehicleAssignments(1).get(0).active());
         assertFalse(RouteManager.getVehicleAssignments(1).get(1).active());
+    }
+
+    @Test
+    void managedDisplayNameIsResolvedFromStableAssigneeIdentity() {
+        int runtimeEntityId = 9001;
+        int stableAssigneeId = 42;
+        RouteManager.replaceAssignmentFromServer(
+                runtimeEntityId, stableAssigneeId, new RouteAssignment(1, runtimeEntityId, 0));
+        RouteManager.replaceVehicleAssignmentsFromServer(List.of(
+                new VehicleRouteAssignment(stableAssigneeId, 1, "Boat 3", 0, false)));
+
+        assertEquals("Boat 3", RouteManager.getManagedAssigneeDisplayName(runtimeEntityId));
     }
 }

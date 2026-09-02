@@ -11,6 +11,7 @@ import com.lastcallsoftware.farandwide.route.network.payload.RouteSnapshotPayloa
 import com.lastcallsoftware.farandwide.route.network.payload.SelectRoutePayload;
 import com.lastcallsoftware.farandwide.route.network.payload.WaypointMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleActivationMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleDirectionMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleAssignmentsSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleWaypointMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleUnassignmentMutationPayload;
@@ -39,7 +40,7 @@ public final class RouteNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("11");
+        var registrar = event.registrar("12");
         registrar.playToServer(RequestRouteSnapshotPayload.TYPE, RequestRouteSnapshotPayload.STREAM_CODEC,
                 (payload, context) -> replyWithRoutes((ServerPlayer) context.player(), context));
         registrar.playToServer(SelectRoutePayload.TYPE, SelectRoutePayload.STREAM_CODEC,
@@ -96,6 +97,7 @@ public final class RouteNetwork {
                         case ASSIGN -> RouteService.assignRoute(player, payload.routeId());
                         case TOGGLE_ACTIVE -> RouteService.toggleAssignment(player);
                         case TOGGLE_VEHICLE -> RouteService.toggleCurrentVehicle(player);
+                        case REVERSE_VEHICLE -> RouteService.reverseCurrentVehicleDirection(player);
                     };
                     replyWithResult(context, result);
                     if (payload.action() == AssignmentMutationPayload.Action.TOGGLE_ACTIVE) {
@@ -122,6 +124,21 @@ public final class RouteNetwork {
                     ServerPlayer player = (ServerPlayer) context.player();
                     RouteOperationResult result = RouteService.moveVehicleTargetWaypoint(
                             player, payload.assigneeId(), payload.delta());
+                    replyWithResult(context, result);
+                    if (result == RouteOperationResult.SUCCESS) {
+                        RouteService.AssignmentState state =
+                                RouteService.getLoadedManagedAssignment(player, payload.assigneeId());
+                        if (state != null) {
+                            sendManagedAssignmentSnapshot(player, state);
+                        }
+                        broadcastVehicleAssignments(player);
+                    }
+                });
+        registrar.playToServer(VehicleDirectionMutationPayload.TYPE, VehicleDirectionMutationPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    ServerPlayer player = (ServerPlayer) context.player();
+                    RouteOperationResult result =
+                            RouteService.reverseVehicleDirection(player, payload.assigneeId());
                     replyWithResult(context, result);
                     if (result == RouteOperationResult.SUCCESS) {
                         RouteService.AssignmentState state =

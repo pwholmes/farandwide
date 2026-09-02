@@ -281,6 +281,26 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void activatingLegacyOneWayEndpointCreatesRestartAnchor() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.setTraversalType(route.getId(), TraversalType.ONE_WAY);
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(10, 0, 0), OVERWORLD));
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, Vec3.ZERO, OVERWORLD);
+        data.updateAssignmentProgress(assigneeId, 1, 1);
+
+        assertTrue(data.setAssignmentActive(assigneeId, true));
+
+        RouteAssignment result = data.getAssignment(assigneeId);
+        assertTrue(result.isActive());
+        assertTrue(result.isRestartAnchor());
+        assertEquals(1, result.getTargetWaypointIndex());
+        assertEquals(1, result.getTraversalDirection());
+    }
+
+    @Test
     void updatingOneVehicleWaypointDoesNotChangeAnother() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();

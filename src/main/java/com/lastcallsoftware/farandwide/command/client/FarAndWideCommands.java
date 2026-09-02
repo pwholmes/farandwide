@@ -5,6 +5,7 @@ import java.util.function.Consumer;
 
 import org.lwjgl.glfw.GLFW;
 
+import com.lastcallsoftware.farandwide.client.PlayerPositionHud;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.client.RouteEditorScreen;
 import com.lastcallsoftware.farandwide.route.client.RouteManagementScreen;
@@ -32,6 +33,11 @@ public final class FarAndWideCommands {
             "command.farandwide.create_route",
             () -> Minecraft.getInstance().setScreenAndShow(new RouteEditorScreen(null)));
 
+    public static final FarAndWideCommand ADD_OR_REMOVE_WAYPOINT = command(
+            GLFW.GLFW_KEY_W,
+            "command.farandwide.add_or_remove_waypoint",
+            () -> withCurrentRoute(WaypointEditor::toggleTargetedWaypoint));
+
     public static final FarAndWideCommand DESELECT_ROUTE = command(
             GLFW.GLFW_KEY_X,
             "command.farandwide.deselect_route",
@@ -52,15 +58,20 @@ public final class FarAndWideCommands {
             "command.farandwide.toggle_vehicle",
             RouteManager::toggleCurrentVehicle);
 
-    public static final FarAndWideCommand ADD_OR_REMOVE_WAYPOINT = command(
-            GLFW.GLFW_KEY_W,
-            "command.farandwide.add_or_remove_waypoint",
-            () -> withCurrentRoute(WaypointEditor::toggleTargetedWaypoint));
+    public static final FarAndWideCommand REVERSE_VEHICLE = command(
+            GLFW.GLFW_KEY_U,
+            "command.farandwide.reverse_vehicle",
+            RouteManager::reverseVehicleDirection);
 
     public static final FarAndWideCommand TOGGLE_HUD = command(
             GLFW.GLFW_KEY_D,
             "command.farandwide.toggle_hud",
             RouteNavigationHud::toggleVisibility);
+
+    public static final FarAndWideCommand TOGGLE_COORDINATES = command(
+            GLFW.GLFW_KEY_P,
+            "command.farandwide.toggle_coordinates",
+            PlayerPositionHud::toggleVisibility);
 
     public static final FarAndWideCommand HELP_SCREEN = command(
             GLFW.GLFW_KEY_H,
@@ -71,12 +82,14 @@ public final class FarAndWideCommands {
         return List.of(
                 MANAGE_ROUTES,
                 CREATE_ROUTE,
+                ADD_OR_REMOVE_WAYPOINT,
                 DESELECT_ROUTE,
                 ASSIGN_ROUTE,
                 TOGGLE_ROUTE,
                 TOGGLE_VEHICLE,
-                ADD_OR_REMOVE_WAYPOINT,
+                REVERSE_VEHICLE,
                 TOGGLE_HUD,
+                TOGGLE_COORDINATES,
                 HELP_SCREEN
         );
     }

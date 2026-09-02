@@ -22,4 +22,18 @@ class AssignmentMutationPayloadTest {
         assertEquals(AssignmentMutationPayload.Action.TOGGLE_VEHICLE, received.action());
         assertEquals(0, received.routeId());
     }
+
+    @Test
+    void reverseVehicleActionSurvivesWireRoundTrip() {
+        AssignmentMutationPayload sent = new AssignmentMutationPayload(
+                AssignmentMutationPayload.Action.REVERSE_VEHICLE, 0);
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);
+
+        AssignmentMutationPayload.STREAM_CODEC.encode(buffer, sent);
+        AssignmentMutationPayload received = AssignmentMutationPayload.STREAM_CODEC.decode(buffer);
+
+        assertEquals(AssignmentMutationPayload.Action.REVERSE_VEHICLE, received.action());
+        assertEquals(0, received.routeId());
+    }
 }

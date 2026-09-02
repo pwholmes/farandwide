@@ -43,6 +43,7 @@ public class FarAndWideClient {
         NeoForge.EVENT_BUS.addListener(FarAndWideClient::onClientLoggedIn);
         NeoForge.EVENT_BUS.addListener(FarAndWideClient::onClientLoggingOut);
         FarAndWideKeyBindings.register(modEventBus);
+        PlayerPositionHud.register();
         WaypointRenderer.register();
         VehicleController.register();
     }
@@ -70,7 +71,8 @@ public class FarAndWideClient {
                                 .map((RouteSnapshotPayload.@NonNull RouteSnapshot route) -> route.toRoute()).toList(),
                         payload.selectedRouteId()));
         event.register(AssignmentSnapshotPayload.TYPE,
-                (payload, context) -> RouteManager.replaceAssignmentFromServer(payload.entityId(), payload.assignment()));
+                (payload, context) -> RouteManager.replaceAssignmentFromServer(
+                        payload.entityId(), payload.stableAssigneeId(), payload.assignment()));
         event.register(VehicleAssignmentsSnapshotPayload.TYPE,
                 (payload, context) -> RouteManager.replaceVehicleAssignmentsFromServer(payload.assignments()));
         event.register(RouteOperationResultPayload.TYPE,

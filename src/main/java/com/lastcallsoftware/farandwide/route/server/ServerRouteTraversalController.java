@@ -151,8 +151,7 @@ public final class ServerRouteTraversalController {
             return false;
         }
         int target = assignment.getTargetWaypointIndex();
-        return target == 0 && assignment.getTraversalDirection() > 0
-                || target == route.getWaypoints().size() - 1 && assignment.getTraversalDirection() < 0;
+        return target == 0 || target == route.getWaypoints().size() - 1;
     }
 
     private static boolean processCargo(int assigneeId, int routeId, Entity entity, Waypoint waypoint,
@@ -250,12 +249,19 @@ public final class ServerRouteTraversalController {
         }
         return switch (assignment.getTraversalType(route)) {
             case ONE_WAY -> {
+                if (isOneWayRestartAnchor(route, assignment)) {
+                    int direction = assignment.getTargetWaypointIndex() == 0 ? 1 : -1;
+                    yield data.updateAssignmentProgress(
+                            assigneeId, assignment.getTargetWaypointIndex() + direction, direction);
+                }
                 int next = assignment.getTargetWaypointIndex() + assignment.getTraversalDirection();
                 if (next >= waypointCount) {
-                    yield data.stopAssignmentAtWaypoint(assigneeId, waypointCount - 1, -1);
+                    yield data.stopAssignmentAtWaypoint(
+                            assigneeId, waypointCount - 1, assignment.getTraversalDirection());
                 }
                 if (next < 0) {
-                    yield data.stopAssignmentAtWaypoint(assigneeId, 0, 1);
+                    yield data.stopAssignmentAtWaypoint(
+                            assigneeId, 0, assignment.getTraversalDirection());
                 }
                 yield data.updateAssignmentProgress(assigneeId, next, assignment.getTraversalDirection());
             }

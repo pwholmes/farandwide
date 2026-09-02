@@ -18,7 +18,7 @@ class VehicleAssignmentsSnapshotPayloadTest {
     @Test
     void wireSnapshotPreservesCurrentLastKnownAndUnavailablePositions() {
         VehicleAssignmentsSnapshotPayload sent = new VehicleAssignmentsSnapshotPayload(List.of(
-                new VehicleRouteAssignment(42, 7, "Boat 1", 3, true).withPosition(
+                new VehicleRouteAssignment(42, 7, "Boat 1", 3, -1, true, java.util.Optional.empty()).withPosition(
                         Identifier.fromNamespaceAndPath("minecraft", "overworld"),
                         new BlockPos(124, 64, -38)),
                 new VehicleRouteAssignment(84, 7, "Horse 1", 1).withLastKnownPosition(

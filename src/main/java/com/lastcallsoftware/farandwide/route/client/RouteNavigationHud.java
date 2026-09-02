@@ -30,6 +30,7 @@ public final class RouteNavigationHud {
     private static final int NEEDLE_DISPLAY_SIZE = Constants.Client.NAVIGATION_NEEDLE_DISPLAY_SIZE;
     private static final int TRAVERSAL_ICON_SIZE = Constants.Client.HUD_TRAVERSAL_ICON_SIZE;
     private static final int TITLE_GAP = Constants.Client.HUD_TITLE_GAP;
+    private static final int STATUS_LINE_GAP = 2;
     private static float displayedAngle;
     private static boolean hasDisplayedAngle;
     private static boolean visible = DEFAULT_HUD_VISIBLE;
@@ -68,30 +69,66 @@ public final class RouteNavigationHud {
             return;
         }
 
-        Route selectedRoute = RouteManager.getCurrentRoute();
-        if (selectedRoute == null) {
-            return;
-        }
-
-        RouteAssignment assignment = RouteManager.getNavigationAssignment();
-        if (!RouteManager.isSelectedRouteAssigned(selectedRoute, assignment)) {
-            hasDisplayedAngle = false;
-            drawRouteNameOnly(event.getGuiGraphics(), minecraft, selectedRoute);
-            return;
-        }
-
-        Waypoint target = RouteManager.getTargetWaypoint(assignment);
-        if (target == null) {
-            hasDisplayedAngle = false;
-            drawRouteNameOnly(event.getGuiGraphics(), minecraft, selectedRoute);
-            return;
-        }
-
         Entity navigationEntity = minecraft.player.getVehicle() == null
                 ? minecraft.player
                 : minecraft.player.getVehicle();
+        Route selectedRoute = RouteManager.getCurrentRoute();
+        RouteAssignment assignment = RouteManager.getNavigationAssignment();
+        Route assignedRoute = assignment == null ? null : RouteManager.getRoute(assignment.getRouteId());
+        if (selectedRoute == null && assignedRoute == null) {
+            return;
+        }
+
+        Component selectedRouteLabel = Component.translatable(
+                "hud.farandwide.selected_route",
+                selectedRoute == null
+                        ? Component.translatable("hud.farandwide.none")
+                        : Component.literal(selectedRoute.getName()));
+        Component assignmentLabel = assignedRoute == null
+                ? null
+                : Component.translatable(
+                        "hud.farandwide.assignment",
+                        assigneeLabel(minecraft, navigationEntity),
+                        Component.literal(assignedRoute.getName()));
+        Waypoint target = RouteManager.getTargetWaypoint(assignment);
+
+        GuiGraphicsExtractor graphics = event.getGuiGraphics();
+        int selectedRouteWidth = minecraft.font.width(selectedRouteLabel)
+                + (selectedRoute == null ? 0 : TRAVERSAL_ICON_SIZE + TITLE_GAP);
+        int assignmentWidth = assignmentLabel == null
+                ? 0
+                : minecraft.font.width(assignmentLabel) + TRAVERSAL_ICON_SIZE + TITLE_GAP;
+        int contentWidth = assignmentLabel == null
+                ? selectedRouteWidth
+                : Math.max(selectedRouteWidth, assignmentWidth);
+        Component waypointLabel = null;
+        if (assignment != null && target != null) {
+            waypointLabel = Component.translatable(
+                    "hud.farandwide.waypoint",
+                    assignment.getTraversalDirection() > 0 ? "+" : "-",
+                    assignment.getTargetWaypointIndex() + 1,
+                    Math.round(horizontalDistance(target.position(), navigationEntity.position())));
+            contentWidth = Math.max(INDICATOR_DISPLAY_SIZE, Math.max(contentWidth, minecraft.font.width(waypointLabel)));
+        }
+        int centerX = HUD_POSITION.centerX(graphics.guiWidth(), contentWidth);
+        int centerY = HUD_POSITION.centerY(graphics.guiHeight(), minecraft.font.lineHeight);
+        drawStatus(
+                graphics,
+                minecraft,
+                selectedRoute,
+                assignedRoute,
+                assignment,
+                selectedRouteLabel,
+                assignmentLabel,
+                centerX,
+                centerY);
+
+        if (target == null) {
+            hasDisplayedAngle = false;
+            return;
+        }
+
         Vec3 delta = target.position().subtract(navigationEntity.position());
-        double distance = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
         float targetYaw = (float) Math.toDegrees(Math.atan2(-delta.x, delta.z));
         float targetAngle = Mth.wrapDegrees(targetYaw - minecraft.player.getYRot());
         if (!hasDisplayedAngle) {
@@ -101,42 +138,6 @@ public final class RouteNavigationHud {
             displayedAngle += Mth.wrapDegrees(targetAngle - displayedAngle) * 0.2F;
         }
 
-        Component label = Component.translatable(
-                "hud.farandwide.waypoint",
-                assignment.getTargetWaypointIndex() + 1,
-                Math.round(distance));
-        Component routeName = Component.literal(selectedRoute.getName());
-        TraversalType traversalType = assignment.getTraversalType(selectedRoute);
-
-        GuiGraphicsExtractor graphics = event.getGuiGraphics();
-        int titleWidth = TRAVERSAL_ICON_SIZE + TITLE_GAP + minecraft.font.width(routeName);
-        int contentWidth = Math.max(
-                INDICATOR_DISPLAY_SIZE,
-                Math.max(titleWidth, minecraft.font.width(label)));
-        int centerX = HUD_POSITION.centerX(graphics.guiWidth(), contentWidth);
-        int centerY = HUD_POSITION.centerY(graphics.guiHeight(), minecraft.font.lineHeight);
-
-        int titleX = centerX - titleWidth / 2;
-        int titleY = centerY - INDICATOR_DISPLAY_SIZE / 2 - minecraft.font.lineHeight - 3;
-        graphics.blit(
-                RenderPipelines.GUI_TEXTURED,
-                traversalType.getIcon(),
-                titleX,
-                titleY - 1,
-                0,
-                0,
-                TRAVERSAL_ICON_SIZE,
-                TRAVERSAL_ICON_SIZE,
-                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
-                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
-                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
-                Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE);
-        graphics.text(
-                minecraft.font,
-                routeName,
-                titleX + TRAVERSAL_ICON_SIZE + TITLE_GAP,
-                titleY,
-                0xFFFFFFFF);
         drawBackplate(graphics, centerX, centerY);
 
         graphics.pose().pushMatrix();
@@ -157,23 +158,48 @@ public final class RouteNavigationHud {
                 NEEDLE_TEXTURE_SIZE);
         graphics.pose().popMatrix();
 
-        graphics.centeredText(minecraft.font, label, centerX, centerY + 12, 0xFFFFFFFF);
+        graphics.centeredText(minecraft.font, waypointLabel, centerX, centerY + 12, 0xFFFFFFFF);
     }
 
-    /** Draws the selected route title when it has no compatible navigation assignment. */
-    private static void drawRouteNameOnly(GuiGraphicsExtractor graphics, Minecraft minecraft, Route route) {
-        Component routeName = Component.literal(route.getName());
-        int titleWidth = TRAVERSAL_ICON_SIZE + TITLE_GAP + minecraft.font.width(routeName);
-        int centerX = HUD_POSITION.centerX(graphics.guiWidth(), titleWidth);
-        int centerY = HUD_POSITION.centerY(graphics.guiHeight(), minecraft.font.lineHeight);
-        int titleY = centerY - INDICATOR_DISPLAY_SIZE / 2 - minecraft.font.lineHeight - 3;
-        int titleX = centerX - titleWidth / 2;
-        TraversalType traversalType = route.getTraversalType();
+    private static void drawStatus(GuiGraphicsExtractor graphics, Minecraft minecraft, Route selectedRoute,
+            Route assignedRoute, RouteAssignment assignment, Component selectedRouteLabel,
+            Component assignmentLabel, int centerX, int centerY) {
+        int statusHeight = minecraft.font.lineHeight * 2 + STATUS_LINE_GAP;
+        int selectedRouteY = centerY - INDICATOR_DISPLAY_SIZE / 2 - statusHeight - 3;
+        if (selectedRoute == null) {
+            graphics.centeredText(minecraft.font, selectedRouteLabel, centerX, selectedRouteY, 0xFFFFFFFF);
+        } else {
+            drawRouteLine(
+                    graphics,
+                    minecraft,
+                    selectedRouteLabel,
+                    selectedRoute.getTraversalType(),
+                    centerX,
+                    selectedRouteY);
+        }
+        if (assignmentLabel != null && assignedRoute != null && assignment != null) {
+            drawRouteLine(
+                    graphics,
+                    minecraft,
+                    assignmentLabel,
+                    assignment.getTraversalType(assignedRoute),
+                    centerX,
+                    selectedRouteY + minecraft.font.lineHeight + STATUS_LINE_GAP);
+        }
+    }
+
+    /** Draws a route label followed by the traversal icon that applies to it. */
+    private static void drawRouteLine(GuiGraphicsExtractor graphics, Minecraft minecraft, Component label,
+            TraversalType traversalType, int centerX, int y) {
+        int labelWidth = minecraft.font.width(label);
+        int lineWidth = labelWidth + TITLE_GAP + TRAVERSAL_ICON_SIZE;
+        int lineX = centerX - lineWidth / 2;
+        graphics.text(minecraft.font, label, lineX, y, 0xFFFFFFFF);
         graphics.blit(
                 RenderPipelines.GUI_TEXTURED,
                 traversalType.getIcon(),
-                titleX,
-                titleY - 1,
+                lineX + labelWidth + TITLE_GAP,
+                y - 1,
                 0,
                 0,
                 TRAVERSAL_ICON_SIZE,
@@ -182,7 +208,30 @@ public final class RouteNavigationHud {
                 Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
                 Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE,
                 Constants.Client.TRAVERSAL_ICON_TEXTURE_SIZE);
-        graphics.text(minecraft.font, routeName, titleX + TRAVERSAL_ICON_SIZE + TITLE_GAP, titleY, 0xFFFFFFFF);
+    }
+
+    private static Component assigneeLabel(Minecraft minecraft, Entity assignee) {
+        if (assignee == minecraft.player) {
+            return Component.translatable("hud.farandwide.player");
+        }
+        Component customName = assignee.getCustomName();
+        return customName == null
+                ? genericAssigneeLabel(assignee)
+                : Component.translatable(
+                        "hud.farandwide.named_vehicle", assignee.getType().getDescription(), customName);
+    }
+
+    private static Component genericAssigneeLabel(Entity assignee) {
+        String managedDisplayName = RouteManager.getManagedAssigneeDisplayName(assignee.getId());
+        return managedDisplayName == null
+                ? assignee.getType().getDescription()
+                : Component.literal(managedDisplayName);
+    }
+
+    private static double horizontalDistance(Vec3 first, Vec3 second) {
+        double x = first.x - second.x;
+        double z = first.z - second.z;
+        return Math.sqrt(x * x + z * z);
     }
 
     private static void drawBackplate(GuiGraphicsExtractor graphics, int centerX, int centerY) {
@@ -227,7 +276,7 @@ public final class RouteNavigationHud {
 
         int centerY(int screenHeight, int fontHeight) {
             return switch (vertical) {
-                case TOP -> HUD_MARGIN + fontHeight + 3 + INDICATOR_DISPLAY_SIZE / 2;
+                case TOP -> HUD_MARGIN + fontHeight * 2 + STATUS_LINE_GAP + 3 + INDICATOR_DISPLAY_SIZE / 2;
                 case CENTER -> screenHeight / 2;
                 case BOTTOM -> screenHeight - HUD_MARGIN - INDICATOR_DISPLAY_SIZE / 2 - 13;
             };

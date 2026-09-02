@@ -6,8 +6,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
 /**
- * Client request to assign a route, toggle the selected route, or toggle the
- * vehicle controlled by the sender, including the sender when they are on foot.
+ * Client request to assign a route or mutate the assignment controlled by the
+ * sender, including the sender when they are on foot.
  *
  * <p>The server, not the client, decides whether the assignee is the player or
  * their ridden entity. {@code routeId} is used only for {@link Action#ASSIGN};
@@ -26,5 +26,5 @@ public record AssignmentMutationPayload(Action action, int routeId) implements C
             });
 
     @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
-    public enum Action { ASSIGN, TOGGLE_ACTIVE, TOGGLE_VEHICLE }
+    public enum Action { ASSIGN, TOGGLE_ACTIVE, TOGGLE_VEHICLE, REVERSE_VEHICLE }
 }
