@@ -33,17 +33,17 @@ public final class FarAndWideCommands {
             () -> Minecraft.getInstance().setScreenAndShow(new RouteEditorScreen(null)));
 
     public static final FarAndWideCommand DESELECT_ROUTE = command(
-            GLFW.GLFW_KEY_D,
+            GLFW.GLFW_KEY_X,
             "command.farandwide.deselect_route",
             () -> RouteManager.clearSelectedRoute());
 
     public static final FarAndWideCommand ASSIGN_ROUTE = command(
-            GLFW.GLFW_KEY_G,
+            GLFW.GLFW_KEY_A,
             "command.farandwide.assign_route",
             RouteManager::toggleRouteAssignment);
 
     public static final FarAndWideCommand TOGGLE_ROUTE = command(
-            GLFW.GLFW_KEY_A,
+            GLFW.GLFW_KEY_R,
             "command.farandwide.toggle_route",
             RouteManager::toggleCurrentAssignment);
 
@@ -53,12 +53,12 @@ public final class FarAndWideCommands {
             RouteManager::toggleCurrentVehicle);
 
     public static final FarAndWideCommand ADD_OR_REMOVE_WAYPOINT = command(
-            GLFW.GLFW_KEY_T,
+            GLFW.GLFW_KEY_W,
             "command.farandwide.add_or_remove_waypoint",
             () -> withCurrentRoute(WaypointEditor::toggleTargetedWaypoint));
 
     public static final FarAndWideCommand TOGGLE_HUD = command(
-            GLFW.GLFW_KEY_H,
+            GLFW.GLFW_KEY_D,
             "command.farandwide.toggle_hud",
             RouteNavigationHud::toggleVisibility);
 

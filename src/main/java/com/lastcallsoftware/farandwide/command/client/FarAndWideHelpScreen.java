@@ -54,7 +54,8 @@ public final class FarAndWideHelpScreen extends Screen {
             new HelpPage("screen.farandwide.help.tips_and_tricks.page1.title", "screen.farandwide.help.tips_and_tricks.page1.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page2.title", "screen.farandwide.help.tips_and_tricks.page2.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page3.title", "screen.farandwide.help.tips_and_tricks.page3.body", null),
-            new HelpPage("screen.farandwide.help.tips_and_tricks.page4.title", "screen.farandwide.help.tips_and_tricks.page4.body", null)
+            new HelpPage("screen.farandwide.help.tips_and_tricks.page4.title", "screen.farandwide.help.tips_and_tricks.page4.body", null),
+            new HelpPage("screen.farandwide.help.tips_and_tricks.page5.title", "screen.farandwide.help.tips_and_tricks.page5.body", null)
     };
 
     private int pageIndex;

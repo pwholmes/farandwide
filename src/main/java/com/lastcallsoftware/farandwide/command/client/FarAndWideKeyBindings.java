@@ -50,7 +50,7 @@ public final class FarAndWideKeyBindings {
 
         binding("key.farandwide.assign_route",
                 KeyModifier.CONTROL,
-                key(GLFW.GLFW_KEY_G),
+                key(GLFW.GLFW_KEY_A),
                 FarAndWideCommands.ASSIGN_ROUTE::execute);
 
         binding("key.farandwide.add_or_remove_waypoint",
@@ -60,7 +60,7 @@ public final class FarAndWideKeyBindings {
 
         binding("key.farandwide.toggle_route",
                 KeyModifier.CONTROL,
-                key(GLFW.GLFW_KEY_A),
+                key(GLFW.GLFW_KEY_R),
                 FarAndWideCommands.TOGGLE_ROUTE::execute);
 
         binding("key.farandwide.toggle_vehicle",
