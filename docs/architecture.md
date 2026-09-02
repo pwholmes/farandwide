@@ -1,158 +1,106 @@
 # Architecture
 
-Far and Wide stores routes and navigation assignments on the server. The client
-keeps read-only snapshots for screens, rendering, and navigation display. A UI
-action is therefore a request, not a direct edit of permanent state.
+Far and Wide is server-authoritative. Routes, waypoints, assignments, traversal
+progress, and cargo behavior are permanent world state. Clients send requests
+and keep replaceable snapshots for screens, rendering, input, and the HUD.
 
 ```text
-screens, commands, and keybindings
-                |
-                v
-       RouteManager client API
-                |
-                v
-         network payloads
-                |
-                v
- authoritative server operations
-                |
-                v
-      FarAndWideSavedData
+client UI/input
+    -> RouteManager
+    -> RouteRequests and network payloads
+    -> RouteNetwork
+    -> RouteService
+    -> FarAndWideSavedData
+    -> refreshed client snapshots
 ```
 
-Authoritative operation orchestration lives in `RouteService`. `RouteNetwork`
-handlers translate payload actions into service calls and synchronize the
-returned route or assignment views. Collection mutation and dirty-state handling
-remain in `FarAndWideSavedData`.
+Screens, commands, renderers, and client vehicle controls use `RouteManager`;
+they do not construct payloads or edit cached records directly. Packet handlers
+decode requests, call the server service, and synchronize results. Validation
+and orchestration belong in `RouteService`, while collection mutation and dirty
+state handling belong in `FarAndWideSavedData`.
 
-## State ownership
+## State and identity
 
-`FarAndWideSavedData` owns all permanent, world-scoped state:
+`FarAndWideSavedData` owns routes, waypoint definitions, assignments, player
+route selections, stable ID allocators, and the persistent metadata needed to
+restore vehicle assignments. Domain records are immutable so permanent changes
+must replace stored values through saved-data operations.
 
-- routes and their names, traversal types, and dimension-aware waypoints;
-- assignments and their target index, direction, optional traversal override,
-  and active state;
-- the selected route for each persistent assignee ID;
-- the next route and assignee ID allocators.
+The client-side `RouteManager` owns only connection-scoped caches. These caches
+are cleared when joining or leaving a server and are never evidence that a
+server mutation succeeded.
 
-The client-side `RouteManager` owns only replaceable caches:
+Route, waypoint, and assignee IDs are stable persistence identities. Runtime
+entity IDs may change after reload and must never be used as disk keys. Network
+snapshots translate persistent assignees to current runtime entities when the
+client needs to locate them. Loaded ID allocators must advance beyond every
+restored ID, and deleting a route must also remove references to it.
 
-- route snapshots and the selected route snapshot;
-- assignment snapshots keyed by the entity's runtime ID;
-- request flags and a revision counter used by client views.
+## Persistence and synchronization
 
-These caches are cleared when leaving or joining a server. They must never be
-treated as save data or as proof that a server mutation succeeded.
+Every successful saved-state mutation, including ID allocation, calls
+`setDirty()`. Rejected operations and reads do not. Code must not mutate an
+object obtained from saved data behind its owner's back.
 
-## Identifiers
+Disk and wire formats are separate contracts:
 
-Route IDs are stable integers stored with route data. Assignee IDs are stable
-integers attached to players or vehicles and used as persistence keys. They are
-separate from runtime entity IDs, which may change after a reload. Snapshot
-delivery translates a persistent assignment back to the current entity ID so
-the client can find the entity it is rendering or controlling.
+- Disk codecs live in `route.persistence.RouteCodecs` and must preserve existing
+  worlds through explicit defaults or migration.
+- Network codecs live with their payloads and must be symmetric and bounded.
+- Server snapshots replace client state; clients never infer authoritative state
+  from an optimistic local edit.
 
-Loaded ID allocators are raised above the highest restored ID to prevent reuse.
-Deleting a route also removes assignments and selected-route entries that refer
-to it.
+When a permanent field changes, update its domain model, disk codec, relevant
+snapshot or mutation payload, authoritative operation, and round-trip tests.
+Increment the data version only when compatibility requires migration rather
+than a safe default. Malformed input should be rejected or repaired without
+discarding unrelated valid data.
 
-## Dirty-state rule
+Temporary state belongs at the narrowest owner that needs it:
 
-Call `setDirty()` after every successful mutation of saved state, including ID
-allocation. Do not call it for rejected requests or reads. Mutating a `Route` or
-`RouteAssignment` obtained from saved data without going through a saved-data
-operation is unsafe because the mutation can be omitted from disk. The planned
-service and domain boundaries exist to make that mistake difficult.
+- authoritative across restarts: persisted server state;
+- authoritative only while running: server runtime state;
+- display or input only: client state;
+- authoritative and visible to clients: server state plus a snapshot.
 
-## Network flow
+## Traversal and vehicles
 
-Client to server:
+`ServerRouteTraversalController` advances active assignments when an assignee
+reaches its target. Progress is persisted and synchronized. Clients may render
+or apply synchronized control intent, but the server owns route selection,
+assignment state, waypoint actions, and traversal advancement.
 
-- `RequestRouteSnapshotPayload` asks for routes and the requesting player's selection.
-- `SelectRoutePayload` changes the requesting player's selected route.
-- `RouteMutationPayload` creates, updates, deletes, adds, removes, or toggles a waypoint.
-- `RequestAssignmentSnapshotPayload` asks for the current player or ridden vehicle assignment.
-- `AssignmentMutationPayload` assigns a route or toggles assignment activity.
+A `VehicleNavigator` converts the current segment into a side-neutral
+`NavigationIntent`. A `VehicleActuator` translates that intent into a vehicle's
+mechanics and declares which physical side owns movement. This keeps route
+storage independent of vehicle controls: navigation strategies can change and
+vehicle types can be added without redesigning the route model.
 
-Server to client:
+Cargo policy belongs to each cargo waypoint. Load and unload filters and station
+bindings are independent because a station identifies inventory access, not a
+shared route policy. Transfers execute authoritatively and must preserve items
+across partial or rejected moves.
 
-- `RouteSnapshotPayload` replaces the client route cache. Route mutations are
-  broadcast, while the initiating player also receives its selected route ID.
-- `AssignmentSnapshotPayload` supplies an assignment using the assignee's
-  current runtime entity ID. It is sent after assignment mutations and traversal
-  progress changes.
+## Package and physical-side boundaries
 
-Client-only payload handling is registered by `FarAndWideClient`; common packet
-registration must not load client classes on a dedicated server.
+Use packages as ownership boundaries, not as a requirement to add a new layer
+for every feature:
 
-## Joining and switching worlds
-
-On login, `RouteManager` clears all cached routes and assignments and requests a
-fresh route snapshot. Assignment data is requested lazily after the local
-player has a runtime entity ID. Logout clears the same cache, preventing one
-world or server from leaking state into another.
-
-The server retrieves `FarAndWideSavedData` from its world data storage. Minecraft
-decodes the saved-data codec when the world is loaded and encodes it after dirty
-state is saved.
-
-## Traversal progress
-
-`ServerRouteTraversalController` scans loaded entities for persistent assignee
-IDs. When an active assignee reaches its target in the target dimension, the
-server advances the assignment:
-
-- `ONE_WAY` advances until the last waypoint, then becomes inactive;
-- `LOOP` wraps from the final waypoint to the first;
-- `REVERSE` changes direction at either end.
-
-Progress is written through `FarAndWideSavedData`, which marks it dirty, and the
-updated assignment is sent to a controlling player. Client navigation renders
-the snapshot but does not authoritatively advance it.
-
-Route selection and traversal remain server-authoritative. The traversal
-controller passes the current target into the vehicle navigation pipeline:
-
-1. A `VehicleNavigator` turns the current route segment into a temporary,
-   side-neutral `NavigationIntent`. The initial `DirectWaypointNavigator`
-   assumes the segment is unobstructed.
-2. A `VehicleActuator` translates that intent into one vehicle's mechanics.
-   Actuators also declare whether their physical side currently owns movement.
-3. The server actuator handles unattended vehicles. When vanilla delegates a
-   ridden vehicle's physics to its controlling client, the corresponding client
-   actuator applies the same intent from the synchronized route assignment.
-
-Navigators may later perform local pathfinding without changing route storage or
-vehicle controls. New vehicle types add actuators without changing traversal or
-navigation intent. Recorded waypoints remain the global route, and the server
-alone decides when an assignment advances.
-
-## Physical-side and package boundaries
-
-Feature code should remain grouped under `route` or `vehicle`, with physical
-side subpackages only where they convey a real loading boundary:
-
-- common domain models live directly under `route`;
-- Minecraft client imports live under `route.client`, `vehicle.client`, or the
-  top-level physical-client bootstrap package;
-- authoritative operations and traversal live under `route.server`;
+- common domain models live directly under `route` or `vehicle`;
+- Minecraft client imports live under a `client` package or the client bootstrap;
+- authoritative route behavior lives under `route.server`;
 - saved-data and disk codecs live under `route.persistence`;
-- payloads and registration live under `route.network`.
+- payloads and network registration live under `route.network`.
 
-Common and server code must never reference a client subpackage. Packet records
-remain common because both physical sides encode or decode them. Package moves
-must remain small enough to compile and smoke-test independently because event
-registration and class loading are physical-side sensitive.
+Common and server code must not reference client packages. Packet records remain
+common when both physical sides encode or decode them. Changes involving client
+class loading, event registration, or networking require a dedicated-server
+smoke test.
 
-## Adding a persisted field
+## Change checks
 
-To add a permanent route or assignment value:
-
-1. Add it to the common domain model.
-2. Add it to the disk codec, including an explicit compatibility default or migration.
-3. Add it to the corresponding snapshot codec.
-4. Update authoritative editing operations and synchronization.
-5. Add disk round-trip and snapshot round-trip characterization tests.
-6. Increase the data version when old saves require migration rather than a default.
-
-Temporary UI state belongs only in client code and must not be added to the disk codec.
+Test the contract affected by a change rather than following a fixed checklist
+for every edit. Persisted or synchronized changes normally require disk and wire
+round trips, an old-save compatibility case, save/reload verification, and a
+world-switch cache-isolation check.

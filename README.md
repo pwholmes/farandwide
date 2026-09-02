@@ -32,9 +32,9 @@ Cargo transport is supported by:
    - **One Way** — stops at the final waypoint.
    - **Loop** — returns to the first waypoint after the last.
    - **Reverse** — reverses direction at each end.
-3. Travel the intended Route manually, pressing `K` to add Waypoints.
-4. Mount a supported Vehicle and use **Assign Route** (default: `Ctrl + G`)
-5. Use **Toggle Route** (default: `Ctrl + A`) to start or pause it.
+3. Travel the intended Route manually, using **Add or Remove Waypoint** (default: `K`) to add Waypoints.
+4. Mount a supported Vehicle and use **Assign Route** (default: `Ctrl + A`)
+5. Use **Toggle Route** (default: `Ctrl + R`) to start or pause it.
 6. You may dismount the Vehicle at any time and it will keep moving along the Route.
 
 All controls are configurable in Minecraft’s Controls menu under the **Far And Wide** heading.
@@ -61,4 +61,4 @@ Please report bugs and feature requests through the project’s issue tracker.
 
 ## License
 
-The game uses the MIT license, fully described in LICENSE.txt.
+The mod uses the MIT license, which is fully specified in LICENSE.txt.
