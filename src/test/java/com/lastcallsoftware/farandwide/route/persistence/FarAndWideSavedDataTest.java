@@ -262,6 +262,33 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void chestBoatNamesIgnoreTheWoodVariant() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
+        int spruceId = data.allocateAssigneeId();
+        int oakId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), spruceId, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(route.getId(), oakId, Vec3.ZERO, OVERWORLD);
+
+        assertTrue(data.registerVehicle(
+                UUID.fromString("10000000-0000-0000-0000-000000000004"),
+                spruceId,
+                "spruce_boat_with_chest"));
+        assertTrue(data.registerVehicle(
+                UUID.fromString("10000000-0000-0000-0000-000000000005"),
+                oakId,
+                "oak_boat_with_chest"));
+
+        assertEquals(List.of("Chest Boat 1", "Chest Boat 2"), data.getVehicleRouteAssignments().stream()
+                .map(assignment -> assignment.displayName()).toList());
+
+        FarAndWideSavedData restored = roundTrip(data);
+        assertEquals(List.of("Chest Boat 1", "Chest Boat 2"), restored.getVehicleRouteAssignments().stream()
+                .map(assignment -> assignment.displayName()).toList());
+    }
+
+    @Test
     void customVehicleNameOverridesAndCanRestoreTheGeneratedFallback() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();

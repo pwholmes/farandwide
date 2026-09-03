@@ -175,7 +175,8 @@ public final class FarAndWideSavedData extends SavedData {
 
     /**
      * Associates an assignment with a vehicle and allocates its permanent friendly
-     * name the first time that UUID is encountered.
+     * name the first time that UUID is encountered. Previously generated names are
+     * refreshed when an entity type gains a more specific normalization rule.
      */
     public boolean registerVehicle(UUID vehicleUuid, int assigneeId, String vehicleTypeKey) {
         if (vehicleUuid == null || getAssignment(assigneeId) == null
@@ -183,10 +184,10 @@ public final class FarAndWideSavedData extends SavedData {
             return false;
         }
         boolean changed = associateVehicle(vehicleUuid, assigneeId);
+        String normalizedType = normalizeVehicleType(vehicleTypeKey);
         if (!vehicleIdentityByUuid.containsKey(vehicleUuid)) {
-            String normalizedType = normalizeVehicleType(vehicleTypeKey);
             int number = vehicleIdentityByUuid.values().stream()
-                    .filter(identity -> identity.typeKey().equals(normalizedType))
+                    .filter(identity -> normalizeVehicleType(identity.typeKey()).equals(normalizedType))
                     .mapToInt((FarAndWideSavedData.@NonNull VehicleIdentity identity) -> identity.number())
                     .max()
                     .orElse(0) + 1;
@@ -194,6 +195,30 @@ public final class FarAndWideSavedData extends SavedData {
                     normalizedType, number, createDisplayName(normalizedType, number)));
             setDirty();
             changed = true;
+        } else {
+            VehicleIdentity identity = vehicleIdentityByUuid.get(vehicleUuid);
+            String oldGeneratedName = createDisplayName(identity.typeKey(), identity.number());
+            if (!identity.typeKey().equals(normalizedType)) {
+                int number = identity.number();
+                boolean numberInUse = vehicleIdentityByUuid.entrySet().stream()
+                        .anyMatch(entry -> !entry.getKey().equals(vehicleUuid)
+                                && normalizeVehicleType(entry.getValue().typeKey()).equals(normalizedType)
+                                && entry.getValue().number() == identity.number());
+                if (numberInUse) {
+                    number = vehicleIdentityByUuid.values().stream()
+                            .filter(other -> normalizeVehicleType(other.typeKey()).equals(normalizedType))
+                            .mapToInt((FarAndWideSavedData.@NonNull VehicleIdentity other) -> other.number())
+                            .max()
+                            .orElse(0) + 1;
+                }
+                String displayName = identity.displayName().equals(oldGeneratedName)
+                        ? createDisplayName(normalizedType, number)
+                        : identity.displayName();
+                vehicleIdentityByUuid.put(vehicleUuid, new VehicleIdentity(
+                        normalizedType, number, displayName));
+                setDirty();
+                changed = true;
+            }
         }
         return changed;
     }
@@ -221,6 +246,15 @@ public final class FarAndWideSavedData extends SavedData {
 
     private static String normalizeVehicleType(String vehicleTypeKey) {
         String type = vehicleTypeKey.trim().toLowerCase(java.util.Locale.ROOT);
+        if (type.equals("chest_boat") || type.equals("chest_raft")) {
+            return type;
+        }
+        if (type.equals("boat_with_chest") || type.endsWith("_boat_with_chest")) {
+            return "chest_boat";
+        }
+        if (type.equals("raft_with_chest") || type.endsWith("_raft_with_chest")) {
+            return "chest_raft";
+        }
         if (type.endsWith("_boat")) {
             return "boat";
         }
