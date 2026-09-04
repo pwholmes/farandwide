@@ -270,6 +270,13 @@ public final class RouteNetwork {
         }
     }
 
+    /** Synchronizes a route changed directly by server gameplay rather than a client request. */
+    public static void syncRouteAfterServerMutation(ServerPlayer source, int routeId) {
+        broadcastRoutes(source);
+        sendAssignmentSnapshotsForRoute(source, routeId);
+        broadcastVehicleAssignments(source);
+    }
+
     private static void replyWithRoutes(ServerPlayer player,
             net.neoforged.neoforge.network.handling.IPayloadContext context) {
         RouteService.RouteState state = RouteService.getRoutes(player);

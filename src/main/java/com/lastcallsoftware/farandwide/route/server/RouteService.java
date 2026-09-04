@@ -24,16 +24,17 @@ import net.minecraft.world.phys.Vec3;
 import org.eclipse.jdt.annotation.NonNull;
 
 /**
- * Authoritative entry point for player-initiated route operations.
+ * Authoritative entry point for server-side route operations.
  *
- * <p>Network handlers call this class after decoding a request. Methods resolve
- * the correct world data, determine whether the player or ridden vehicle is the
- * assignee, validate the request, and delegate permanent changes to
+ * <p>Network handlers call this class after decoding a request, while gameplay
+ * controllers use it for server-originated changes such as death routes. Methods
+ * resolve the correct world data and delegate permanent changes to
  * {@code FarAndWideSavedData}. Screens and other client code must never call this
  * class or assume a request succeeded before its server result arrives.
  *
- * <p>Each mutation returns a {@code RouteOperationResult}. Do validation before
- * the first mutation so a rejected request cannot leave partially changed state.
+ * <p>Player-requested mutations return a {@code RouteOperationResult}. Do
+ * validation before the first mutation so a rejected request cannot leave
+ * partially changed state.
  */
 public final class RouteService {
     private RouteService() {
@@ -66,6 +67,29 @@ public final class RouteService {
     public static int getSelectedRouteId(ServerPlayer player) {
         FarAndWideSavedData data = data(player);
         return data.getSelectedRouteId(assigneeId(player, data));
+    }
+
+    /** Records the player's latest death without changing their selected route. */
+    public static Route recordPlayerDeath(ServerPlayer player) {
+        FarAndWideSavedData data = data(player);
+        return recordPlayerDeath(
+                data,
+                player.getUUID(),
+                player.getGameProfile().name(),
+                player.position(),
+                dimension(player),
+                routeId -> stopLoadedAssignees(player, data, routeId));
+    }
+
+    static Route recordPlayerDeath(FarAndWideSavedData data, UUID playerUuid, String playerName,
+            Vec3 position, net.minecraft.resources.Identifier dimension,
+            java.util.function.IntConsumer stopAssignees) {
+        int existingRouteId = data.getDeathRouteId(playerUuid);
+        if (existingRouteId > 0) {
+            stopAssignees.accept(existingRouteId);
+        }
+        return data.upsertDeathRoute(
+                playerUuid, playerName + "'s Death Route", new Waypoint(position, dimension));
     }
 
     public static List<AssignmentState> getLoadedAssignmentsForRoute(ServerPlayer player, int routeId) {

@@ -22,7 +22,8 @@ public enum RouteOperationResult {
     SAME_CARGO_STATION,
     CHUNK_LOADING_LIMIT,
     VEHICLE_LOCATION_UNAVAILABLE,
-    VEHICLE_NOT_FOUND;
+    VEHICLE_NOT_FOUND,
+    CHUNK_LOADING_DISABLED;
 
     public String translationKey() {
         return "message.farandwide.operation." + name().toLowerCase(java.util.Locale.ROOT);

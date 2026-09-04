@@ -7,6 +7,7 @@ import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.server.ServerRouteTraversalController;
 import com.lastcallsoftware.farandwide.route.server.ServerMountTransitionController;
+import com.lastcallsoftware.farandwide.route.server.PlayerDeathRouteController;
 import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
 import com.lastcallsoftware.farandwide.vehicle.server.BoatNameTagController;
 import com.mojang.logging.LogUtils;
@@ -86,12 +87,14 @@ public class FarAndWide {
         // ITEMS.register(modEventBus);
         FarAndWideAttachments.ATTACHMENT_TYPES.register(modEventBus);
         VehicleChunkLoadingManager.register(modEventBus);
-        modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        modContainer.registerConfig(ModConfig.Type.SERVER, Config.SERVER_SPEC);
         // Register the Deferred Register to the mod event bus so tabs get registered
         //CREATIVE_MODE_TABS.register(modEventBus);
 
         ServerRouteTraversalController.register();
         ServerMountTransitionController.register();
+        PlayerDeathRouteController.register();
         BoatNameTagController.register();
 
         // Register ourselves for server and other game events we are interested in.
@@ -103,7 +106,7 @@ public class FarAndWide {
         // modEventBus.addListener(this::addCreative);
 
         // Register our mod's ModConfigSpec so that FML can create and load the config file for us
-        // modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        // A shared client-and-server preference would use its own COMMON spec here.
     }
 
     // Demo common setup retained for reference.

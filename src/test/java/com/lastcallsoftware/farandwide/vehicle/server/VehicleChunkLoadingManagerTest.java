@@ -23,9 +23,13 @@ class VehicleChunkLoadingManagerTest {
     }
 
     @Test
-    void configuredRadiusControlsWindowSize() {
-        assertEquals(1, VehicleChunkLoadingManager.windowAround(new ChunkPos(0, 0), 0).size());
-        assertEquals(25, VehicleChunkLoadingManager.windowAround(new ChunkPos(0, 0), 2).size());
+    void configuredAreaControlsWindowSizeAndCanDisableLoading() {
+        ChunkPos center = new ChunkPos(0, 0);
+
+        assertTrue(VehicleChunkLoadingManager.windowForSetting(center, 0).isEmpty());
+        assertEquals(1, VehicleChunkLoadingManager.windowForSetting(center, 1).size());
+        assertEquals(9, VehicleChunkLoadingManager.windowForSetting(center, 2).size());
+        assertEquals(25, VehicleChunkLoadingManager.windowForSetting(center, 3).size());
     }
 
     @Test

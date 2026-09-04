@@ -1,12 +1,12 @@
 package com.lastcallsoftware.farandwide.command.client;
 
 import com.lastcallsoftware.farandwide.FarAndWide;
+import com.lastcallsoftware.farandwide.client.FarAndWideScreen;
 import java.util.List;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.PlainTextButton;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
@@ -14,7 +14,7 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.resources.Identifier;
 
 /** A linked, self-contained guide to routes, cargo, terminology, and commands. */
-public final class FarAndWideHelpScreen extends Screen {
+public final class FarAndWideHelpScreen extends FarAndWideScreen {
     private static final int IMAGE_TEXTURE_WIDTH = 1400;
     private static final int IMAGE_TEXTURE_HEIGHT = 1200;
     private static final int CONTENT_TOP = 44;

@@ -1,6 +1,7 @@
 package com.lastcallsoftware.farandwide.route.client;
 
 import com.lastcallsoftware.farandwide.route.CargoFilter;
+import com.lastcallsoftware.farandwide.client.FarAndWideScreen;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -12,7 +13,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -22,7 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import org.eclipse.jdt.annotation.NonNull;
 
 /** Searchable item-registry editor for one cargo transfer direction. */
-final class CargoFilterScreen extends Screen {
+final class CargoFilterScreen extends FarAndWideScreen {
     private static final int PANEL_WIDTH = 320;
     private static final int SLOT_SIZE = 22;
     private static final int ITEM_SIZE = 16;

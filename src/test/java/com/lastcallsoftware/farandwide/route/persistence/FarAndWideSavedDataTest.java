@@ -308,6 +308,47 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void deathRoutesAreOwnedByPlayerUuidAndReplacedInPlace() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        UUID paul = UUID.fromString("40000000-0000-0000-0000-000000000001");
+        UUID alex = UUID.fromString("40000000-0000-0000-0000-000000000002");
+        Vec3 firstDeath = new Vec3(12.5, 64, -8.5);
+        Route paulsRoute = data.upsertDeathRoute(
+                paul, "Paul's Death Route", new Waypoint(firstDeath, OVERWORLD));
+        int originalRouteId = paulsRoute.getId();
+        int originalWaypointId = paulsRoute.getWaypoints().getFirst().id();
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(originalRouteId, assigneeId, Vec3.ZERO, OVERWORLD);
+        data.setAssignmentActive(assigneeId, true);
+        data.setAssignmentTraversalTypeOverride(assigneeId, TraversalType.LOOP);
+
+        Vec3 latestDeath = new Vec3(-20.25, 71, 33.75);
+        Route replaced = data.upsertDeathRoute(
+                paul, "PaulNew's Death Route", new Waypoint(latestDeath, NETHER));
+        Route alexsRoute = data.upsertDeathRoute(
+                alex, "Alex's Death Route", new Waypoint(Vec3.ZERO, OVERWORLD));
+
+        assertEquals(originalRouteId, replaced.getId());
+        assertEquals(originalWaypointId, replaced.getWaypoints().getFirst().id());
+        assertEquals("PaulNew's Death Route", replaced.getName());
+        assertEquals(latestDeath, replaced.getWaypoints().getFirst().position());
+        assertEquals(NETHER, replaced.getWaypoints().getFirst().dimension());
+        assertEquals(TraversalType.ONE_WAY, replaced.getTraversalType());
+        assertFalse(data.getAssignment(assigneeId).isActive());
+        assertEquals(0, data.getAssignment(assigneeId).getTargetWaypointIndex());
+        assertNull(data.getAssignment(assigneeId).getTraversalTypeOverride());
+        assertFalse(originalRouteId == alexsRoute.getId());
+
+        FarAndWideSavedData restored = roundTrip(data);
+        assertEquals(originalRouteId, restored.getDeathRouteId(paul));
+        assertEquals(alexsRoute.getId(), restored.getDeathRouteId(alex));
+        assertEquals(latestDeath, restored.getRoute(originalRouteId).getWaypoints().getFirst().position());
+
+        assertTrue(restored.deleteRoute(originalRouteId));
+        assertEquals(0, restored.getDeathRouteId(paul));
+    }
+
+    @Test
     void activatingLegacyOneWayEndpointCreatesRestartAnchor() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();

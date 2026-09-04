@@ -1,7 +1,10 @@
 package com.lastcallsoftware.farandwide.route.client;
 
 import com.lastcallsoftware.farandwide.Constants;
+import com.lastcallsoftware.farandwide.Config;
+import com.lastcallsoftware.farandwide.client.FarAndWideScreen;
 import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 
 import java.util.HashSet;
@@ -12,7 +15,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.screens.ConfirmScreen;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
@@ -21,7 +23,7 @@ import net.minecraft.network.chat.Component;
  * Displays the routes known to {@link RouteManager}. The list highlight is kept
  * separate from the route selected in the manager until Select is pressed.
  */
-public class RouteManagementScreen extends Screen {
+public class RouteManagementScreen extends FarAndWideScreen {
     private static final int LIST_TOP = Constants.Client.ROUTE_LIST_TOP;
     private static final int PANEL_WIDTH = Constants.Client.ROUTE_PANEL_WIDTH;
     private static final int BUTTON_WIDTH = Constants.Client.ROUTE_BUTTON_WIDTH;
@@ -31,16 +33,24 @@ public class RouteManagementScreen extends Screen {
     private static final int CONTROL_GAP = 4;
     private static final int CONTROL_RIGHT_PADDING = 4;
     private static final int WAYPOINT_TEXT_PADDING = 6;
+    private static final int SERVER_REFRESH_INTERVAL_TICKS = 60;
 
     private RouteList routeList;
     private Button selectButton;
     private Button editButton;
     private Button deleteButton;
     private long displayedRouteStateRevision = Long.MIN_VALUE;
+    private int ticksUntilServerRefresh = SERVER_REFRESH_INTERVAL_TICKS;
     private final Set<Integer> expandedRouteIds = new HashSet<>();
+    private PendingRouteReveal pendingRouteReveal;
 
     public RouteManagementScreen() {
+        this(null);
+    }
+
+    RouteManagementScreen(PendingRouteReveal pendingRouteReveal) {
         super(Component.translatable("screen.farandwide.manage_routes.title"));
+        this.pendingRouteReveal = pendingRouteReveal;
     }
 
     @Override
@@ -51,6 +61,7 @@ public class RouteManagementScreen extends Screen {
         routeList.updateSizeAndPosition(PANEL_WIDTH, listHeight, panelX, LIST_TOP);
 
         RouteManager.refreshServerSnapshot();
+        ticksUntilServerRefresh = SERVER_REFRESH_INTERVAL_TICKS;
         refreshRouteList();
 
         int buttonsWidth = BUTTON_WIDTH * 4 + BUTTON_GAP * 3;
@@ -96,6 +107,10 @@ public class RouteManagementScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
+        if (--ticksUntilServerRefresh <= 0) {
+            RouteManager.refreshServerSnapshot();
+            ticksUntilServerRefresh = SERVER_REFRESH_INTERVAL_TICKS;
+        }
         if (displayedRouteStateRevision != RouteManager.getRouteStateRevision()) {
             refreshRouteList();
         }
@@ -108,11 +123,14 @@ public class RouteManagementScreen extends Screen {
         Route selectedBeforeRefresh = getSelectedRoute();
         int selectedId = selectedBeforeRefresh == null ? -1 : selectedBeforeRefresh.getId();
         Route currentRoute = RouteManager.getCurrentRoute();
+        RouteEntry revealEntry = null;
         routeList.clearEntries();
         for (Route route : RouteManager.getRoutes()) {
             RouteEntry entry = new RouteEntry(route, routeList);
             routeList.addRow(entry);
-            if (route.getId() == selectedId || (selectedId < 0 && route == currentRoute)) {
+            if (pendingRouteReveal != null && pendingRouteReveal.matches(route, currentRoute)) {
+                revealEntry = entry;
+            } else if (route.getId() == selectedId || (selectedId < 0 && route == currentRoute)) {
                 routeList.setSelected(entry);
             }
             if (expandedRouteIds.contains(route.getId())) {
@@ -120,6 +138,11 @@ public class RouteManagementScreen extends Screen {
                     routeList.addRow(new VehicleEntry(route, assignment));
                 }
             }
+        }
+        if (revealEntry != null) {
+            routeList.setSelected(revealEntry);
+            routeList.reveal(revealEntry);
+            pendingRouteReveal = null;
         }
         displayedRouteStateRevision = RouteManager.getRouteStateRevision();
         updateButtonState();
@@ -179,7 +202,12 @@ public class RouteManagementScreen extends Screen {
                     minecraft.setScreenAndShow(new RouteManagementScreen());
                 },
                 Component.translatable("screen.farandwide.manage_routes.delete.message", route.getName()),
-                Component.empty()));
+                Component.empty()) {
+            @Override
+            public boolean isPauseScreen() {
+                return Config.PAUSE_MOD_SCREENS.get();
+            }
+        });
     }
 
     @Override
@@ -234,6 +262,10 @@ public class RouteManagementScreen extends Screen {
             addEntry(entry);
         }
 
+        void reveal(RouteListEntry entry) {
+            scrollToEntry(entry);
+        }
+
         @Override
         public int getRowWidth() {
             return getWidth() - 20;
@@ -243,6 +275,20 @@ public class RouteManagementScreen extends Screen {
         public void setSelected(RouteListEntry entry) {
             super.setSelected(entry);
             updateButtonState();
+        }
+    }
+
+    /** Identifies the server-created route without relying on route names being unique. */
+    record PendingRouteReveal(Set<Integer> existingRouteIds, String name, TraversalType traversalType) {
+        PendingRouteReveal {
+            existingRouteIds = Set.copyOf(existingRouteIds);
+        }
+
+        boolean matches(Route route, Route currentRoute) {
+            return route == currentRoute
+                    && !existingRouteIds.contains(route.getId())
+                    && route.getName().equals(name)
+                    && route.getTraversalType() == traversalType;
         }
     }
 

@@ -151,6 +151,27 @@ class RouteServiceTest {
     }
 
     @Test
+    void replacingDeathRouteStopsFollowersBeforeMovingItsWaypoint() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        UUID playerUuid = UUID.fromString("50000000-0000-0000-0000-000000000001");
+        Vec3 oldDeath = new Vec3(4, 60, 8);
+        Vec3 newDeath = new Vec3(20, 70, 30);
+        Route original = RouteService.recordPlayerDeath(
+                data, playerUuid, "Paul", oldDeath, OVERWORLD, routeId -> {});
+        AtomicBoolean stoppedBeforeReplacement = new AtomicBoolean();
+
+        Route replaced = RouteService.recordPlayerDeath(
+                data, playerUuid, "Paul", newDeath, OVERWORLD,
+                routeId -> stoppedBeforeReplacement.set(
+                        data.getRoute(routeId).getWaypoints().getFirst().position().equals(oldDeath)));
+
+        assertTrue(stoppedBeforeReplacement.get());
+        assertEquals(original.getId(), replaced.getId());
+        assertEquals(newDeath, replaced.getWaypoints().getFirst().position());
+        assertEquals("Paul's Death Route", replaced.getName());
+    }
+
+    @Test
     void reversingDirectionRetargetsTheAdjacentWaypoint() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();

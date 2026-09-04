@@ -3,13 +3,13 @@ package com.lastcallsoftware.farandwide.command.client;
 import org.lwjgl.glfw.GLFW;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.lastcallsoftware.farandwide.client.FarAndWideScreen;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
-public class FarAndWideCommandScreen extends Screen {
+public class FarAndWideCommandScreen extends FarAndWideScreen {
 
     public FarAndWideCommandScreen() {
         super(Component.translatable("screen.farandwide.command_menu_title"));

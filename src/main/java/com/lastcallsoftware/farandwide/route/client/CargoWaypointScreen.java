@@ -1,6 +1,8 @@
 package com.lastcallsoftware.farandwide.route.client;
 
 import com.lastcallsoftware.farandwide.Constants;
+import com.lastcallsoftware.farandwide.Config;
+import com.lastcallsoftware.farandwide.client.FarAndWideScreen;
 import com.lastcallsoftware.farandwide.route.CargoBehavior;
 import com.lastcallsoftware.farandwide.route.CargoFilter;
 import com.lastcallsoftware.farandwide.route.CargoOperation;
@@ -14,7 +16,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.screens.ConfirmScreen;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
@@ -26,7 +27,7 @@ import java.util.Optional;
 import org.eclipse.jdt.annotation.NonNull;
 
 /** Reusable create/edit screen for normal and cargo waypoint behavior. */
-public final class CargoWaypointScreen extends Screen {
+public final class CargoWaypointScreen extends FarAndWideScreen {
     private static final int CONTROL_WIDTH = Constants.Client.CARGO_WAYPOINT_CONTROL_WIDTH;
     private static final int FILTER_ITEM_SLOT_SIZE = 22;
     private static final int FILTER_ITEM_SIZE = 16;
@@ -372,7 +373,12 @@ public final class CargoWaypointScreen extends Screen {
                         }
                     },
                     Component.translatable("screen.farandwide.cargo_waypoint.discard_title"),
-                    Component.translatable("screen.farandwide.cargo_waypoint.discard_message")));
+                    Component.translatable("screen.farandwide.cargo_waypoint.discard_message")) {
+                @Override
+                public boolean isPauseScreen() {
+                    return Config.PAUSE_MOD_SCREENS.get();
+                }
+            });
             return;
         }
         submit(action);

@@ -73,6 +73,11 @@ public final class VehicleChunkLoadingManager {
                 owner, vehicle.getCustomName() == null ? null : vehicle.getCustomName().getString());
         rememberLocation(vehicle, false);
         PENDING_ACTIVATIONS.remove(owner);
+        int chunkLoadingSetting = Config.VEHICLE_CHUNK_RADIUS.get();
+        if (chunkLoadingSetting == 0) {
+            release(vehicle);
+            return true;
+        }
         boolean alreadyTracked = isTracked(owner);
         if (!canTrack(alreadyTracked, trackedVehicleCount(), Config.MAX_CHUNK_LOADED_VEHICLES.get())) {
             FarAndWide.LOGGER.warn("Pausing route vehicle {} (assignee {}) because the chunk-loading limit is {}",
@@ -80,7 +85,7 @@ public final class VehicleChunkLoadingManager {
             return false;
         }
         releaseOtherLevels(owner, level);
-        Set<ChunkPos> desired = windowAround(vehicle.chunkPosition(), Config.VEHICLE_CHUNK_RADIUS.get());
+        Set<ChunkPos> desired = windowForSetting(vehicle.chunkPosition(), chunkLoadingSetting);
         installWindow(level, owner, desired);
         return true;
     }
@@ -112,6 +117,11 @@ public final class VehicleChunkLoadingManager {
     /** Force-loads the last known window so an unloaded vehicle can resume. */
     public static RouteOperationResult activateStoredVehicle(MinecraftServer server, UUID owner, int assigneeId,
             FarAndWideSavedData.VehicleLocation location, UUID requestingPlayer) {
+        int chunkLoadingSetting = Config.VEHICLE_CHUNK_RADIUS.get();
+        if (chunkLoadingSetting == 0) {
+            release(owner);
+            return RouteOperationResult.CHUNK_LOADING_DISABLED;
+        }
         ResourceKey<Level> dimensionKey = ResourceKey.create(Registries.DIMENSION, location.dimension());
         ServerLevel level = server.getLevel(dimensionKey);
         if (level == null) {
@@ -124,7 +134,7 @@ public final class VehicleChunkLoadingManager {
 
         releaseOtherLevels(owner, level);
         installWindow(level, owner,
-                windowAround(chunkAt(location.position()), Config.VEHICLE_CHUNK_RADIUS.get()));
+                windowForSetting(chunkAt(location.position()), chunkLoadingSetting));
         PENDING_ACTIVATIONS.put(owner,
                 new PendingActivation(level, assigneeId, requestingPlayer, ACTIVATION_TIMEOUT_TICKS));
         return RouteOperationResult.SUCCESS;
@@ -140,6 +150,10 @@ public final class VehicleChunkLoadingManager {
 
     static Set<ChunkPos> windowAround(ChunkPos center) {
         return windowAround(center, 1);
+    }
+
+    static Set<ChunkPos> windowForSetting(ChunkPos center, int setting) {
+        return setting <= 0 ? Set.of() : windowAround(center, setting - 1);
     }
 
     static Set<ChunkPos> windowAround(ChunkPos center, int radius) {
@@ -160,6 +174,10 @@ public final class VehicleChunkLoadingManager {
             int assigneeId = data.getVehicleAssigneeId(owner);
             RouteAssignment assignment = data.getAssignment(assigneeId);
             if (assignment == null || !assignment.isActive()) {
+                helper.removeAllTickets(owner);
+                return;
+            }
+            if (Config.VEHICLE_CHUNK_RADIUS.get() == 0) {
                 helper.removeAllTickets(owner);
                 return;
             }
@@ -288,7 +306,7 @@ public final class VehicleChunkLoadingManager {
                 .flatMap(levelWindows -> levelWindows.values().stream())
                 .mapToInt((@NonNull Set<ChunkPos> window) -> window.size())
                 .sum();
-        FarAndWide.LOGGER.info("Vehicle chunk loading: {} tracked vehicles, {} chunk ownerships, radius {}, limit {}",
+        FarAndWide.LOGGER.info("Vehicle chunk loading: {} tracked vehicles, {} chunk ownerships, area setting {}, limit {}",
                 windows, chunkOwnerships, Config.VEHICLE_CHUNK_RADIUS.get(),
                 Config.MAX_CHUNK_LOADED_VEHICLES.get());
     }

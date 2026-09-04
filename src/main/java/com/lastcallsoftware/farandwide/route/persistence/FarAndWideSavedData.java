@@ -51,6 +51,7 @@ public final class FarAndWideSavedData extends SavedData {
     private final Map<UUID, Integer> vehicleAssigneeByUuid = new HashMap<>();
     private final Map<UUID, VehicleIdentity> vehicleIdentityByUuid = new HashMap<>();
     private final Map<UUID, VehicleLocation> vehicleLocationByUuid = new HashMap<>();
+    private final Map<UUID, Integer> deathRouteByPlayerUuid = new HashMap<>();
     private int nextRouteId = 1;
     private int nextAssigneeId = 1;
     private int nextWaypointId = 1;
@@ -66,6 +67,7 @@ public final class FarAndWideSavedData extends SavedData {
     Map<UUID, Integer> getVehicleAssigneesByUuid() { return Map.copyOf(vehicleAssigneeByUuid); }
     Map<UUID, VehicleIdentity> getVehicleIdentitiesByUuid() { return Map.copyOf(vehicleIdentityByUuid); }
     Map<UUID, VehicleLocation> getVehicleLocationsByUuid() { return Map.copyOf(vehicleLocationByUuid); }
+    Map<UUID, Integer> getDeathRoutesByPlayerUuid() { return Map.copyOf(deathRouteByPlayerUuid); }
     public int getNextRouteId() { return nextRouteId; }
     public int getNextAssigneeId() { return nextAssigneeId; }
     public int getNextWaypointId() { return nextWaypointId; }
@@ -75,6 +77,44 @@ public final class FarAndWideSavedData extends SavedData {
         routes.add(route);
         setDirty();
         return route;
+    }
+
+    /**
+     * Creates or replaces one player's UUID-owned death route while preserving
+     * its route ID. Any existing assignments are stopped at the data layer so a
+     * moving assignee cannot silently redirect to the new death location.
+     */
+    public Route upsertDeathRoute(UUID playerUuid, String routeName, Waypoint waypoint) {
+        if (playerUuid == null || routeName == null || routeName.isBlank() || waypoint == null) {
+            throw new IllegalArgumentException("Death route identity, name, and waypoint are required");
+        }
+        Integer existingRouteId = deathRouteByPlayerUuid.get(playerUuid);
+        Route existingRoute = existingRouteId == null ? null : getRoute(existingRouteId);
+        int routeId;
+        int waypointId;
+        if (existingRoute == null) {
+            routeId = nextRouteId++;
+            waypointId = nextWaypointId++;
+            deathRouteByPlayerUuid.put(playerUuid, routeId);
+            routes.add(new Route(routeId, routeName.trim(), TraversalType.ONE_WAY,
+                    List.of(waypoint.withId(waypointId))));
+        } else {
+            routeId = existingRoute.getId();
+            waypointId = existingRoute.getWaypoints().isEmpty()
+                    ? nextWaypointId++
+                    : existingRoute.getWaypoints().getFirst().id();
+            replaceRoute(existingRoute, new Route(routeId, routeName.trim(), TraversalType.ONE_WAY,
+                    List.of(waypoint.withId(waypointId))));
+            assignmentsByAssignee.replaceAll((assigneeId, assignment) -> assignment.getRouteId() == routeId
+                    ? new RouteAssignment(routeId, assigneeId, 0, 1, null, false, false)
+                    : assignment);
+        }
+        setDirty();
+        return getRoute(routeId);
+    }
+
+    public int getDeathRouteId(UUID playerUuid) {
+        return deathRouteByPlayerUuid.getOrDefault(playerUuid, 0);
     }
 
     public Route getRoute(int routeId) {
@@ -574,6 +614,7 @@ public final class FarAndWideSavedData extends SavedData {
                 .collect(java.util.stream.Collectors.toSet());
         vehicleAssigneeByUuid.keySet().removeAll(removedVehicles);
         vehicleLocationByUuid.keySet().removeAll(removedVehicles);
+        deathRouteByPlayerUuid.values().removeIf(deathRouteId -> deathRouteId == routeId);
         selectedRouteByAssignee.values().removeIf(selectedRouteId -> selectedRouteId == routeId);
         setDirty();
         return true;
@@ -624,7 +665,7 @@ public final class FarAndWideSavedData extends SavedData {
             int savedNextWaypointId,
             List<Route> routes, Map<Integer, RouteAssignment> assignments, Map<Integer, Integer> selectedRoutes,
             Map<UUID, Integer> vehicleAssignees, Map<UUID, VehicleIdentity> vehicleIdentities,
-            Map<UUID, VehicleLocation> vehicleLocations) {
+            Map<UUID, VehicleLocation> vehicleLocations, Map<UUID, Integer> deathRoutes) {
         /*
          * Repair records independently instead of rejecting the complete save.
          * A damaged assignment must not destroy unrelated valid routes. Repairs
@@ -730,6 +771,16 @@ public final class FarAndWideSavedData extends SavedData {
             } else {
                 repaired = true;
             }
+        }
+
+        deathRoutes.forEach((playerUuid, routeId) -> {
+            if (playerUuid != null && data.getRoute(routeId) != null
+                    && !data.deathRouteByPlayerUuid.containsValue(routeId)) {
+                data.deathRouteByPlayerUuid.put(playerUuid, routeId);
+            }
+        });
+        if (data.deathRouteByPlayerUuid.size() != deathRoutes.size()) {
+            repaired = true;
         }
 
         int highestRouteId = data.routes.stream().mapToInt((@NonNull Route route) -> route.getId()).max().orElse(0);

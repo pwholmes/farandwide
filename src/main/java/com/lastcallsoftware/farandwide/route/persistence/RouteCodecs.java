@@ -141,6 +141,12 @@ public final class RouteCodecs {
                     -> new VehicleLocationEntry(vehicleUuid,
                             new FarAndWideSavedData.VehicleLocation(dimension, new BlockPos(x, y, z)))));
 
+    private static final Codec<DeathRouteEntry> DEATH_ROUTE_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
+            UUIDUtil.CODEC.fieldOf("playerUuid").forGetter((@NonNull DeathRouteEntry entry) -> entry.playerUuid()),
+            Codec.INT.fieldOf("routeId").forGetter((@NonNull DeathRouteEntry entry) -> entry.routeId()))
+            .apply(instance, (@NonNull UUID playerUuid, @NonNull Integer routeId)
+                    -> new DeathRouteEntry(playerUuid, routeId)));
+
     /** Root codec supplied to Minecraft's {@code SavedDataType}. */
     static final Codec<FarAndWideSavedData> SAVED_DATA = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.optionalFieldOf("dataVersion", Constants.Persistence.CURRENT_DATA_VERSION)
@@ -158,16 +164,20 @@ public final class RouteCodecs {
             VEHICLE_IDENTITY_ENTRY.listOf().optionalFieldOf("vehicleIdentities", List.of())
                     .forGetter((@NonNull FarAndWideSavedData data) -> vehicleIdentityEntries(data)),
             VEHICLE_LOCATION_ENTRY.listOf().optionalFieldOf("vehicleLocations", List.of())
-                    .forGetter((@NonNull FarAndWideSavedData data) -> vehicleLocationEntries(data)))
+                    .forGetter((@NonNull FarAndWideSavedData data) -> vehicleLocationEntries(data)),
+            DEATH_ROUTE_ENTRY.listOf().optionalFieldOf("deathRoutes", List.of())
+                    .forGetter((@NonNull FarAndWideSavedData data) -> deathRouteEntries(data)))
             .apply(instance, (@NonNull Integer dataVersion, @NonNull Integer nextRouteId,
                     @NonNull Integer nextAssigneeId, @NonNull Integer nextWaypointId,
                     @NonNull List<Route> routes, @NonNull List<AssignmentEntry> assignments,
                     @NonNull List<SelectedRouteEntry> selectedRoutes,
                     @NonNull List<VehicleAssigneeEntry> vehicleAssignees,
                     @NonNull List<VehicleIdentityEntry> vehicleIdentities,
-                    @NonNull List<VehicleLocationEntry> vehicleLocations)
+                    @NonNull List<VehicleLocationEntry> vehicleLocations,
+                    @NonNull List<DeathRouteEntry> deathRoutes)
                     -> savedData(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
-                            assignments, selectedRoutes, vehicleAssignees, vehicleIdentities, vehicleLocations)));
+                            assignments, selectedRoutes, vehicleAssignees, vehicleIdentities, vehicleLocations,
+                            deathRoutes)));
 
     private RouteCodecs() {
     }
@@ -235,11 +245,18 @@ public final class RouteCodecs {
                 .toList();
     }
 
+    private static List<DeathRouteEntry> deathRouteEntries(FarAndWideSavedData data) {
+        return data.getDeathRoutesByPlayerUuid().entrySet().stream()
+                .map((Map.@NonNull Entry<UUID, Integer> entry)
+                        -> new DeathRouteEntry(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
     private static FarAndWideSavedData savedData(int dataVersion, int nextRouteId, int nextAssigneeId,
             int nextWaypointId,
             List<Route> routes, List<AssignmentEntry> assignments, List<SelectedRouteEntry> selectedRoutes,
             List<VehicleAssigneeEntry> vehicleAssignees, List<VehicleIdentityEntry> vehicleIdentities,
-            List<VehicleLocationEntry> vehicleLocations) {
+            List<VehicleLocationEntry> vehicleLocations, List<DeathRouteEntry> deathRoutes) {
         Map<Integer, RouteAssignment> assignmentsByAssignee = assignments.stream().collect(Collectors.toMap(
                 entry -> entry.assigneeId(), entry -> entry.assignment(), (first, ignored) -> first));
         Map<Integer, Integer> selectedRouteByAssignee = selectedRoutes.stream().collect(Collectors.toMap(
@@ -252,9 +269,11 @@ public final class RouteCodecs {
         Map<UUID, FarAndWideSavedData.VehicleLocation> vehicleLocationByUuid = vehicleLocations.stream()
                 .collect(Collectors.toMap(
                         entry -> entry.vehicleUuid(), entry -> entry.location(), (first, ignored) -> first));
+        Map<UUID, Integer> deathRouteByPlayerUuid = deathRoutes.stream().collect(Collectors.toMap(
+                entry -> entry.playerUuid(), entry -> entry.routeId(), (first, ignored) -> first));
         return FarAndWideSavedData.restore(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
                 assignmentsByAssignee, selectedRouteByAssignee, vehicleAssigneeByUuid, vehicleIdentityByUuid,
-                vehicleLocationByUuid);
+                vehicleLocationByUuid, deathRouteByPlayerUuid);
     }
 
     private static <E extends Enum<E>> Codec<E> enumCodec(Class<E> enumClass) {
@@ -276,5 +295,8 @@ public final class RouteCodecs {
     }
 
     private record VehicleLocationEntry(UUID vehicleUuid, FarAndWideSavedData.VehicleLocation location) {
+    }
+
+    private record DeathRouteEntry(UUID playerUuid, int routeId) {
     }
 }

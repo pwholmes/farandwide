@@ -1,22 +1,24 @@
 package com.lastcallsoftware.farandwide.route.client;
 
 import com.lastcallsoftware.farandwide.Constants;
+import com.lastcallsoftware.farandwide.client.FarAndWideScreen;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.TraversalType;
+
+import java.util.stream.Collectors;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import org.eclipse.jdt.annotation.NonNull;
 
 /** A small name editor used for both creating and renaming routes. */
-public class RouteEditorScreen extends Screen {
+public class RouteEditorScreen extends FarAndWideScreen {
     private static final int DEFAULT_NAME_COLOR = Constants.Client.ROUTE_EDITOR_DEFAULT_NAME_COLOR;
 
     private final Route route;
@@ -136,7 +138,13 @@ public class RouteEditorScreen extends Screen {
         }
 
         if (route == null) {
+            RouteManagementScreen.PendingRouteReveal pendingReveal = new RouteManagementScreen.PendingRouteReveal(
+                    RouteManager.getRoutes().stream().map(Route::getId).collect(Collectors.toSet()),
+                    name,
+                    traversalTypeButton.getValue());
             RouteManager.createRoute(name, traversalTypeButton.getValue());
+            minecraft.setScreenAndShow(new RouteManagementScreen(pendingReveal));
+            return;
         } else {
             RouteManager.updateRoute(route, name, traversalTypeButton.getValue());
         }
