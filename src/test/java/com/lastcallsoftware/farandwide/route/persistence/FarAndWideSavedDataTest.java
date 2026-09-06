@@ -132,6 +132,37 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void invertingRouteReversesWaypointsAndPreservesAssignmentTarget() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(1, 64, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(2, 64, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(3, 64, 0), OVERWORLD));
+        route = data.getRoute(route.getId());
+        List<Integer> originalIds = route.getWaypoints().stream()
+                .map((@NonNull Waypoint waypoint) -> waypoint.id()).toList();
+        int assigneeId = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), assigneeId, new Vec3(2, 64, 0), OVERWORLD);
+        data.updateAssignmentProgress(assigneeId, 0, 1);
+
+        assertTrue(data.invertRoute(route.getId()));
+
+        Route inverted = data.getRoute(route.getId());
+        assertEquals(List.of(originalIds.get(2), originalIds.get(1), originalIds.get(0)),
+                inverted.getWaypoints().stream().map((@NonNull Waypoint waypoint) -> waypoint.id()).toList());
+        assertEquals(List.of(new Vec3(3, 64, 0), new Vec3(2, 64, 0), new Vec3(1, 64, 0)),
+                inverted.getWaypoints().stream().map((@NonNull Waypoint waypoint) -> waypoint.position()).toList());
+        assertEquals(2, data.getAssignment(assigneeId).getTargetWaypointIndex());
+    }
+
+    @Test
+    void invertingMissingRouteFails() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+
+        assertFalse(data.invertRoute(999));
+    }
+
+    @Test
     void routeAndAssignmentFieldsSurviveDiskRoundTrip() {
         FarAndWideSavedData original = new FarAndWideSavedData();
         Route route = original.createRoute();

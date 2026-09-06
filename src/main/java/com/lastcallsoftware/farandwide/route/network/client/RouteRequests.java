@@ -63,6 +63,10 @@ public final class RouteRequests {
         send(routeMutation(RouteMutationPayload.Action.ADD_WAYPOINT, routeId));
     }
 
+    public static void invertRoute(int routeId) {
+        send(routeMutation(RouteMutationPayload.Action.INVERT, routeId));
+    }
+
     public static void createWaypoint(int routeId, Vec3 position, Identifier dimension, WaypointAction action) {
         send(WaypointMutationPayload.create(routeId, position, dimension, action));
     }

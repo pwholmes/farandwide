@@ -222,6 +222,10 @@ public class RouteManager {
         RouteRequests.addWaypoint(route.getId());
     }
 
+    public static void invertRoute(Route route) {
+        RouteRequests.invertRoute(route.getId());
+    }
+
     public static void createWaypoint(Route route, Vec3 position, Identifier dimension, WaypointAction action) {
         RouteRequests.createWaypoint(route.getId(), position, dimension, action);
     }

@@ -1,6 +1,7 @@
 package com.lastcallsoftware.farandwide.route.persistence;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -509,6 +510,24 @@ public final class FarAndWideSavedData extends SavedData {
         List<Waypoint> waypoints = new ArrayList<>(route.getWaypoints());
         waypoints.add(waypoint.withId(nextWaypointId++));
         replaceRoute(route, new Route(route.getId(), route.getName(), route.getTraversalType(), waypoints));
+        setDirty();
+        return true;
+    }
+
+    /** Reverses route order while keeping each assignment aimed at the same stable waypoint. */
+    public boolean invertRoute(int routeId) {
+        Route route = getRoute(routeId);
+        if (route == null) {
+            return false;
+        }
+        if (route.getWaypoints().size() < 2) {
+            return true;
+        }
+        Map<Integer, Integer> assignmentTargets = assignmentTargetWaypointIds(route);
+        List<Waypoint> waypoints = new ArrayList<>(route.getWaypoints());
+        Collections.reverse(waypoints);
+        replaceRoute(route, new Route(route.getId(), route.getName(), route.getTraversalType(), waypoints));
+        remapAssignmentTargets(routeId, waypoints, assignmentTargets);
         setDirty();
         return true;
     }

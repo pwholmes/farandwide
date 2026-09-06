@@ -179,6 +179,17 @@ public final class RouteService {
                 : RouteOperationResult.ROUTE_NOT_FOUND;
     }
 
+    public static RouteOperationResult invertRoute(ServerPlayer player, int routeId) {
+        FarAndWideSavedData data = data(player);
+        RouteOperationResult validation = validateWaypointMutation(player, data, routeId);
+        if (validation != RouteOperationResult.SUCCESS) {
+            return validation;
+        }
+        return data.invertRoute(routeId)
+                ? RouteOperationResult.SUCCESS
+                : RouteOperationResult.ROUTE_NOT_FOUND;
+    }
+
     public static RouteOperationResult assignRoute(ServerPlayer player, int routeId) {
         FarAndWideSavedData data = data(player);
         Entity assignee = controlledAssignee(player);

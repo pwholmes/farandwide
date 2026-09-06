@@ -40,7 +40,7 @@ public final class RouteNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("12");
+        var registrar = event.registrar("13");
         registrar.playToServer(RequestRouteSnapshotPayload.TYPE, RequestRouteSnapshotPayload.STREAM_CODEC,
                 (payload, context) -> replyWithRoutes((ServerPlayer) context.player(), context));
         registrar.playToServer(SelectRoutePayload.TYPE, SelectRoutePayload.STREAM_CODEC,
@@ -58,6 +58,7 @@ public final class RouteNetwork {
                                 player, payload.routeId(), payload.name(), payload.traversalType());
                         case DELETE -> RouteService.deleteRoute(player, payload.routeId());
                         case ADD_WAYPOINT -> RouteService.addWaypoint(player, payload.routeId());
+                        case INVERT -> RouteService.invertRoute(player, payload.routeId());
                     };
                     replyWithResult(context, result);
                     if (result == RouteOperationResult.SUCCESS) {

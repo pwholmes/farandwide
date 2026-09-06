@@ -13,7 +13,7 @@ import net.minecraft.resources.Identifier;
  * Shared request envelope for mutations of route definitions and waypoints.
  *
  * <p>CREATE uses {@code name} and {@code traversalType}; UPDATE uses all fields;
- * DELETE and waypoint actions use only {@code routeId}. Unused values are transport
+ * DELETE, INVERT, and waypoint actions use only {@code routeId}. Unused values are transport
  * placeholders and must not be interpreted by their server action. Enum ordinals
  * are encoded on the wire, so changing their order requires a protocol-version change.
  */
@@ -49,5 +49,5 @@ public record RouteMutationPayload(Action action, int routeId, String name, Trav
         return new RouteMutationPayload(Action.values()[action], routeId, name, TraversalType.values()[type]);
     }
 
-    public enum Action { CREATE, UPDATE, DELETE, ADD_WAYPOINT }
+    public enum Action { CREATE, UPDATE, DELETE, ADD_WAYPOINT, INVERT }
 }

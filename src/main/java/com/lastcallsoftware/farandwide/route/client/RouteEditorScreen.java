@@ -139,7 +139,9 @@ public class RouteEditorScreen extends FarAndWideScreen {
 
         if (route == null) {
             RouteManagementScreen.PendingRouteReveal pendingReveal = new RouteManagementScreen.PendingRouteReveal(
-                    RouteManager.getRoutes().stream().map(Route::getId).collect(Collectors.toSet()),
+                    RouteManager.getRoutes().stream()
+                            .map((@NonNull Route existingRoute) -> existingRoute.getId())
+                            .collect(Collectors.toSet()),
                     name,
                     traversalTypeButton.getValue());
             RouteManager.createRoute(name, traversalTypeButton.getValue());
