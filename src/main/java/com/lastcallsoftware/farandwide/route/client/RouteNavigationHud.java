@@ -150,7 +150,7 @@ public final class RouteNavigationHud {
                 centerX,
                 centerY);
 
-        if (target == null) {
+        if (target == null || assignment == null) {
             hasDisplayedAngle = false;
             resetBullseye();
             return;
