@@ -24,8 +24,9 @@ y        y         y         y      |  y           y          n          n      
    - If the vehicle does not have a RouteAssignment, the player's RouteAssignment transfers to the vehicle
    - If the vehicle does have a RouteAssignment, the player's RouteAssignment should be deleted.
 - When the player dismounts a vehicle:
-   - If the vehicle did not have a RouteAssignment, nothing special happens
-   - If the vehicle had a RouteAssignment, the player should get that route as a selected but not assigned route
+   - The player's current Route selection is preserved. Mounting a Vehicle with
+     an assignment initially selects that Route, but a selection or deselection
+     made while riding remains in effect after dismounting.
 - The HUD labels the selected Route separately from the controlled assignee's
   assigned Route. The assignment line appears only when an assignment exists.
   The assignee is shown as "Player" on foot, or by its generic Vehicle type
