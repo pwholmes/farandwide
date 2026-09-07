@@ -43,6 +43,11 @@ public final class FarAndWideCommands {
             "command.farandwide.invert_route",
             () -> withCurrentRoute(RouteManager::invertRoute));
 
+    public static final FarAndWideCommand SELECT_ROUTE = command(
+            GLFW.GLFW_KEY_S,
+            "command.farandwide.select_route",
+            RouteManager::selectControlledAssigneeRoute);
+
     public static final FarAndWideCommand DESELECT_ROUTE = command(
             GLFW.GLFW_KEY_X,
             "command.farandwide.deselect_route",
@@ -89,6 +94,7 @@ public final class FarAndWideCommands {
                 CREATE_ROUTE,
                 ADD_OR_REMOVE_WAYPOINT,
                 INVERT_ROUTE,
+                SELECT_ROUTE,
                 DESELECT_ROUTE,
                 ASSIGN_ROUTE,
                 TOGGLE_ROUTE,

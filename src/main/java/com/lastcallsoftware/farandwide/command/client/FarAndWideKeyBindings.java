@@ -63,6 +63,11 @@ public final class FarAndWideKeyBindings {
                 InputConstants.UNKNOWN,
                 FarAndWideCommands.INVERT_ROUTE::execute);
 
+        binding("key.farandwide.select_route",
+                KeyModifier.NONE,
+                InputConstants.UNKNOWN,
+                FarAndWideCommands.SELECT_ROUTE::execute);
+
         binding("key.farandwide.toggle_route",
                 KeyModifier.CONTROL,
                 key(GLFW.GLFW_KEY_R),

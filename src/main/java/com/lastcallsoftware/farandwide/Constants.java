@@ -87,9 +87,12 @@ public final class Constants {
         public static final int ROUTE_EDITOR_DEFAULT_NAME_COLOR = 0xFF777777;
         public static final boolean DEFAULT_HUD_VISIBLE = true;
         public static final int HUD_MARGIN = 8;
+        public static final int NAVIGATION_BADGE_TEXTURE_SIZE = 1_254;
         public static final int NAVIGATION_NEEDLE_TEXTURE_SIZE = 1_254;
-        public static final int NAVIGATION_INDICATOR_DISPLAY_SIZE = 16;
+        public static final int NAVIGATION_BULLSEYE_TEXTURE_SIZE = 1_254;
+        public static final int NAVIGATION_INDICATOR_DISPLAY_SIZE = 20;
         public static final int NAVIGATION_NEEDLE_DISPLAY_SIZE = 16;
+        public static final int NAVIGATION_BULLSEYE_DISPLAY_SIZE = 20;
         public static final double NAVIGATION_BULLSEYE_EXIT_MARGIN = 0.25;
         public static final double NAVIGATION_VERTICAL_DEAD_ZONE_BLOCKS = 2.0;
         public static final float NAVIGATION_VERTICAL_DEAD_ZONE_DEGREES = 3.0F;

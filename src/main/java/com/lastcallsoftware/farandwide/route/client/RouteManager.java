@@ -172,6 +172,27 @@ public class RouteManager {
         RouteRequests.selectRoute(0);
     }
 
+    /** Selects the Route assigned to the ridden Vehicle, or to the player while on foot. */
+    public static void selectControlledAssigneeRoute() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return;
+        }
+
+        Entity vehicle = minecraft.player.getVehicle();
+        Entity assignee = vehicle == null ? minecraft.player : vehicle;
+        RouteAssignment assignment = getAssignment(assignee.getId());
+        Route assignedRoute = assignment == null ? null : getRoute(assignment.getRouteId());
+        if (assignedRoute == null) {
+            sendOverlayMessage(vehicle == null
+                    ? "message.farandwide.select_route_player_no_assignment"
+                    : "message.farandwide.select_route_vehicle_no_assignment");
+            return;
+        }
+
+        setSelectedRoute(assignedRoute);
+    }
+
     public static void createRoute(String name, TraversalType traversalType) {
         RouteRequests.createRoute(name, traversalType);
     }
