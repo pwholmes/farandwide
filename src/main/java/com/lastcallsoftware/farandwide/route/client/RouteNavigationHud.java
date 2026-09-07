@@ -3,6 +3,7 @@ package com.lastcallsoftware.farandwide.route.client;
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
+import com.lastcallsoftware.farandwide.route.RouteMetrics;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 
@@ -102,12 +103,20 @@ public final class RouteNavigationHud {
                 ? selectedRouteWidth
                 : Math.max(selectedRouteWidth, assignmentWidth);
         Component waypointLabel = null;
-        if (assignment != null && target != null) {
+        if (assignment != null && assignedRoute != null && target != null) {
+            long targetDistance = Math.round(target.position().distanceTo(navigationEntity.position()));
+            long remainingDistance = Math.round(RouteMetrics.remainingDistance(
+                    assignedRoute,
+                    navigationEntity.position(),
+                    assignment.getTargetWaypointIndex(),
+                    assignment.getTraversalDirection()));
             waypointLabel = Component.translatable(
                     "hud.farandwide.waypoint",
                     assignment.getTraversalDirection() > 0 ? "+" : "-",
                     assignment.getTargetWaypointIndex() + 1,
-                    Math.round(horizontalDistance(target.position(), navigationEntity.position())));
+                    assignedRoute.getWaypoints().size(),
+                    targetDistance,
+                    remainingDistance);
             contentWidth = Math.max(INDICATOR_DISPLAY_SIZE, Math.max(contentWidth, minecraft.font.width(waypointLabel)));
         }
         int centerX = HUD_POSITION.centerX(graphics.guiWidth(), contentWidth);
@@ -217,8 +226,7 @@ public final class RouteNavigationHud {
         Component customName = assignee.getCustomName();
         return customName == null
                 ? genericAssigneeLabel(assignee)
-                : Component.translatable(
-                        "hud.farandwide.named_vehicle", assignee.getType().getDescription(), customName);
+                : customName;
     }
 
     private static Component genericAssigneeLabel(Entity assignee) {
@@ -226,12 +234,6 @@ public final class RouteNavigationHud {
         return managedDisplayName == null
                 ? assignee.getType().getDescription()
                 : Component.literal(managedDisplayName);
-    }
-
-    private static double horizontalDistance(Vec3 first, Vec3 second) {
-        double x = first.x - second.x;
-        double z = first.z - second.z;
-        return Math.sqrt(x * x + z * z);
     }
 
     private static void drawBackplate(GuiGraphicsExtractor graphics, int centerX, int centerY) {

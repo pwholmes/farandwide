@@ -198,8 +198,7 @@
   "hud.farandwide.none": "None",
   "hud.farandwide.assignment": "%s: %s",
   "hud.farandwide.player": "Player",
-  "hud.farandwide.named_vehicle": "%s “%s”",
-  "hud.farandwide.waypoint": "%s Waypoint %s • %s m",
+  "hud.farandwide.waypoint": "%s Waypoint %s/%s • %s/%s m",
   "hud.farandwide.player_position": "X: %s  Y: %s  Z: %s",
 
   "traversal.farandwide.one_way": "One Way",
