@@ -8,7 +8,7 @@ Create a route, add waypoints while travelling it manually, assign the route to 
 
 - Minecraft 26.2
 - NeoForge 26.2.0.66
-- Far And Wide 1.0.0
+- Far And Wide 1.1.0
 
 Install the JAR in the instance’s `mods` folder. For multiplayer, install it on both the client and server.
 
