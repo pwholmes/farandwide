@@ -90,6 +90,9 @@ public final class Constants {
         public static final int NAVIGATION_NEEDLE_TEXTURE_SIZE = 1_254;
         public static final int NAVIGATION_INDICATOR_DISPLAY_SIZE = 16;
         public static final int NAVIGATION_NEEDLE_DISPLAY_SIZE = 16;
+        public static final double NAVIGATION_VERTICAL_DEAD_ZONE_BLOCKS = 2.0;
+        public static final float NAVIGATION_VERTICAL_DEAD_ZONE_DEGREES = 3.0F;
+        public static final float NAVIGATION_VERTICAL_STEEP_ANGLE_DEGREES = 20.0F;
         public static final int HUD_TRAVERSAL_ICON_SIZE = 12;
         public static final int HUD_TITLE_GAP = 3;
         public static final int WAYPOINT_COLOR = 0x6600FF00;

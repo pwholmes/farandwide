@@ -18,7 +18,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
-/** HUD direction and distance indicator for the player's current navigation assignment. */
+/** HUD horizontal and vertical direction and distance indicator for the current navigation assignment. */
 public final class RouteNavigationHud {
     private static final boolean DEFAULT_HUD_VISIBLE = Constants.Client.DEFAULT_HUD_VISIBLE;
     private static final HudPosition HUD_POSITION = HudPosition.TOP_CENTER;
@@ -29,6 +29,10 @@ public final class RouteNavigationHud {
     private static final int NEEDLE_TEXTURE_SIZE = Constants.Client.NAVIGATION_NEEDLE_TEXTURE_SIZE;
     private static final int INDICATOR_DISPLAY_SIZE = Constants.Client.NAVIGATION_INDICATOR_DISPLAY_SIZE;
     private static final int NEEDLE_DISPLAY_SIZE = Constants.Client.NAVIGATION_NEEDLE_DISPLAY_SIZE;
+    private static final double VERTICAL_DEAD_ZONE_BLOCKS = Constants.Client.NAVIGATION_VERTICAL_DEAD_ZONE_BLOCKS;
+    private static final float VERTICAL_DEAD_ZONE_DEGREES = Constants.Client.NAVIGATION_VERTICAL_DEAD_ZONE_DEGREES;
+    private static final float VERTICAL_STEEP_ANGLE_DEGREES =
+            Constants.Client.NAVIGATION_VERTICAL_STEEP_ANGLE_DEGREES;
     private static final int TRAVERSAL_ICON_SIZE = Constants.Client.HUD_TRAVERSAL_ICON_SIZE;
     private static final int TITLE_GAP = Constants.Client.HUD_TITLE_GAP;
     private static final int STATUS_LINE_GAP = 2;
@@ -167,6 +171,10 @@ public final class RouteNavigationHud {
                 NEEDLE_TEXTURE_SIZE);
         graphics.pose().popMatrix();
 
+        double horizontalDistance = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+        float elevationAngle = (float) Math.toDegrees(Math.atan2(delta.y, horizontalDistance));
+        drawVerticalChevrons(graphics, centerX, centerY, delta.y, elevationAngle);
+
         graphics.centeredText(minecraft.font, waypointLabel, centerX, centerY + 12, 0xFFFFFFFF);
     }
 
@@ -247,6 +255,40 @@ public final class RouteNavigationHud {
         graphics.fill(centerX - 4, centerY - 7, centerX + 5, centerY + 7, fill);
         graphics.fill(centerX - 6, centerY - 5, centerX + 7, centerY + 6, fill);
         graphics.fill(centerX - 7, centerY - 4, centerX + 7, centerY + 4, fill);
+    }
+
+    /** Draws one fixed chevron for a climb or descent, and a second for a steep elevation angle. */
+    private static void drawVerticalChevrons(
+            GuiGraphicsExtractor graphics, int centerX, int centerY, double verticalDifference, float elevationAngle) {
+        if (Math.abs(verticalDifference) <= VERTICAL_DEAD_ZONE_BLOCKS
+                || Math.abs(elevationAngle) <= VERTICAL_DEAD_ZONE_DEGREES) {
+            return;
+        }
+
+        boolean pointsUp = elevationAngle > 0.0F;
+        int count = Math.abs(elevationAngle) >= VERTICAL_STEEP_ANGLE_DEGREES ? 2 : 1;
+        int x = centerX + INDICATOR_DISPLAY_SIZE / 2 + 2;
+        int firstY = pointsUp ? centerY - count * 5 + 1 : centerY;
+        for (int index = 0; index < count; index++) {
+            int y = firstY + index * 5;
+            drawChevron(graphics, x + 1, y + 1, pointsUp, 0xCC000000);
+            drawChevron(graphics, x, y, pointsUp, 0xFFFFFFFF);
+        }
+    }
+
+    /** Draws a compact seven-pixel-wide chevron without relying on font glyph coverage. */
+    private static void drawChevron(GuiGraphicsExtractor graphics, int x, int y, boolean pointsUp, int color) {
+        int apexY = pointsUp ? y : y + 3;
+        int innerY = pointsUp ? y + 1 : y + 2;
+        int outerY = pointsUp ? y + 2 : y + 1;
+        int edgeY = pointsUp ? y + 3 : y;
+        graphics.fill(x + 3, apexY, x + 4, apexY + 1, color);
+        graphics.fill(x + 2, innerY, x + 3, innerY + 1, color);
+        graphics.fill(x + 4, innerY, x + 5, innerY + 1, color);
+        graphics.fill(x + 1, outerY, x + 2, outerY + 1, color);
+        graphics.fill(x + 5, outerY, x + 6, outerY + 1, color);
+        graphics.fill(x, edgeY, x + 1, edgeY + 1, color);
+        graphics.fill(x + 6, edgeY, x + 7, edgeY + 1, color);
     }
 
     private enum HudPosition {
