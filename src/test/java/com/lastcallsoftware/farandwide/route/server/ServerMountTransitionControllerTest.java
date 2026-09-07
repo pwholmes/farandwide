@@ -23,13 +23,13 @@ class ServerMountTransitionControllerTest {
         data.setSelectedRouteId(playerId, route.getId());
         data.clearSelectedRouteId(playerId);
 
-        ServerMountTransitionController.applyAssignmentTransition(data, playerId, vehicleId, false);
+        ServerMountTransitionController.applyAssignmentTransition(data, playerId, vehicleId, false, true);
 
         assertEquals(0, data.getSelectedRouteId(playerId));
     }
 
     @Test
-    void mountingAssignedVehicleSelectsItsRouteAndRemovesPlayerAssignment() {
+    void mountingAssignedVehiclePreservesSelectionByDefaultAndRemovesPlayerAssignment() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route playerRoute = routeWithWaypoint(data);
         Route vehicleRoute = routeWithWaypoint(data);
@@ -37,8 +37,26 @@ class ServerMountTransitionControllerTest {
         int vehicleId = data.allocateAssigneeId();
         data.assignRoute(playerRoute.getId(), playerId, Vec3.ZERO, OVERWORLD);
         data.assignRoute(vehicleRoute.getId(), vehicleId, Vec3.ZERO, OVERWORLD);
+        data.setSelectedRouteId(playerId, playerRoute.getId());
 
-        ServerMountTransitionController.applyAssignmentTransition(data, playerId, vehicleId, true);
+        ServerMountTransitionController.applyAssignmentTransition(data, playerId, vehicleId, true, false);
+
+        assertNull(data.getAssignment(playerId));
+        assertEquals(playerRoute.getId(), data.getSelectedRouteId(playerId));
+    }
+
+    @Test
+    void mountingAssignedVehicleSelectsItsRouteWhenEnabled() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route playerRoute = routeWithWaypoint(data);
+        Route vehicleRoute = routeWithWaypoint(data);
+        int playerId = data.allocateAssigneeId();
+        int vehicleId = data.allocateAssigneeId();
+        data.assignRoute(playerRoute.getId(), playerId, Vec3.ZERO, OVERWORLD);
+        data.assignRoute(vehicleRoute.getId(), vehicleId, Vec3.ZERO, OVERWORLD);
+        data.setSelectedRouteId(playerId, playerRoute.getId());
+
+        ServerMountTransitionController.applyAssignmentTransition(data, playerId, vehicleId, true, true);
 
         assertNull(data.getAssignment(playerId));
         assertEquals(vehicleRoute.getId(), data.getSelectedRouteId(playerId));

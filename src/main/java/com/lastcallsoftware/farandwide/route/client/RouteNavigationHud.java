@@ -29,6 +29,7 @@ public final class RouteNavigationHud {
     private static final int NEEDLE_TEXTURE_SIZE = Constants.Client.NAVIGATION_NEEDLE_TEXTURE_SIZE;
     private static final int INDICATOR_DISPLAY_SIZE = Constants.Client.NAVIGATION_INDICATOR_DISPLAY_SIZE;
     private static final int NEEDLE_DISPLAY_SIZE = Constants.Client.NAVIGATION_NEEDLE_DISPLAY_SIZE;
+    private static final double BULLSEYE_EXIT_MARGIN = Constants.Client.NAVIGATION_BULLSEYE_EXIT_MARGIN;
     private static final double VERTICAL_DEAD_ZONE_BLOCKS = Constants.Client.NAVIGATION_VERTICAL_DEAD_ZONE_BLOCKS;
     private static final float VERTICAL_DEAD_ZONE_DEGREES = Constants.Client.NAVIGATION_VERTICAL_DEAD_ZONE_DEGREES;
     private static final float VERTICAL_STEEP_ANGLE_DEGREES =
@@ -38,6 +39,9 @@ public final class RouteNavigationHud {
     private static final int STATUS_LINE_GAP = 2;
     private static float displayedAngle;
     private static boolean hasDisplayedAngle;
+    private static boolean bullseyeVisible;
+    private static int bullseyeRouteId = -1;
+    private static int bullseyeWaypointId = -1;
     private static boolean visible = DEFAULT_HUD_VISIBLE;
 
     private RouteNavigationHud() {
@@ -54,6 +58,7 @@ public final class RouteNavigationHud {
     public static void setVisible(boolean visible) {
         RouteNavigationHud.visible = visible;
         hasDisplayedAngle = false;
+        resetBullseye();
     }
 
     public static void toggleVisibility() {
@@ -138,10 +143,19 @@ public final class RouteNavigationHud {
 
         if (target == null) {
             hasDisplayedAngle = false;
+            resetBullseye();
             return;
         }
 
         Vec3 delta = target.position().subtract(navigationEntity.position());
+        double horizontalDistance = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+        boolean sameBullseyeTarget = assignment.getRouteId() == bullseyeRouteId
+                && target.id() == bullseyeWaypointId;
+        bullseyeVisible = shouldShowBullseye(
+                horizontalDistance, target.arrivalRadius(), bullseyeVisible && sameBullseyeTarget);
+        bullseyeRouteId = assignment.getRouteId();
+        bullseyeWaypointId = target.id();
+
         float targetYaw = (float) Math.toDegrees(Math.atan2(-delta.x, delta.z));
         float targetAngle = Mth.wrapDegrees(targetYaw - minecraft.player.getYRot());
         if (!hasDisplayedAngle) {
@@ -153,25 +167,28 @@ public final class RouteNavigationHud {
 
         drawBackplate(graphics, centerX, centerY);
 
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(centerX, centerY);
-        graphics.pose().rotate((float) Math.toRadians(displayedAngle));
-        graphics.blit(
-                RenderPipelines.GUI_TEXTURED,
-                NAVIGATION_NEEDLE,
-                -NEEDLE_DISPLAY_SIZE / 2,
-                -NEEDLE_DISPLAY_SIZE / 2,
-                0,
-                0,
-                NEEDLE_DISPLAY_SIZE,
-                NEEDLE_DISPLAY_SIZE,
-                NEEDLE_TEXTURE_SIZE,
-                NEEDLE_TEXTURE_SIZE,
-                NEEDLE_TEXTURE_SIZE,
-                NEEDLE_TEXTURE_SIZE);
-        graphics.pose().popMatrix();
+        if (bullseyeVisible) {
+            drawBullseye(graphics, centerX, centerY);
+        } else {
+            graphics.pose().pushMatrix();
+            graphics.pose().translate(centerX, centerY);
+            graphics.pose().rotate((float) Math.toRadians(displayedAngle));
+            graphics.blit(
+                    RenderPipelines.GUI_TEXTURED,
+                    NAVIGATION_NEEDLE,
+                    -NEEDLE_DISPLAY_SIZE / 2,
+                    -NEEDLE_DISPLAY_SIZE / 2,
+                    0,
+                    0,
+                    NEEDLE_DISPLAY_SIZE,
+                    NEEDLE_DISPLAY_SIZE,
+                    NEEDLE_TEXTURE_SIZE,
+                    NEEDLE_TEXTURE_SIZE,
+                    NEEDLE_TEXTURE_SIZE,
+                    NEEDLE_TEXTURE_SIZE);
+            graphics.pose().popMatrix();
+        }
 
-        double horizontalDistance = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
         float elevationAngle = (float) Math.toDegrees(Math.atan2(delta.y, horizontalDistance));
         drawVerticalChevrons(graphics, centerX, centerY, delta.y, elevationAngle);
 
@@ -255,6 +272,32 @@ public final class RouteNavigationHud {
         graphics.fill(centerX - 4, centerY - 7, centerX + 5, centerY + 7, fill);
         graphics.fill(centerX - 6, centerY - 5, centerX + 7, centerY + 6, fill);
         graphics.fill(centerX - 7, centerY - 4, centerX + 7, centerY + 4, fill);
+    }
+
+    /** Keeps the bullseye stable near the radius boundary while switching targets immediately. */
+    static boolean shouldShowBullseye(double horizontalDistance, double arrivalRadius, boolean alreadyVisible) {
+        double threshold = arrivalRadius + (alreadyVisible ? BULLSEYE_EXIT_MARGIN : 0.0);
+        return horizontalDistance <= threshold;
+    }
+
+    private static void resetBullseye() {
+        bullseyeVisible = false;
+        bullseyeRouteId = -1;
+        bullseyeWaypointId = -1;
+    }
+
+    /** Draws a fixed ring and center point when the target's horizontal position has been acquired. */
+    private static void drawBullseye(GuiGraphicsExtractor graphics, int centerX, int centerY) {
+        int color = 0xFFFFFFFF;
+        graphics.fill(centerX - 3, centerY - 6, centerX + 4, centerY - 5, color);
+        graphics.fill(centerX - 3, centerY + 5, centerX + 4, centerY + 6, color);
+        graphics.fill(centerX - 5, centerY - 5, centerX - 3, centerY - 4, color);
+        graphics.fill(centerX + 4, centerY - 5, centerX + 6, centerY - 4, color);
+        graphics.fill(centerX - 5, centerY + 4, centerX - 3, centerY + 5, color);
+        graphics.fill(centerX + 4, centerY + 4, centerX + 6, centerY + 5, color);
+        graphics.fill(centerX - 6, centerY - 4, centerX - 5, centerY + 5, color);
+        graphics.fill(centerX + 5, centerY - 4, centerX + 6, centerY + 5, color);
+        graphics.fill(centerX - 1, centerY - 1, centerX + 2, centerY + 2, color);
     }
 
     /** Draws one fixed chevron for a climb or descent, and a second for a steep elevation angle. */

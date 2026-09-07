@@ -14,6 +14,8 @@
   "farandwide.configuration.vehicleChunkRadius.tooltip": "0 disables chunk loading; 1 loads only the vehicle's current chunk; 2 loads a 3x3 area; 3 loads a 5x5 area; and so on.",
   "farandwide.configuration.maxChunkLoadedVehicles": "Maximum Chunk-loaded Vehicles",
   "farandwide.configuration.maxChunkLoadedVehicles.tooltip": "Maximum number of active route vehicles allowed to force-load chunks. Additional vehicles are paused.",
+  "farandwide.configuration.autoSelectVehicleRouteOnMount": "Select Vehicle Route When Mounting",
+  "farandwide.configuration.autoSelectVehicleRouteOnMount.tooltip": "When enabled, mounting a Vehicle with an assigned Route selects that Route. When disabled, your current Route selection is preserved.",
 
   "screen.farandwide.command_menu_title": "Far And Wide Commands",
   "screen.farandwide.close_command_menu": "Esc  Close",

@@ -25,6 +25,12 @@ public final class Config {
             .translation("farandwide.configuration.maxChunkLoadedVehicles")
             .defineInRange("maxChunkLoadedVehicles", 64, 1, 1_024);
 
+    public static final ModConfigSpec.BooleanValue AUTO_SELECT_VEHICLE_ROUTE_ON_MOUNT = SERVER_BUILDER
+            .comment("Whether mounting a Vehicle with a Route automatically selects that Route for the player.",
+                    "Disabled by default so mounting does not replace the player's current Route selection.")
+            .translation("farandwide.configuration.autoSelectVehicleRouteOnMount")
+            .define("autoSelectVehicleRouteOnMount", false);
+
     static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();
     static final ModConfigSpec SERVER_SPEC = SERVER_BUILDER.build();
 

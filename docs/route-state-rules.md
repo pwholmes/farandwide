@@ -23,10 +23,12 @@ y        y         y         y      |  y           y          n          n      
 - When a player mounts a vehicle:
    - If the vehicle does not have a RouteAssignment, the player's RouteAssignment transfers to the vehicle
    - If the vehicle does have a RouteAssignment, the player's RouteAssignment should be deleted.
+   - The player's current Route selection is preserved unless the server's
+     `autoSelectVehicleRouteOnMount` option is enabled. When enabled, the
+     Vehicle's assigned Route is selected after the assignment transition.
 - When the player dismounts a vehicle:
-   - The player's current Route selection is preserved. Mounting a Vehicle with
-     an assignment initially selects that Route, but a selection or deselection
-     made while riding remains in effect after dismounting.
+   - The player's current Route selection is preserved, including a selection
+     or deselection made while riding.
 - The HUD labels the selected Route separately from the controlled assignee's
   assigned Route. The assignment line appears only when an assignment exists.
   The assignee is shown as "Player" on foot, or by its generic Vehicle type

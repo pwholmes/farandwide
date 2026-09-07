@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.server;
 
+import com.lastcallsoftware.farandwide.Config;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.network.RouteNetwork;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
@@ -30,14 +31,20 @@ public final class ServerMountTransitionController {
         FarAndWideSavedData data = FarAndWideSavedData.get(player.level().getServer());
         int playerAssigneeId = FarAndWideAttachments.getOrCreateAssigneeId(player, data);
         int vehicleAssigneeId = FarAndWideAttachments.getOrCreateAssigneeId(vehicle, data);
-        applyAssignmentTransition(data, playerAssigneeId, vehicleAssigneeId, event.isMounting());
+        applyAssignmentTransition(
+                data,
+                playerAssigneeId,
+                vehicleAssigneeId,
+                event.isMounting(),
+                Config.AUTO_SELECT_VEHICLE_ROUTE_ON_MOUNT.get());
 
         RouteNetwork.syncMountTransition(player, vehicle);
     }
 
-    /** Applies assignment ownership on mount while preserving the player's current selection on dismount. */
+    /** Applies assignment ownership on mount and changes selection only when the preference enables it. */
     static void applyAssignmentTransition(
-            FarAndWideSavedData data, int playerAssigneeId, int vehicleAssigneeId, boolean mounting) {
+            FarAndWideSavedData data, int playerAssigneeId, int vehicleAssigneeId, boolean mounting,
+            boolean autoSelectVehicleRoute) {
         if (!mounting) {
             return;
         }
@@ -49,7 +56,7 @@ public final class ServerMountTransitionController {
         } else {
             data.removeAssignment(playerAssigneeId);
         }
-        if (vehicleAssignment != null) {
+        if (autoSelectVehicleRoute && vehicleAssignment != null) {
             data.setSelectedRouteId(playerAssigneeId, vehicleAssignment.getRouteId());
         }
     }
