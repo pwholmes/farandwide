@@ -27,6 +27,11 @@ public final class OrderService {
 
     public static Outcome place(ServerPlayer player, UUID id, int routeId, int originId, int destinationId,
             List<OrderLine> lines) {
+        return place(player, id, new OrderJourney(List.of(new OrderJourney.Leg(routeId, originId, destinationId))), lines);
+    }
+
+    /** Stages the first leg, then leaves every leg's transport to its normal route assignments. */
+    public static Outcome place(ServerPlayer player, UUID id, OrderJourney journey, List<OrderLine> lines) {
         FarAndWideSavedData data = FarAndWideSavedData.get(player.level().getServer());
         CargoOrder previous = data.getOrder(id);
         if (previous != null) {
@@ -34,21 +39,15 @@ public final class OrderService {
         }
         if (!validRequest(lines)) return outcome(OrderResult.INVALID_ORDER);
         if (data.getOrders().size() >= Constants.Orders.MAX_TRACKED_ORDERS) return outcome(OrderResult.TRACKING_FULL);
-        Waypoint origin = data.getWaypoint(routeId, originId);
-        Waypoint destination = data.getWaypoint(routeId, destinationId);
-        if (!validEndpoints(origin, destination)) return outcome(OrderResult.INVALID_ENDPOINTS);
+        List<ResolvedLeg> resolved = resolveJourney(data, journey, lines);
+        if (resolved == null) return outcome(OrderResult.INVALID_ENDPOINTS);
+        Waypoint origin = resolved.getFirst().origin();
         CargoBehavior loading = ((WaypointAction.Cargo) origin.action()).behavior();
-        CargoBehavior unloading = ((WaypointAction.Cargo) destination.action()).behavior();
         CargoStationBinding loadBinding = loading.loadStation().orElseThrow();
-        CargoStationBinding unloadBinding = unloading.unloadStation().orElseThrow();
-        if (loadBinding.position().equals(unloadBinding.position())) return outcome(OrderResult.INVALID_ENDPOINTS);
         Map<ItemResource, Integer> requested = new LinkedHashMap<>();
         for (OrderLine line : lines) {
             ItemResource resource = line.resource();
             if (resource.isEmpty()) return outcome(OrderResult.INVALID_ORDER);
-            if (!loading.loadFilter().allows(line.itemId()) || !unloading.unloadFilter().allows(line.itemId())) {
-                return new Outcome(OrderResult.FILTER_REJECTED, line.itemId().toString());
-            }
             requested.put(resource, line.requested());
         }
         ServerLevel level = player.level().getServer().getLevel(ResourceKey.create(Registries.DIMENSION, origin.dimension()));
@@ -58,7 +57,7 @@ public final class OrderService {
         List<CargoStationBinding> bindings = new ArrayList<>(loading.sourceInventories());
         for (CargoStationBinding source : bindings) {
             if (source.position().equals(loadBinding.position())
-                    || source.position().equals(unloadBinding.position())
+                    || resolved.stream().anyMatch(leg -> source.position().equals(leg.destinationStation().position()))
                     || !WaypointProximity.isWithinArrivalRadius(origin.position(), Constants.Orders.SOURCE_RADIUS, source.position())) {
                 return outcome(OrderResult.INVALID_SOURCES);
             }
@@ -82,10 +81,10 @@ public final class OrderService {
         if (loadStation == null || sources.stream().anyMatch(source -> source == loadStation)) {
             return outcome(OrderResult.INVALID_SOURCES);
         }
-        CargoOrder order = new CargoOrder(id, player.getUUID(), routeId, originId, destinationId,
-                unloadBinding, lines, RouteOperationResult.SUCCESS);
-        return fulfill(data, order, sources, loadStation, requested,
-                () -> RouteService.activateCargoVehicleAssignmentsForOrder(player, routeId));
+        CargoOrder order = new CargoOrder(id, player.getUUID(), resolved.stream()
+                .map(leg -> new OrderLeg(leg.routeId(), leg.origin().id(), leg.destination().id(),
+                        leg.destinationStation(), lines, RouteOperationResult.SUCCESS)).toList());
+        return fulfillJourney(data, order, sources, loadStation, requested, player);
     }
 
     /** Lists exact item-and-component variants that can presently be extracted from linked source inventories. */
@@ -138,9 +137,13 @@ public final class OrderService {
     }
 
     public static boolean isOrigin(@Nullable Waypoint waypoint) {
+        return isLegOrigin(waypoint) && ((WaypointAction.Cargo) waypoint.action()).behavior().sourceInventories().size() > 0;
+    }
+
+    /** A handoff leg loads from its station, not from explicitly linked delivery sources. */
+    public static boolean isLegOrigin(@Nullable Waypoint waypoint) {
         return waypoint != null && waypoint.action() instanceof WaypointAction.Cargo cargo
-                && cargo.behavior().operation() != CargoOperation.UNLOAD
-                && cargo.behavior().loadStation().isPresent() && !cargo.behavior().sourceInventories().isEmpty();
+                && cargo.behavior().operation() != CargoOperation.UNLOAD && cargo.behavior().loadStation().isPresent();
     }
 
     public static boolean isDestination(@Nullable Waypoint waypoint) {
@@ -151,6 +154,50 @@ public final class OrderService {
     static boolean validEndpoints(@Nullable Waypoint origin, @Nullable Waypoint destination) {
         return isOrigin(origin) && isDestination(destination) && origin.id() != destination.id()
                 && origin.dimension().equals(destination.dimension());
+    }
+
+    private static @Nullable List<ResolvedLeg> resolveJourney(FarAndWideSavedData data, OrderJourney journey,
+            List<OrderLine> lines) {
+        List<ResolvedLeg> resolved = new ArrayList<>();
+        for (int index = 0; index < journey.legs().size(); index++) {
+            OrderJourney.Leg selection = journey.legs().get(index);
+            Waypoint origin = data.getWaypoint(selection.routeId(), selection.originWaypointId());
+            Waypoint destination = data.getWaypoint(selection.routeId(), selection.destinationWaypointId());
+            if (!(index == 0 ? isOrigin(origin) : isLegOrigin(origin)) || !isDestination(destination)
+                    || !origin.dimension().equals(destination.dimension())) return null;
+            CargoBehavior loading = ((WaypointAction.Cargo) origin.action()).behavior();
+            CargoBehavior unloading = ((WaypointAction.Cargo) destination.action()).behavior();
+            CargoStationBinding loadStation = loading.loadStation().orElseThrow();
+            CargoStationBinding destinationStation = unloading.unloadStation().orElseThrow();
+            if (loadStation.position().equals(destinationStation.position())) return null;
+            if (lines.stream().anyMatch(line -> !loading.loadFilter().allows(line.itemId())
+                    || !unloading.unloadFilter().allows(line.itemId()))) return null;
+            if (!resolved.isEmpty()) {
+                ResolvedLeg previous = resolved.getLast();
+                if (!previous.destinationStation().equals(loadStation)
+                        || !previous.destination().dimension().equals(origin.dimension())) return null;
+            }
+            resolved.add(new ResolvedLeg(selection.routeId(), origin, destination, destinationStation));
+        }
+        return resolved;
+    }
+
+    private static Outcome fulfillJourney(FarAndWideSavedData data, CargoOrder order,
+            List<ResourceHandler<ItemResource>> sources, ResourceHandler<ItemResource> loadStation,
+            Map<ItemResource, Integer> requested, ServerPlayer player) {
+        CargoOrder previous = data.getOrder(order.id());
+        if (previous != null) return outcome(previous.playerId().equals(order.playerId()) ? OrderResult.PLACED : OrderResult.INVALID_ORDER);
+        if (data.getOrders().size() >= Constants.Orders.MAX_TRACKED_ORDERS) return outcome(OrderResult.TRACKING_FULL);
+        if (order.legs().stream().anyMatch(leg -> data.getWaypoint(leg.routeId(), leg.originWaypointId()) == null
+                || data.getWaypoint(leg.routeId(), leg.destinationWaypointId()) == null)) return outcome(OrderResult.INVALID_ENDPOINTS);
+        Outcome assembled = assemble(sources, loadStation, requested);
+        if (assembled.result() != OrderResult.PLACED) return assembled;
+        data.addOrder(order);
+        for (int index = 0; index < order.legs().size(); index++) {
+            data.setOrderLegActivationResult(order.id(), index,
+                    RouteService.activateCargoVehicleAssignmentsForOrder(player, order.legs().get(index).routeId()));
+        }
+        return outcome(OrderResult.PLACED);
     }
 
     /** Extract everything before inserting anything, so aliases cannot recycle newly staged items into the order. */
@@ -191,4 +238,6 @@ public final class OrderService {
     public record Outcome(OrderResult result, String detail) {}
 
     public record AvailableItem(ItemResource resource, int quantity) {}
+
+    private record ResolvedLeg(int routeId, Waypoint origin, Waypoint destination, CargoStationBinding destinationStation) {}
 }

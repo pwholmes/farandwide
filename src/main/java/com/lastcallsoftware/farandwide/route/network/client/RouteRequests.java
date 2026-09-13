@@ -2,6 +2,7 @@ package com.lastcallsoftware.farandwide.route.network.client;
 
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.OrderLine;
+import com.lastcallsoftware.farandwide.route.OrderJourney;
 import com.lastcallsoftware.farandwide.route.network.payload.OrderPayloads;
 import java.util.List;
 import java.util.UUID;
@@ -53,6 +54,10 @@ public final class RouteRequests {
 
     public static void placeOrder(UUID id, int routeId, int originId, int destinationId, List<OrderLine> lines) {
         send(new OrderPayloads.Request(OrderPayloads.Action.PLACE, id, routeId, originId, destinationId, lines));
+    }
+    public static void placeOrder(UUID id, int routeId, int originId, int destinationId,
+            List<OrderJourney.Leg> journey, List<OrderLine> lines) {
+        send(new OrderPayloads.Request(OrderPayloads.Action.PLACE, id, routeId, originId, destinationId, journey, lines));
     }
 
     public static void cancelOrder(UUID id) {

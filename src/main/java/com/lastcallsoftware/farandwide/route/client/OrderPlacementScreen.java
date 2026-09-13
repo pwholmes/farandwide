@@ -3,6 +3,7 @@ package com.lastcallsoftware.farandwide.route.client;
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.client.FarAndWideScreen;
 import com.lastcallsoftware.farandwide.route.OrderLine;
+import com.lastcallsoftware.farandwide.route.OrderJourney;
 import com.lastcallsoftware.farandwide.route.OrderResult;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.Waypoint;
@@ -33,6 +34,7 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
     private int routeId = RouteManager.getCurrentRouteId();
     private int originId;
     private int destinationId;
+    private int journeyIndex;
     private String search = "";
     private int availableScrollRow;
     private int selectedScrollRow;
@@ -62,23 +64,33 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         int left = left();
         int column = columnWidth();
         Route route = route();
+        List<OrderJourney> journeys = OrderScreenSupport.journeys(route, origin(), destination());
+        journeyIndex = Math.clamp(journeyIndex, 0, Math.max(0, journeys.size() - 1));
+        OrderJourney journey = journeys.isEmpty() ? null : journeys.get(journeyIndex);
+        int routeWidth = panelWidth() - 110;
         Component routeLabel = route == null ? Component.translatable("screen.farandwide.order.no_routes")
                 : Component.literal(route.getName() + "  ›");
-        addRenderableWidget(Button.builder(shorten(routeLabel, panelWidth() - 12), button -> {
+        addRenderableWidget(Button.builder(shorten(routeLabel, routeWidth - 12), button -> {
             returnCarried();
             List<Route> choices = OrderScreenSupport.eligibleRoutes();
             int current = choices.indexOf(route());
             if (!choices.isEmpty()) routeId = choices.get((current + 1) % choices.size()).getId();
-            originId = destinationId = 0;
+            originId = destinationId = journeyIndex = 0;
             resetSelectionSource();
             rebuild();
-        }).bounds(left, 30, panelWidth(), 20).tooltip(Tooltip.create(routeLabel)).build());
+        }).bounds(left, 30, routeWidth, 20).tooltip(Tooltip.create(routeLabel)).build());
+        Component journeyLabel = Component.literal("Legs: " + (journey == null ? 0 : journey.legs().size()) + " ›");
+        Button journeyButton = addRenderableWidget(Button.builder(journeyLabel, button -> {
+            journeyIndex = (journeyIndex + 1) % journeys.size();
+            rebuild();
+        }).bounds(left + routeWidth + 4, 30, 106, 20).build());
+        journeyButton.active = journeys.size() > 1;
         addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.origin",
                 OrderScreenSupport.ordinal(route, originId)), button -> {
             returnCarried();
             List<Waypoint> choices = OrderScreenSupport.origins(route());
             if (!choices.isEmpty()) originId = choices.get((choices.indexOf(origin()) + 1) % choices.size()).id();
-            destinationId = 0;
+            destinationId = journeyIndex = 0;
             resetSelectionSource();
             rebuild();
         }).bounds(left, 54, column, 20).build());
@@ -89,6 +101,7 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
             int current = -1;
             for (int index = 0; index < choices.size(); index++) if (choices.get(index).id() == destinationId) current = index;
             if (!choices.isEmpty()) destinationId = choices.get((current + 1) % choices.size()).id();
+            journeyIndex = 0;
             rebuild();
         }).bounds(right(), 54, column, 20).build());
         EditBox searchField = addRenderableWidget(new EditBox(font, left, SEARCH_TOP, column, 20,
@@ -100,7 +113,8 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
             returnCarried();
             OrderItemSelectionState state = selectionState;
             if (state == null) return;
-            submittedId = RouteManager.placeOrder(routeId, originId, destinationId, state.selected().entrySet().stream()
+            if (journey == null) return;
+            submittedId = RouteManager.placeOrder(journey, state.selected().entrySet().stream()
                     .map(entry -> new OrderLine(entry.getKey(), entry.getValue(), 0)).toList());
             updateActions();
         }).bounds(width / 2 - 105, height - 28, 100, 20).build());
@@ -431,5 +445,9 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
     private @Nullable Route route() { return RouteManager.getRoute(routeId); }
     private @Nullable Waypoint origin() {
         return OrderScreenSupport.origins(route()).stream().filter(waypoint -> waypoint.id() == originId).findFirst().orElse(null);
+    }
+    private @Nullable Waypoint destination() {
+        return OrderScreenSupport.destinations(route(), origin()).stream()
+                .filter(waypoint -> waypoint.id() == destinationId).findFirst().orElse(null);
     }
 }

@@ -3,6 +3,7 @@ package com.lastcallsoftware.farandwide.route.client;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.CargoOrder;
 import com.lastcallsoftware.farandwide.route.OrderLine;
+import com.lastcallsoftware.farandwide.route.OrderJourney;
 import com.lastcallsoftware.farandwide.route.OrderResult;
 import java.util.UUID;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
@@ -82,13 +83,17 @@ public class RouteManager {
 
     public static @Nullable UUID placeOrder(int routeId, int originId, int destinationId,
             @NonNull List<OrderLine> lines) {
+        return placeOrder(new OrderJourney(List.of(new OrderJourney.Leg(routeId, originId, destinationId))), lines);
+    }
+    public static @Nullable UUID placeOrder(@NonNull OrderJourney journey, @NonNull List<OrderLine> lines) {
         if (pendingOrderRequest != null) return null;
         pendingOrderRequest = UUID.randomUUID();
         orderFeedback = null;
         availableOrderItems = List.of();
         availableOrderItemsRouteId = availableOrderItemsOriginId = 0;
         availableOrderItemsRevision++;
-        RouteRequests.placeOrder(pendingOrderRequest, routeId, originId, destinationId, lines);
+        OrderJourney.Leg first = journey.legs().getFirst();
+        RouteRequests.placeOrder(pendingOrderRequest, first.routeId(), first.originWaypointId(), first.destinationWaypointId(), journey.legs(), lines);
         return pendingOrderRequest;
     }
 

@@ -11,24 +11,44 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 
 /** A tracking record; it neither owns cargo nor reserves or controls any vehicle. */
 @NonNullByDefault
-public record CargoOrder(UUID id, UUID playerId, int routeId, int originWaypointId, int destinationWaypointId,
-        CargoStationBinding destinationStation, List<OrderLine> lines, RouteOperationResult activationResult) {
+public record CargoOrder(UUID id, UUID playerId, List<OrderLeg> legs) {
     public CargoOrder {
         Objects.requireNonNull(id);
         Objects.requireNonNull(playerId);
-        Objects.requireNonNull(destinationStation);
-        Objects.requireNonNull(activationResult);
-        lines = List.copyOf(lines);
-        if (routeId <= 0 || originWaypointId <= 0 || destinationWaypointId <= 0
-                || originWaypointId == destinationWaypointId || lines.isEmpty()
-                || lines.size() > Constants.Orders.MAX_LINES
-                || lines.stream().map((@NonNull OrderLine line) -> line.resource()).distinct().count() != lines.size()) {
+        legs = List.copyOf(legs);
+        if (legs.isEmpty() || legs.size() > Constants.Orders.MAX_LEGS) {
             throw new IllegalArgumentException("Invalid order");
+        }
+        List<OrderLine> firstLegLines = legs.getFirst().lines();
+        List<ItemResource> requestedResources = firstLegLines.stream().map((@NonNull OrderLine line) -> line.resource()).toList();
+        if (legs.stream().skip(1).anyMatch(leg -> !requestedResources.equals(
+                leg.lines().stream().map((@NonNull OrderLine line) -> line.resource()).toList())
+                || leg.lines().stream().anyMatch(line -> line.requested() != firstLegLines.get(
+                        requestedResources.indexOf(line.resource())).requested()))) {
+            throw new IllegalArgumentException("Order legs must carry the same requested items");
         }
     }
 
+    /** Compatibility constructor for existing single-leg callers and persisted data. */
+    public CargoOrder(UUID id, UUID playerId, int routeId, int originWaypointId, int destinationWaypointId,
+            CargoStationBinding destinationStation, List<OrderLine> lines, RouteOperationResult activationResult) {
+        this(id, playerId, List.of(new OrderLeg(routeId, originWaypointId, destinationWaypointId,
+                destinationStation, lines, activationResult)));
+    }
+
+    /** The final leg is the externally visible delivery record. */
+    private OrderLeg finalLeg() { return legs.getLast(); }
+
+    /** Legacy accessors keep existing single-leg callers source-compatible during the itinerary migration. */
+    public int routeId() { return finalLeg().routeId(); }
+    public int originWaypointId() { return legs.getFirst().originWaypointId(); }
+    public int destinationWaypointId() { return finalLeg().destinationWaypointId(); }
+    public CargoStationBinding destinationStation() { return finalLeg().destinationStation(); }
+    public List<OrderLine> lines() { return finalLeg().lines(); }
+    public RouteOperationResult activationResult() { return finalLeg().activationResult(); }
+
     public boolean delivered() {
-        return lines.stream().allMatch(line -> line.remaining() == 0);
+        return finalLeg().lines().stream().allMatch(line -> line.remaining() == 0);
     }
 
     public int remaining(Identifier itemId) {
@@ -36,8 +56,7 @@ public record CargoOrder(UUID id, UUID playerId, int routeId, int originWaypoint
     }
 
     public int remaining(ItemResource resource) {
-        return lines.stream().filter(line -> line.resource().equals(resource))
-                .mapToInt((@NonNull OrderLine line) -> line.remaining()).sum();
+        return finalLeg().remaining(resource);
     }
 
     public CargoOrder credit(Identifier itemId, int amount) {
@@ -48,12 +67,24 @@ public record CargoOrder(UUID id, UUID playerId, int routeId, int originWaypoint
         if (amount <= 0 || amount > remaining(resource)) {
             throw new IllegalArgumentException("Delivery credit exceeds remaining quantity");
         }
-        return new CargoOrder(id, playerId, routeId, originWaypointId, destinationWaypointId, destinationStation,
-                lines.stream().map(line -> line.resource().equals(resource)
-                        ? new OrderLine(resource, line.requested(), line.delivered() + amount) : line).toList(), activationResult);
+        return creditLeg(legs.size() - 1, resource, amount);
     }
 
     public CargoOrder withActivationResult(RouteOperationResult result) {
-        return new CargoOrder(id, playerId, routeId, originWaypointId, destinationWaypointId, destinationStation, lines, result);
+        return withLegActivationResult(legs.size() - 1, result);
+    }
+
+    public CargoOrder creditLeg(int legIndex, ItemResource resource, int amount) {
+        if (legIndex < 0 || legIndex >= legs.size()) throw new IllegalArgumentException("Invalid order leg index");
+        List<OrderLeg> updated = new java.util.ArrayList<>(legs);
+        updated.set(legIndex, legs.get(legIndex).credit(resource, amount));
+        return new CargoOrder(id, playerId, updated);
+    }
+
+    public CargoOrder withLegActivationResult(int legIndex, RouteOperationResult result) {
+        if (legIndex < 0 || legIndex >= legs.size()) throw new IllegalArgumentException("Invalid order leg index");
+        List<OrderLeg> updated = new java.util.ArrayList<>(legs);
+        updated.set(legIndex, legs.get(legIndex).withActivationResult(result));
+        return new CargoOrder(id, playerId, updated);
     }
 }

@@ -21,13 +21,19 @@ public final class OrderPayloads {
     public enum Action { LIST, AVAILABLE, PLACE, CANCEL }
 
     public record Request(Action action, UUID id, int routeId, int originId, int destinationId,
-            List<OrderLine> lines) implements CustomPacketPayload {
+            List<OrderJourney.Leg> journeyLegs, List<OrderLine> lines) implements CustomPacketPayload {
         public static final Type<Request> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Constants.MOD_ID, "order_request"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Request> STREAM_CODEC = StreamCodec.of(
                 OrderPayloads::writeRequest, OrderPayloads::readRequest);
         public Request {
+            journeyLegs = List.copyOf(journeyLegs);
             lines = List.copyOf(lines);
+            if (journeyLegs.size() > Constants.Orders.MAX_LEGS) throw new IllegalArgumentException("Too many order legs");
             if (lines.size() > Constants.Orders.MAX_LINES) throw new IllegalArgumentException("Too many order lines");
+        }
+        public Request(Action action, UUID id, int routeId, int originId, int destinationId, List<OrderLine> lines) {
+            this(action, id, routeId, originId, destinationId,
+                    action == Action.PLACE ? List.of(new OrderJourney.Leg(routeId, originId, destinationId)) : List.of(), lines);
         }
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
@@ -98,6 +104,12 @@ public final class OrderPayloads {
             buffer.writeVarInt(request.originId());
             if (request.action() == Action.PLACE) {
                 buffer.writeVarInt(request.destinationId());
+                buffer.writeVarInt(request.journeyLegs().size());
+                for (OrderJourney.Leg leg : request.journeyLegs()) {
+                    buffer.writeVarInt(leg.routeId());
+                    buffer.writeVarInt(leg.originWaypointId());
+                    buffer.writeVarInt(leg.destinationWaypointId());
+                }
                 writeLines(buffer, request.lines());
             }
         }
@@ -107,7 +119,15 @@ public final class OrderPayloads {
         Action action = buffer.readEnum(Action.class);
         UUID id = buffer.readUUID();
         if (action == Action.PLACE) {
-            return new Request(action, id, buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(), readLines(buffer));
+            int routeId = buffer.readVarInt();
+            int originId = buffer.readVarInt();
+            int destinationId = buffer.readVarInt();
+            int legCount = readCount(buffer, Constants.Orders.MAX_LEGS);
+            List<OrderJourney.Leg> legs = new ArrayList<>(legCount);
+            for (int index = 0; index < legCount; index++) {
+                legs.add(new OrderJourney.Leg(buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt()));
+            }
+            return new Request(action, id, routeId, originId, destinationId, legs, readLines(buffer));
         }
         if (action == Action.AVAILABLE) {
             return new Request(action, id, buffer.readVarInt(), buffer.readVarInt(), 0, List.of());
@@ -145,13 +165,16 @@ public final class OrderPayloads {
         for (CargoOrder order : snapshot.orders()) {
             buffer.writeUUID(order.id());
             buffer.writeUUID(order.playerId());
-            buffer.writeVarInt(order.routeId());
-            buffer.writeVarInt(order.originWaypointId());
-            buffer.writeVarInt(order.destinationWaypointId());
-            buffer.writeBlockPos(order.destinationStation().position());
-            buffer.writeEnum(order.destinationStation().accessSide());
-            writeLines(buffer, order.lines());
-            buffer.writeEnum(order.activationResult());
+            buffer.writeVarInt(order.legs().size());
+            for (OrderLeg leg : order.legs()) {
+                buffer.writeVarInt(leg.routeId());
+                buffer.writeVarInt(leg.originWaypointId());
+                buffer.writeVarInt(leg.destinationWaypointId());
+                buffer.writeBlockPos(leg.destinationStation().position());
+                buffer.writeEnum(leg.destinationStation().accessSide());
+                writeLines(buffer, leg.lines());
+                buffer.writeEnum(leg.activationResult());
+            }
         }
     }
 
@@ -159,9 +182,16 @@ public final class OrderPayloads {
         int count = readCount(buffer, Constants.Orders.MAX_TRACKED_ORDERS);
         List<CargoOrder> orders = new ArrayList<>(count);
         for (int index = 0; index < count; index++) {
-            orders.add(new CargoOrder(buffer.readUUID(), buffer.readUUID(), buffer.readVarInt(), buffer.readVarInt(),
-                    buffer.readVarInt(), new CargoStationBinding(buffer.readBlockPos(), buffer.readEnum(Direction.class)),
-                    readLines(buffer), buffer.readEnum(RouteOperationResult.class)));
+            UUID id = buffer.readUUID();
+            UUID player = buffer.readUUID();
+            int legCount = readCount(buffer, Constants.Orders.MAX_LEGS);
+            List<OrderLeg> legs = new ArrayList<>(legCount);
+            for (int legIndex = 0; legIndex < legCount; legIndex++) {
+                legs.add(new OrderLeg(buffer.readVarInt(), buffer.readVarInt(), buffer.readVarInt(),
+                        new CargoStationBinding(buffer.readBlockPos(), buffer.readEnum(Direction.class)),
+                        readLines(buffer), buffer.readEnum(RouteOperationResult.class)));
+            }
+            orders.add(new CargoOrder(id, player, legs));
         }
         return new Snapshot(orders);
     }

@@ -76,8 +76,8 @@ public final class FarAndWideSavedData extends SavedData {
 
     public void addOrder(@NonNull CargoOrder order) {
         if (orders.size() >= Constants.Orders.MAX_TRACKED_ORDERS || getOrder(order.id()) != null
-                || getWaypoint(order.routeId(), order.originWaypointId()) == null
-                || getWaypoint(order.routeId(), order.destinationWaypointId()) == null) {
+                || order.legs().stream().anyMatch(leg -> getWaypoint(leg.routeId(), leg.originWaypointId()) == null
+                        || getWaypoint(leg.routeId(), leg.destinationWaypointId()) == null)) {
             throw new IllegalArgumentException("Order cannot be added");
         }
         orders.add(order);
@@ -99,6 +99,14 @@ public final class FarAndWideSavedData extends SavedData {
         }
     }
 
+    public void setOrderLegActivationResult(@NonNull UUID id, int legIndex, @NonNull RouteOperationResult result) {
+        CargoOrder order = getOrder(id);
+        if (order != null && order.legs().get(legIndex).activationResult() != result) {
+            orders.set(orders.indexOf(order), order.withLegActivationResult(legIndex, result));
+            setDirty();
+        }
+    }
+
     /** Credits each successfully unloaded item once, in order-placement order across all players. */
     public boolean creditOrders(int routeId, int waypointId, @NonNull CargoStationBinding station,
             @NonNull Identifier itemId, int amount) {
@@ -111,13 +119,20 @@ public final class FarAndWideSavedData extends SavedData {
         boolean changed = false;
         for (int index = 0; index < orders.size() && amount > 0; index++) {
             CargoOrder order = orders.get(index);
-            if (order.routeId() != routeId || order.destinationWaypointId() != waypointId
-                    || !order.destinationStation().equals(station)) continue;
-            int credited = Math.min(amount, order.remaining(resource));
-            if (credited > 0) {
-                orders.set(index, order.credit(resource, credited));
-                amount -= credited;
-                changed = true;
+            for (int legIndex = 0; legIndex < order.legs().size() && amount > 0; legIndex++) {
+                var leg = order.legs().get(legIndex);
+                if (leg.routeId() != routeId || leg.destinationWaypointId() != waypointId
+                        || !leg.destinationStation().equals(station)) continue;
+                int receivedByPreviousLeg = legIndex == 0 ? Integer.MAX_VALUE
+                        : order.legs().get(legIndex - 1).delivered(resource);
+                int availableForThisLeg = receivedByPreviousLeg - leg.delivered(resource);
+                int credited = Math.min(amount, Math.min(leg.remaining(resource), availableForThisLeg));
+                if (credited > 0) {
+                    orders.set(index, order.creditLeg(legIndex, resource, credited));
+                    order = orders.get(index);
+                    amount -= credited;
+                    changed = true;
+                }
             }
         }
         if (changed) setDirty();
@@ -128,8 +143,8 @@ public final class FarAndWideSavedData extends SavedData {
     void restoreOrders(@NonNull List<CargoOrder> savedOrders) {
         for (CargoOrder order : savedOrders) {
             if (getOrder(order.id()) == null && orders.size() < Constants.Orders.MAX_TRACKED_ORDERS
-                    && getWaypoint(order.routeId(), order.originWaypointId()) != null
-                    && getWaypoint(order.routeId(), order.destinationWaypointId()) != null) {
+                    && order.legs().stream().allMatch(leg -> getWaypoint(leg.routeId(), leg.originWaypointId()) != null
+                            && getWaypoint(leg.routeId(), leg.destinationWaypointId()) != null)) {
                 orders.add(order);
             } else {
                 setDirty();
@@ -727,7 +742,7 @@ public final class FarAndWideSavedData extends SavedData {
         vehicleAssigneeByUuid.keySet().removeAll(removedVehicles);
         vehicleLocationByUuid.keySet().removeAll(removedVehicles);
         deathRouteByPlayerUuid.values().removeIf(deathRouteId -> deathRouteId == routeId);
-        orders.removeIf(order -> order.routeId() == routeId);
+        orders.removeIf(order -> order.legs().stream().anyMatch(leg -> leg.routeId() == routeId));
         selectedRouteByAssignee.values().removeIf(selectedRouteId -> selectedRouteId == routeId);
         setDirty();
         return true;
@@ -742,9 +757,9 @@ public final class FarAndWideSavedData extends SavedData {
 
     private void replaceRoute(Route oldRoute, Route newRoute) {
         routes.set(routes.indexOf(oldRoute), newRoute);
-        orders.removeIf(order -> order.routeId() == newRoute.getId()
-                && (findWaypointIndex(newRoute, order.originWaypointId()) < 0
-                        || findWaypointIndex(newRoute, order.destinationWaypointId()) < 0));
+        orders.removeIf(order -> order.legs().stream().anyMatch(leg -> leg.routeId() == newRoute.getId()
+                && (findWaypointIndex(newRoute, leg.originWaypointId()) < 0
+                        || findWaypointIndex(newRoute, leg.destinationWaypointId()) < 0)));
     }
 
     private static int findWaypointIndex(Route route, int waypointId) {

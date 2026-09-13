@@ -39,9 +39,10 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
     private int itemRows() { return Math.max(1, (height - itemTop() - 57) / 20); }
     private int itemTop() {
         CargoOrder order = selected();
-        Component warning = order == null ? null : routeWarning(order);
-        if (warning == null) return 105;
-        return 105 + Math.min(2, font.split(warning, columnWidth()).size()) * font.lineHeight + 5;
+        if (order == null) return 105;
+        Component warning = routeWarning(order);
+        int legsHeight = order.legs().size() * font.lineHeight + 5;
+        return 105 + legsHeight + (warning == null ? 0 : Math.min(2, font.split(warning, columnWidth()).size()) * font.lineHeight + 5);
     }
     private @Nullable CargoOrder selected() {
         return RouteManager.getOrders().stream().filter(order -> order.id().equals(selectedId)).findFirst().orElse(null);
@@ -179,16 +180,28 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
         graphics.text(font, shorten(endpoints(selected), columnWidth()), right(), 70, 0xFFFFFFFF);
         graphics.text(font, Component.translatable(selected.delivered()
                 ? "screen.farandwide.order.delivered" : "screen.farandwide.order.outstanding"), right(), 87, 0xFFFFFFFF);
+        int journeyY = 105;
+        for (int index = 0; index < selected.legs().size(); index++) {
+            OrderLeg leg = selected.legs().get(index);
+            Route route = RouteManager.getRoute(leg.routeId());
+            int received = leg.lines().stream().mapToInt((@NonNull OrderLine line) -> line.delivered()).sum();
+            int requested = leg.lines().stream().mapToInt((@NonNull OrderLine line) -> line.requested()).sum();
+            Component summary = Component.literal("Leg " + (index + 1) + "/" + selected.legs().size() + " · "
+                    + (route == null ? "?" : route.getName()) + " · " + received + "/" + requested);
+            graphics.text(font, shorten(summary, columnWidth()), right(), journeyY,
+                    received == requested ? 0xFF55FF77 : 0xFFAAAAAA);
+            journeyY += font.lineHeight;
+        }
         Component warning = routeWarning(selected);
         if (warning != null) {
             List<net.minecraft.util.FormattedCharSequence> warningLines = font.split(warning, columnWidth());
-            int warningY = 105;
+            int warningY = journeyY + 5;
             for (int index = 0; index < Math.min(2, warningLines.size()); index++) {
                 graphics.text(font, warningLines.get(index), right(), warningY, 0xFFFFAA00);
                 warningY += font.lineHeight;
             }
             if (mouseX >= right() && mouseX < right() + columnWidth()
-                    && mouseY >= 103 && mouseY < warningY + 2) {
+                    && mouseY >= journeyY + 3 && mouseY < warningY + 2) {
                 graphics.setComponentTooltipForNextFrame(font, List.of(warning), mouseX, mouseY);
             }
         }
@@ -209,15 +222,18 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
     }
 
     private @Nullable Component routeWarning(CargoOrder order) {
-        List<VehicleRouteAssignment> assignments = RouteManager.getVehicleAssignments(order.routeId());
-        if (assignments.isEmpty()) return Component.translatable("screen.farandwide.order.no_vehicle_assigned");
-        if (assignments.stream().noneMatch(VehicleRouteAssignment::active)) {
-            return Component.translatable("screen.farandwide.order.vehicles_inactive");
+        for (OrderLeg leg : order.legs()) {
+            List<VehicleRouteAssignment> assignments = RouteManager.getVehicleAssignments(leg.routeId());
+            if (assignments.isEmpty()) return Component.translatable("screen.farandwide.order.no_vehicle_assigned");
+            if (assignments.stream().noneMatch(VehicleRouteAssignment::active)) {
+                return Component.translatable("screen.farandwide.order.vehicles_inactive");
+            }
+            if (leg.activationResult() != RouteOperationResult.SUCCESS
+                    && leg.activationResult() != RouteOperationResult.NO_ASSIGNMENT) {
+                return Component.translatable(leg.activationResult().translationKey());
+            }
         }
-        return order.activationResult() == RouteOperationResult.SUCCESS
-                || order.activationResult() == RouteOperationResult.NO_ASSIGNMENT
-                ? null
-                : Component.translatable(order.activationResult().translationKey());
+        return null;
     }
 
 }

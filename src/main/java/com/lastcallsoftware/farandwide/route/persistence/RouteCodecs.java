@@ -8,6 +8,7 @@ import com.lastcallsoftware.farandwide.route.CargoFilter;
 import com.lastcallsoftware.farandwide.route.CargoOperation;
 import com.lastcallsoftware.farandwide.route.CargoStationBinding;
 import com.lastcallsoftware.farandwide.route.CargoOrder;
+import com.lastcallsoftware.farandwide.route.OrderLeg;
 import com.lastcallsoftware.farandwide.route.OrderLine;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
@@ -173,7 +174,26 @@ public final class RouteCodecs {
             .apply(instance, (@NonNull Identifier item, @NonNull Integer requested, @NonNull Integer delivered)
                     -> new OrderLine(item, requested, delivered)));
     private static final Codec<OrderLine> ORDER_LINE = ORDER_LINE_WITH_COMPONENTS.withAlternative(LEGACY_ORDER_LINE);
-    private static final Codec<CargoOrder> ORDER = RecordCodecBuilder.create(instance -> instance.group(
+    private static final Codec<OrderLeg> ORDER_LEG = RecordCodecBuilder.create(instance -> instance.group(
+            Codec.INT.fieldOf("route").forGetter((@NonNull OrderLeg leg) -> leg.routeId()),
+            Codec.INT.fieldOf("origin").forGetter((@NonNull OrderLeg leg) -> leg.originWaypointId()),
+            Codec.INT.fieldOf("destination").forGetter((@NonNull OrderLeg leg) -> leg.destinationWaypointId()),
+            CARGO_STATION.fieldOf("destinationStation")
+                    .forGetter((@NonNull OrderLeg leg) -> leg.destinationStation()),
+            ORDER_LINE.listOf().fieldOf("lines").forGetter((@NonNull OrderLeg leg) -> leg.lines()),
+            enumCodec(RouteOperationResult.class).optionalFieldOf("activation", RouteOperationResult.SUCCESS)
+                    .forGetter((@NonNull OrderLeg leg) -> leg.activationResult()))
+            .apply(instance, (@NonNull Integer route, @NonNull Integer origin, @NonNull Integer destination,
+                    @NonNull CargoStationBinding destinationStation, @NonNull List<OrderLine> lines,
+                    @NonNull RouteOperationResult activation)
+                    -> new OrderLeg(route, origin, destination, destinationStation, lines, activation)));
+    private static final Codec<CargoOrder> MODERN_ORDER = RecordCodecBuilder.create(instance -> instance.group(
+            UUIDUtil.CODEC.fieldOf("id").forGetter((@NonNull CargoOrder order) -> order.id()),
+            UUIDUtil.CODEC.fieldOf("player").forGetter((@NonNull CargoOrder order) -> order.playerId()),
+            ORDER_LEG.listOf().fieldOf("legs").forGetter((@NonNull CargoOrder order) -> order.legs()))
+            .apply(instance, (@NonNull UUID id, @NonNull UUID player, @NonNull List<OrderLeg> legs)
+                    -> new CargoOrder(id, player, legs)));
+    private static final Codec<CargoOrder> LEGACY_ORDER = RecordCodecBuilder.create(instance -> instance.group(
             UUIDUtil.CODEC.fieldOf("id").forGetter((@NonNull CargoOrder order) -> order.id()),
             UUIDUtil.CODEC.fieldOf("player").forGetter((@NonNull CargoOrder order) -> order.playerId()),
             Codec.INT.fieldOf("route").forGetter((@NonNull CargoOrder order) -> order.routeId()),
@@ -189,6 +209,7 @@ public final class RouteCodecs {
                     @NonNull CargoStationBinding destinationStation, @NonNull List<OrderLine> lines,
                     @NonNull RouteOperationResult activation)
                     -> new CargoOrder(id, player, route, origin, destination, destinationStation, lines, activation)));
+    private static final Codec<CargoOrder> ORDER = MODERN_ORDER.withAlternative(LEGACY_ORDER);
 
     /** Root codec supplied to Minecraft's {@code SavedDataType}. */
     static final Codec<FarAndWideSavedData> SAVED_DATA = RecordCodecBuilder.create(instance -> instance.group(

@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.client;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.*;
 import java.util.List;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -31,6 +32,35 @@ final class OrderScreenSupport {
                 .filter(waypoint -> waypoint.id() != origin.id() && waypoint.dimension().equals(origin.dimension())
                         && waypoint.action() instanceof WaypointAction.Cargo cargo
                         && cargo.behavior().operation() != CargoOperation.LOAD && cargo.behavior().unloadStation().isPresent()).toList();
+    }
+
+    /** Returns the explicit station-linked continuations of a selected first leg, longest journey last. */
+    static List<OrderJourney> journeys(@Nullable Route route, @Nullable Waypoint origin, @Nullable Waypoint destination) {
+        if (route == null || origin == null || destination == null) return List.of();
+        OrderJourney.Leg first = new OrderJourney.Leg(route.getId(), origin.id(), destination.id());
+        var unload = ((WaypointAction.Cargo) destination.action()).behavior().unloadStation().orElse(null);
+        if (unload == null) return List.of(new OrderJourney(List.of(first)));
+        List<OrderJourney> journeys = new java.util.ArrayList<>();
+        extend(journeys, List.of(first), unload, destination.dimension());
+        return journeys;
+    }
+
+    private static void extend(List<OrderJourney> result, List<OrderJourney.Leg> prefix,
+            CargoStationBinding handoff, Identifier dimension) {
+        result.add(new OrderJourney(prefix));
+        if (prefix.size() == Constants.Orders.MAX_LEGS) return;
+        for (Route route : RouteManager.getRoutes()) for (Waypoint origin : route.getWaypoints()) {
+            if (!(origin.action() instanceof WaypointAction.Cargo cargo) || !origin.dimension().equals(dimension)
+                    || cargo.behavior().operation() == CargoOperation.UNLOAD
+                    || !handoff.equals(cargo.behavior().loadStation().orElse(null))) continue;
+            for (Waypoint destination : destinations(route, origin)) {
+                OrderJourney.Leg next = new OrderJourney.Leg(route.getId(), origin.id(), destination.id());
+                if (prefix.contains(next)) continue;
+                List<OrderJourney.Leg> extended = new java.util.ArrayList<>(prefix);
+                extended.add(next);
+                extend(result, extended, ((WaypointAction.Cargo) destination.action()).behavior().unloadStation().orElseThrow(), dimension);
+            }
+        }
     }
 
     static int ordinal(@Nullable Route route, int waypointId) {

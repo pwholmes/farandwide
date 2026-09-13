@@ -40,6 +40,8 @@ public final class Constants {
         public static final int MAX_LINES = 32;
         public static final int MAX_QUANTITY = 4_096;
         public static final int MAX_TRACKED_ORDERS = 256;
+        /** The delivery selector discovers at most inland, crossing, and final-mile legs. */
+        public static final int MAX_LEGS = 3;
         /** A source inventory can expose at most one distinct item per scanned slot. */
         public static final int MAX_AVAILABLE_ITEMS = MAX_SOURCE_INVENTORIES * Cargo.MAX_SCANNED_SLOTS;
 

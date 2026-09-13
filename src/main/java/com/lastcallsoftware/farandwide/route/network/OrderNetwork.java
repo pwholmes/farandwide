@@ -28,7 +28,7 @@ public final class OrderNetwork {
                 return;
             }
             OrderService.Outcome outcome = payload.action() == OrderPayloads.Action.PLACE
-                    ? OrderService.place(player, payload.id(), payload.routeId(), payload.originId(), payload.destinationId(), payload.lines())
+                    ? OrderService.place(player, payload.id(), new com.lastcallsoftware.farandwide.route.OrderJourney(payload.journeyLegs()), payload.lines())
                     : OrderService.cancel(player, payload.id());
             sendOrders(player);
             context.reply(new OrderPayloads.Reply(payload.id(), outcome.result(), outcome.detail()));

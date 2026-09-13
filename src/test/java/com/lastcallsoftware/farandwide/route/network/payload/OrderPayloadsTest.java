@@ -53,8 +53,10 @@ class OrderPayloadsTest {
     }
 
     @Test void progressAndActivationResultRoundTrip() {
-        CargoOrder order = new CargoOrder(UUID.randomUUID(), UUID.randomUUID(), 1, 2, 3, STATION,
-                List.of(new OrderLine(line.resource(), 4, 2)), RouteOperationResult.CHUNK_LOADING_LIMIT);
+        CargoOrder order = new CargoOrder(UUID.randomUUID(), UUID.randomUUID(), List.of(
+                new OrderLeg(1, 2, 3, STATION, List.of(new OrderLine(line.resource(), 4, 4)), RouteOperationResult.SUCCESS),
+                new OrderLeg(4, 5, 6, new CargoStationBinding(new BlockPos(12, 64, 2), Direction.NORTH),
+                        List.of(new OrderLine(line.resource(), 4, 2)), RouteOperationResult.CHUNK_LOADING_LIMIT)));
         var snapshot = new OrderPayloads.Snapshot(List.of(order));
         var reply = new OrderPayloads.Reply(order.id(), OrderResult.INSUFFICIENT_STOCK, line.itemId().toString());
         var buffer = buffer();
