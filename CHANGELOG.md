@@ -17,3 +17,12 @@ Initial revision.
 - Changed: When the player has no selected Route and exits a Vehicle, the Vehicle's Route is no longer automatically selected.
 - Changed: When mounting a Vehicle, the Vehicle's assigned Route is no longer automatically selected.  The old behavior can be enabled in the mod's config if desired.  Enable that if you prefer being able to view and edit a Vehicle's Waypoints when you mount it without having to issue any additional commands.
 - Changed: The HUD no longer displays a Vehicle's generic name if it has a custom name (i.e., a name appied with a nametag).
+
+1.2.0
+-----
+- Added: Implemented the Order System, an automated inventory management system that doesn't feel like a "god block".  Order items from a remote Waypoint and they will automatically be collected from linked storages and delivered by Vehicles assigned to a connected Route.
+- Changed: Merged the Waypoint Type and Cargo Operation buttons.
+- Fixed: If you died while on an active Route, it remained active on respawn.  Dying now removes any selected/assigned Routes from the player.
+- Fixed: In some cases the HUD would report a selected Route when there was none.
+- Fixed: Route Management list auto-scrolled to the selected Route on every refresh.
+- Fixed: Waypoint arrival radius was measured using a Vehicle's bounding box in some cases and from its center in other cases, with the result that it could get stalled, stopping movement after it got close to a Waypoint but not actually triggering Waypoint arrival.

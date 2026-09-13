@@ -27,7 +27,7 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
     private static final int INDEX_PAGE = 0;
     private static final int ROUTES_PAGE = 1;
     private static final int CARGO_PAGE = 7;
-    private static final int TIPS_AND_TRICKS_PAGE = 11;
+    private static final int TIPS_AND_TRICKS_PAGE = 12;
 
     private static final HelpPage[] PAGES = {
             new HelpPage("screen.farandwide.help.index.title", "screen.farandwide.help.index.body", null),
@@ -51,6 +51,7 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
                     texture("cargo_stations")),
             new HelpPage("screen.farandwide.help.cargo.operations.title", "screen.farandwide.help.cargo.operations.body",
                     texture("cargo_transfer")),
+            new HelpPage("screen.farandwide.help.orders.title", "screen.farandwide.help.orders.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page1.title", "screen.farandwide.help.tips_and_tricks.page1.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page2.title", "screen.farandwide.help.tips_and_tricks.page2.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page3.title", "screen.farandwide.help.tips_and_tricks.page3.body", null),

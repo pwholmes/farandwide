@@ -7,6 +7,7 @@ import com.lastcallsoftware.farandwide.route.CargoOperation;
 
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.function.ObjIntConsumer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.item.ItemResource;
@@ -52,6 +53,12 @@ public final class CargoTransferService {
      */
     static <T extends Resource> int transferOneStack(ResourceHandler<T> source, ResourceHandler<T> destination,
             Predicate<T> filter) {
+        return transferOneStack(source, destination, filter, (resource, amount) -> {});
+    }
+
+    /** Reports only committed transfers; order receipts must never include simulated or rejected moves. */
+    static <T extends Resource> int transferOneStack(ResourceHandler<T> source, ResourceHandler<T> destination,
+            Predicate<T> filter, ObjIntConsumer<T> receipt) {
         int sourceSlots = Math.min(source.size(), Constants.Cargo.MAX_SCANNED_SLOTS);
         int destinationSlots = Math.min(destination.size(), Constants.Cargo.MAX_SCANNED_SLOTS);
         for (int sourceSlot = 0; sourceSlot < sourceSlots; sourceSlot++) {
@@ -70,6 +77,7 @@ public final class CargoTransferService {
                 movedTotal += moved;
             }
             if (movedTotal > 0) {
+                receipt.accept(resource, movedTotal);
                 return movedTotal;
             }
         }

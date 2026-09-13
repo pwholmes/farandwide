@@ -132,7 +132,7 @@ class ServerRouteTraversalControllerTest {
     }
 
     @Test
-    void oneWayRestartAnchorSkipsRepeatedCargoAndBeginsReverseLeg() {
+    void oneWayRestartAnchorProcessesCargoAgainAndBeginsReverseLeg() {
         Fixture fixture = cargoFixture(TraversalType.ONE_WAY, 3);
         fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
         AtomicInteger processed = new AtomicInteger();
@@ -148,10 +148,32 @@ class ServerRouteTraversalControllerTest {
                 fixture.route.getWaypoints().get(2), behavior -> processed.incrementAndGet()));
 
         RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
-        assertEquals(1, processed.get());
+        assertEquals(2, processed.get());
         assertTrue(result.isActive());
         assertEquals(1, result.getTargetWaypointIndex());
         assertEquals(-1, result.getTraversalDirection());
+        assertFalse(result.isRestartAnchor());
+    }
+
+    @Test
+    void oneWayRestartAtFirstWaypointProcessesCargoBeforeForwardLeg() {
+        Fixture fixture = cargoFixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 0, -1);
+        AtomicInteger processed = new AtomicInteger();
+        ServerRouteTraversalController.processArrival(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId),
+                fixture.route.getWaypoints().getFirst(), behavior -> processed.incrementAndGet());
+        fixture.data.setAssignmentActive(fixture.assigneeId, true);
+
+        assertTrue(ServerRouteTraversalController.processArrival(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId),
+                fixture.route.getWaypoints().getFirst(), behavior -> processed.incrementAndGet()));
+
+        RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
+        assertEquals(2, processed.get());
+        assertTrue(result.isActive());
+        assertEquals(1, result.getTargetWaypointIndex());
+        assertEquals(1, result.getTraversalDirection());
         assertFalse(result.isRestartAnchor());
     }
 

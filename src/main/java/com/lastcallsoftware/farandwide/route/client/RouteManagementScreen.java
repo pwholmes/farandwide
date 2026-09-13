@@ -100,7 +100,9 @@ public class RouteManagementScreen extends FarAndWideScreen {
 
         updateButtonState();
         if (routeList.getSelected() != null) {
+            double scrollAmount = routeList.scrollAmount();
             setInitialFocus(routeList);
+            routeList.setScrollAmount(scrollAmount);
         }
     }
 
@@ -121,6 +123,7 @@ public class RouteManagementScreen extends FarAndWideScreen {
             return;
         }
         Route selectedBeforeRefresh = getSelectedRoute();
+        double scrollAmount = routeList.scrollAmount();
         int selectedId = selectedBeforeRefresh == null ? -1 : selectedBeforeRefresh.getId();
         Route currentRoute = RouteManager.getCurrentRoute();
         RouteEntry revealEntry = null;
@@ -139,6 +142,8 @@ public class RouteManagementScreen extends FarAndWideScreen {
                 }
             }
         }
+        // Restoring selection can scroll implicitly; keep the browsing position unless a new route needs revealing.
+        routeList.setScrollAmount(scrollAmount);
         if (revealEntry != null) {
             routeList.setSelected(revealEntry);
             routeList.reveal(revealEntry);
@@ -269,6 +274,27 @@ public class RouteManagementScreen extends FarAndWideScreen {
         @Override
         public int getRowWidth() {
             return getWidth() - 20;
+        }
+
+        @Override
+        protected int scrollBarX() {
+            // Keep the entire scrollbar inside the list's mouse hit area.
+            return getRight() - scrollbarWidth();
+        }
+
+        @Override
+        public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+            if (visible && active && updateScrolling(event)) {
+                int thumbHeight = scrollerHeight();
+                int thumbY = scrollBarY();
+                if (event.y() < thumbY || event.y() >= thumbY + thumbHeight) {
+                    // Track clicks center the thumb at the pointer; thumb clicks retain the drag offset.
+                    double position = (event.y() - getY() - thumbHeight / 2.0) / (getHeight() - thumbHeight);
+                    setScrollAmount(position * maxScrollAmount());
+                }
+                return true;
+            }
+            return super.mouseClicked(event, doubleClick);
         }
 
         @Override

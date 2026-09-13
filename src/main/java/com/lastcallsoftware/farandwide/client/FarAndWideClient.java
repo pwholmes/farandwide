@@ -21,6 +21,7 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.eclipse.jdt.annotation.NonNull;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteSnapshotPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.OrderPayloads;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteOperationResultPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleAssignmentsSnapshotPayload;
@@ -42,6 +43,7 @@ public class FarAndWideClient {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         NeoForge.EVENT_BUS.addListener(FarAndWideClient::onClientLoggedIn);
         NeoForge.EVENT_BUS.addListener(FarAndWideClient::onClientLoggingOut);
+        NeoForge.EVENT_BUS.addListener(FarAndWideClient::onClientRespawn);
         FarAndWideKeyBindings.register(modEventBus);
         PlayerPositionHud.register();
         WaypointRenderer.register();
@@ -56,6 +58,11 @@ public class FarAndWideClient {
         RouteManager.clearClientState();
     }
 
+    private static void onClientRespawn(ClientPlayerNetworkEvent.Clone event) {
+        RouteManager.onClientRespawn();
+        RouteManager.refreshServerSnapshot();
+    }
+
     @SubscribeEvent
     static void onClientSetup(FMLClientSetupEvent event) {
         // Some client setup code
@@ -65,6 +72,12 @@ public class FarAndWideClient {
 
     @SubscribeEvent
     static void registerClientPayloadHandlers(RegisterClientPayloadHandlersEvent event) {
+        event.register(OrderPayloads.Snapshot.TYPE,
+                (payload, context) -> RouteManager.replaceOrdersFromServer(payload.orders()));
+        event.register(OrderPayloads.AvailableItems.TYPE,
+                (payload, context) -> RouteManager.replaceAvailableOrderItems(payload.routeId(), payload.originId(), payload.items()));
+        event.register(OrderPayloads.Reply.TYPE,
+                (payload, context) -> RouteManager.handleOrderReply(payload.id(), payload.result(), payload.detail()));
         event.register(RouteSnapshotPayload.TYPE,
                 (payload, context) -> RouteManager.replaceRoutesFromServer(
                         payload.routes().stream()

@@ -82,6 +82,16 @@ bindings are independent because a station identifies inventory access, not a
 shared route policy. Transfers execute authoritatively and must preserve items
 across partial or rejected moves.
 
+Orders layer quantity requests over normal cargo transport. Cargo waypoints may
+link source inventories, used only when assembling an order into their Load
+Station. `OrderService` validates and assembles the complete request in one
+inventory transaction before activating the route. `FarAndWideSavedData` owns
+the immutable order records in placement order; committed destination unloads
+credit matching records oldest first. Vehicles carry no order-specific state.
+Canceling deletes only tracking. Order snapshots are requester-specific and are
+cleared with the other client caches on connection changes. Ordinary item resources
+must match their default components, so modified variants are not substituted.
+
 ## Package and physical-side boundaries
 
 Use packages as ownership boundaries, not as a requirement to add a new layer

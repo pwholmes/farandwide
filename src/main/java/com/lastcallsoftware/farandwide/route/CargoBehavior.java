@@ -2,18 +2,33 @@ package com.lastcallsoftware.farandwide.route;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.util.List;
+import com.lastcallsoftware.farandwide.Constants;
+import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 
-/** Cargo settings with independent filters and station bindings for each transfer direction. */
+/** Cargo settings with independent transfer bindings and optional sources for assembling orders. */
 @NonNullByDefault
 public record CargoBehavior(CargoOperation operation, CargoFilter loadFilter, CargoFilter unloadFilter,
-        Optional<CargoStationBinding> loadStation, Optional<CargoStationBinding> unloadStation) {
+        Optional<CargoStationBinding> loadStation, Optional<CargoStationBinding> unloadStation,
+        List<CargoStationBinding> sourceInventories) {
     public CargoBehavior {
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(loadFilter, "loadFilter");
         Objects.requireNonNull(unloadFilter, "unloadFilter");
         loadStation = Objects.requireNonNull(loadStation, "loadStation");
         unloadStation = Objects.requireNonNull(unloadStation, "unloadStation");
+        sourceInventories = List.copyOf(sourceInventories);
+        if (sourceInventories.size() > Constants.Orders.MAX_SOURCE_INVENTORIES
+                || sourceInventories.stream().map((@NonNull CargoStationBinding source) -> source.position())
+                        .distinct().count() != sourceInventories.size()) {
+            throw new IllegalArgumentException("Too many or duplicate source inventories");
+        }
+    }
+
+    public CargoBehavior(CargoOperation operation, CargoFilter loadFilter, CargoFilter unloadFilter,
+            Optional<CargoStationBinding> loadStation, Optional<CargoStationBinding> unloadStation) {
+        this(operation, loadFilter, unloadFilter, loadStation, unloadStation, List.of());
     }
 
     /** Compatibility constructor for cargo settings created before station binding existed. */
@@ -32,11 +47,11 @@ public record CargoBehavior(CargoOperation operation, CargoFilter loadFilter, Ca
     }
 
     public CargoBehavior withLoadStation(CargoStationBinding station) {
-        return new CargoBehavior(operation, loadFilter, unloadFilter, Optional.of(station), unloadStation);
+        return new CargoBehavior(operation, loadFilter, unloadFilter, Optional.of(station), unloadStation, sourceInventories);
     }
 
     public CargoBehavior withUnloadStation(CargoStationBinding station) {
-        return new CargoBehavior(operation, loadFilter, unloadFilter, loadStation, Optional.of(station));
+        return new CargoBehavior(operation, loadFilter, unloadFilter, loadStation, Optional.of(station), sourceInventories);
     }
 
     /** A combined operation cannot use one inventory as both its source and destination. */

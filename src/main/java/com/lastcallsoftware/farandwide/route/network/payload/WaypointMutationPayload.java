@@ -98,6 +98,7 @@ public record WaypointMutationPayload(
             writeFilter(buffer, behavior.unloadFilter());
             writeStation(buffer, behavior.loadStation());
             writeStation(buffer, behavior.unloadStation());
+            CargoSourceBindings.write(buffer, behavior.sourceInventories());
         } else {
             buffer.writeBoolean(false);
         }
@@ -109,7 +110,8 @@ public record WaypointMutationPayload(
         }
         CargoOperation operation = readEnum(buffer, CargoOperation.values(), "cargo operation");
         return WaypointAction.cargo(new CargoBehavior(
-                operation, readFilter(buffer), readFilter(buffer), readStation(buffer), readStation(buffer)));
+                operation, readFilter(buffer), readFilter(buffer), readStation(buffer), readStation(buffer),
+                CargoSourceBindings.read(buffer)));
     }
 
     private static void writeStation(RegistryFriendlyByteBuf buffer, java.util.Optional<CargoStationBinding> station) {

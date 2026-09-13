@@ -11,6 +11,7 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +48,17 @@ class WaypointTest {
 
         assertTrue(waypoint.hasArrived(new Vec3(0.0, 0.0, 3.5)));
         assertFalse(waypoint.hasArrived(new Vec3(0.0, 3.5, 0.1)));
+    }
+
+    @Test
+    void arrivalUsesVehicleBoundsRatherThanOnlyItsCenter() {
+        Waypoint waypoint = new Waypoint(
+                42, Vec3.ZERO, Waypoint.DEFAULT_DIMENSION, WaypointAction.normal(), 1.0);
+
+        AABB vehicleBounds = new AABB(0.8, 0.0, -0.5, 1.6, 1.5, 0.5);
+
+        assertTrue(waypoint.hasArrived(vehicleBounds));
+        assertFalse(waypoint.hasArrived(new Vec3(1.2, 0.0, 0.0)));
     }
 
     @Test

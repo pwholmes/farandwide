@@ -1,6 +1,10 @@
 package com.lastcallsoftware.farandwide.route.network.client;
 
 import com.lastcallsoftware.farandwide.route.TraversalType;
+import com.lastcallsoftware.farandwide.route.OrderLine;
+import com.lastcallsoftware.farandwide.route.network.payload.OrderPayloads;
+import java.util.List;
+import java.util.UUID;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentMutationPayload;
@@ -37,6 +41,22 @@ public final class RouteRequests {
 
     public static void requestRoutes() {
         send(new RequestRouteSnapshotPayload());
+    }
+
+    public static void requestOrders() {
+        send(new OrderPayloads.Request(OrderPayloads.Action.LIST, new UUID(0, 0), 0, 0, 0, List.of()));
+    }
+
+    public static void requestAvailableOrderItems(int routeId, int originId) {
+        send(new OrderPayloads.Request(OrderPayloads.Action.AVAILABLE, new UUID(0, 0), routeId, originId, 0, List.of()));
+    }
+
+    public static void placeOrder(UUID id, int routeId, int originId, int destinationId, List<OrderLine> lines) {
+        send(new OrderPayloads.Request(OrderPayloads.Action.PLACE, id, routeId, originId, destinationId, lines));
+    }
+
+    public static void cancelOrder(UUID id) {
+        send(new OrderPayloads.Request(OrderPayloads.Action.CANCEL, id, 0, 0, 0, List.of()));
     }
 
     public static void requestAssignment() {

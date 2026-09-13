@@ -40,7 +40,8 @@ public final class RouteNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("13");
+        var registrar = event.registrar("14");
+        OrderNetwork.register(registrar);
         registrar.playToServer(RequestRouteSnapshotPayload.TYPE, RequestRouteSnapshotPayload.STREAM_CODEC,
                 (payload, context) -> replyWithRoutes((ServerPlayer) context.player(), context));
         registrar.playToServer(SelectRoutePayload.TYPE, SelectRoutePayload.STREAM_CODEC,
@@ -256,8 +257,11 @@ public final class RouteNetwork {
     }
 
     private static void broadcastRoutes(ServerPlayer player) {
-        RouteService.RouteState state = RouteService.getRoutesForBroadcast(player);
-        PacketDistributor.sendToAllPlayers(RouteSnapshotPayload.from(state.routes(), state.selectedRouteId()));
+        OrderNetwork.broadcastOrders(player.level().getServer());
+        for (ServerPlayer recipient : player.level().getServer().getPlayerList().getPlayers()) {
+            RouteService.RouteState state = RouteService.getRoutes(recipient);
+            PacketDistributor.sendToPlayer(recipient, RouteSnapshotPayload.from(state.routes(), state.selectedRouteId()));
+        }
     }
 
     private static void broadcastVehicleAssignments(ServerPlayer player) {
@@ -281,7 +285,7 @@ public final class RouteNetwork {
     private static void replyWithRoutes(ServerPlayer player,
             net.neoforged.neoforge.network.handling.IPayloadContext context) {
         RouteService.RouteState state = RouteService.getRoutes(player);
-        // Unlike broadcasts, direct replies include this player's selection.
+        // Every route snapshot includes the receiving player's selection.
         context.reply(RouteSnapshotPayload.from(state.routes(), state.selectedRouteId()));
         context.reply(new VehicleAssignmentsSnapshotPayload(RouteService.getRouteManagementAssignments(player)));
     }

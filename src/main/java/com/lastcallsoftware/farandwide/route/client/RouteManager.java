@@ -1,6 +1,10 @@
 package com.lastcallsoftware.farandwide.route.client;
 
 import com.lastcallsoftware.farandwide.route.Route;
+import com.lastcallsoftware.farandwide.route.CargoOrder;
+import com.lastcallsoftware.farandwide.route.OrderLine;
+import com.lastcallsoftware.farandwide.route.OrderResult;
+import java.util.UUID;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
@@ -8,6 +12,7 @@ import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 import com.lastcallsoftware.farandwide.route.network.client.RouteRequests;
+import com.lastcallsoftware.farandwide.route.network.payload.OrderPayloads;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -35,6 +41,80 @@ import net.minecraft.world.phys.Vec3;
  */
 public class RouteManager {
     private static List<Route> routes = new ArrayList<>();
+    private static List<CargoOrder> orders = List.of();
+    private static long orderStateRevision;
+    private static @Nullable UUID pendingOrderRequest;
+    private static @Nullable OrderFeedback orderFeedback;
+    private static List<OrderPayloads.AvailableItem> availableOrderItems = List.of();
+    private static int availableOrderItemsRouteId;
+    private static int availableOrderItemsOriginId;
+    private static long availableOrderItemsRevision;
+
+    public static @NonNull List<CargoOrder> getOrders() { return orders; }
+    public static long getOrderStateRevision() { return orderStateRevision; }
+    public static boolean isOrderRequestPending() { return pendingOrderRequest != null; }
+    public static @Nullable OrderFeedback getOrderFeedback() { return orderFeedback; }
+    public static List<OrderPayloads.AvailableItem> getAvailableOrderItems(int routeId, int originId) {
+        return routeId == availableOrderItemsRouteId && originId == availableOrderItemsOriginId ? availableOrderItems : List.of();
+    }
+    public static boolean hasAvailableOrderItems(int routeId, int originId) {
+        return routeId == availableOrderItemsRouteId && originId == availableOrderItemsOriginId;
+    }
+    public static long getAvailableOrderItemsRevision() { return availableOrderItemsRevision; }
+    public static void refreshAvailableOrderItems(int routeId, int originId) {
+        if (Minecraft.getInstance().getConnection() != null) RouteRequests.requestAvailableOrderItems(routeId, originId);
+    }
+    public static void replaceAvailableOrderItems(int routeId, int originId, List<OrderPayloads.AvailableItem> items) {
+        availableOrderItemsRouteId = routeId;
+        availableOrderItemsOriginId = originId;
+        availableOrderItems = List.copyOf(items);
+        availableOrderItemsRevision++;
+    }
+
+    public static void refreshOrders() {
+        if (Minecraft.getInstance().getConnection() != null) RouteRequests.requestOrders();
+    }
+
+    public static void replaceOrdersFromServer(@NonNull List<CargoOrder> snapshot) {
+        orders = List.copyOf(snapshot);
+        orderStateRevision++;
+    }
+
+    public static @Nullable UUID placeOrder(int routeId, int originId, int destinationId,
+            @NonNull List<OrderLine> lines) {
+        if (pendingOrderRequest != null) return null;
+        pendingOrderRequest = UUID.randomUUID();
+        orderFeedback = null;
+        availableOrderItems = List.of();
+        availableOrderItemsRouteId = availableOrderItemsOriginId = 0;
+        availableOrderItemsRevision++;
+        RouteRequests.placeOrder(pendingOrderRequest, routeId, originId, destinationId, lines);
+        return pendingOrderRequest;
+    }
+
+    public static void cancelOrder(@NonNull UUID id) {
+        if (pendingOrderRequest != null) return;
+        pendingOrderRequest = id;
+        orderFeedback = null;
+        RouteRequests.cancelOrder(id);
+    }
+
+    public static void handleOrderReply(@NonNull UUID id, @NonNull OrderResult result, @NonNull String detail) {
+        if (id.equals(pendingOrderRequest)) pendingOrderRequest = null;
+        orderFeedback = new OrderFeedback(id, result, detail);
+        orderStateRevision++;
+    }
+
+    public record OrderFeedback(@NonNull UUID id, @NonNull OrderResult result, @NonNull String detail) {
+        public Component message() {
+            Component item = Component.literal(detail);
+            if (!detail.isEmpty()) {
+                var value = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(Identifier.parse(detail)).orElse(null);
+                if (value != null) item = value.getDefaultInstance().getHoverName();
+            }
+            return Component.translatable(result.translationKey(), item);
+        }
+    }
     private static final Map<Integer, RouteAssignment> assignmentsByEntity = new HashMap<>();
     private static final Map<Integer, Integer> stableAssigneeIdsByEntity = new HashMap<>();
     private static List<VehicleRouteAssignment> vehicleRouteAssignments = new ArrayList<>();
@@ -59,6 +139,10 @@ public class RouteManager {
     /** Resets all client-only state before connecting to a different world/server. */
     public static void clearClientState() {
         routes.clear();
+        orders = List.of();
+        pendingOrderRequest = null;
+        orderFeedback = null;
+        orderStateRevision++;
         assignmentsByEntity.clear();
         stableAssigneeIdsByEntity.clear();
         vehicleRouteAssignments.clear();
@@ -81,13 +165,17 @@ public class RouteManager {
     /** Replaces the local read cache after an authoritative server snapshot arrives. */
     public static void replaceRoutesFromServer(List<Route> serverRoutes, int selectedRouteId) {
         routes = new ArrayList<>(serverRoutes);
-        if (selectedRouteId > 0) {
-            selectedRoute = getRoute(selectedRouteId);
-        } else if (selectedRoute != null) {
-            // Broadcast snapshots omit the player-specific selection. Preserve
-            // it by resolving the old ID against the newly received records.
-            selectedRoute = getRoute(selectedRoute.getId());
-        }
+        // Every snapshot carries this player's selection; zero clears it.
+        selectedRoute = getRoute(selectedRouteId);
+        routeStateRevision++;
+    }
+
+    /** Discards navigation for the replaced player, whose runtime ID may be reused. */
+    public static void onClientRespawn() {
+        assignmentsByEntity.clear();
+        stableAssigneeIdsByEntity.clear();
+        selectedRoute = null;
+        requestedAssignmentEntityId = Integer.MIN_VALUE;
         routeStateRevision++;
     }
 

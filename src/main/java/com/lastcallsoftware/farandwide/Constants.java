@@ -26,12 +26,24 @@ public final class Constants {
         public static final int MAX_SCANNED_SLOTS = 256;
         public static final int MAX_ITEMS_PER_OPERATION = 4_096;
         public static final int MAX_ITEMS_PER_STACK = 64;
-        public static final long TRANSFER_INTERVAL_TICKS = 10;
-        /** Five seconds at Minecraft's normal 20 server ticks per second. */
-        public static final long WAYPOINT_DWELL_TICKS = 100;
+        /** One second after each successful stack transfer, with no idle delay for empty cargo stops. */
+        public static final long TRANSFER_INTERVAL_TICKS = 20;
         public static final int EQUINE_EQUIPMENT_SLOT_COUNT = 2;
 
         private Cargo() {
+        }
+    }
+
+    public static final class Orders {
+        public static final int MAX_SOURCE_INVENTORIES = 32;
+        public static final double SOURCE_RADIUS = 8.0;
+        public static final int MAX_LINES = 32;
+        public static final int MAX_QUANTITY = 4_096;
+        public static final int MAX_TRACKED_ORDERS = 256;
+        /** A source inventory can expose at most one distinct item per scanned slot. */
+        public static final int MAX_AVAILABLE_ITEMS = MAX_SOURCE_INVENTORIES * Cargo.MAX_SCANNED_SLOTS;
+
+        private Orders() {
         }
     }
 
@@ -69,7 +81,7 @@ public final class Constants {
     }
 
     public static final class Persistence {
-        public static final int CURRENT_DATA_VERSION = 7;
+        public static final int CURRENT_DATA_VERSION = 8;
 
         private Persistence() {
         }

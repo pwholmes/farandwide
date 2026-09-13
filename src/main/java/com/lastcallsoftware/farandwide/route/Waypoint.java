@@ -3,6 +3,8 @@ package com.lastcallsoftware.farandwide.route;
 import com.lastcallsoftware.farandwide.Constants;
 import java.util.Objects;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.eclipse.jdt.annotation.NonNullByDefault;
 
@@ -45,9 +47,25 @@ public record Waypoint(int id, Vec3 position, Identifier dimension, WaypointActi
         return arrivalRadius * arrivalRadius;
     }
 
-    /** Uses the same three-dimensional arrival check on both logical sides. */
+    /** Uses a three-dimensional point check where no entity bounds are available. */
     public boolean hasArrived(Vec3 entityPosition) {
         return position.distanceToSqr(entityPosition) <= arrivalRadiusSquared();
+    }
+
+    /**
+     * Measures arrival from the vehicle's physical bounds. This keeps large
+     * vehicles from stalling when pathfinding stops their center just outside a
+     * small waypoint radius even though the vehicle itself has reached it.
+     */
+    public boolean hasArrived(Entity entity) {
+        return hasArrived(entity.getBoundingBox());
+    }
+
+    boolean hasArrived(AABB entityBounds) {
+        double dx = Math.max(entityBounds.minX - position.x, Math.max(0.0, position.x - entityBounds.maxX));
+        double dy = Math.max(entityBounds.minY - position.y, Math.max(0.0, position.y - entityBounds.maxY));
+        double dz = Math.max(entityBounds.minZ - position.z, Math.max(0.0, position.z - entityBounds.maxZ));
+        return dx * dx + dy * dy + dz * dz <= arrivalRadiusSquared();
     }
 
     public static boolean isValidArrivalRadius(double radius) {

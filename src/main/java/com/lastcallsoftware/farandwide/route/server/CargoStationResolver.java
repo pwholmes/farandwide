@@ -36,7 +36,7 @@ public final class CargoStationResolver {
                 .flatMap(binding -> findInventory(level, binding));
     }
 
-    private static Optional<ResourceHandler<ItemResource>> findInventory(
+    static Optional<ResourceHandler<ItemResource>> findInventory(
             ServerLevel level, CargoStationBinding binding) {
         ResourceHandler<ItemResource> handler = level.getCapability(
                 Capabilities.Item.BLOCK, binding.position(), binding.accessSide());

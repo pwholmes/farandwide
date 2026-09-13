@@ -8,6 +8,7 @@ import org.lwjgl.glfw.GLFW;
 import com.lastcallsoftware.farandwide.client.PlayerPositionHud;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.client.RouteEditorScreen;
+import com.lastcallsoftware.farandwide.route.client.OrderTrackingScreen;
 import com.lastcallsoftware.farandwide.route.client.RouteManagementScreen;
 import com.lastcallsoftware.farandwide.route.client.RouteManager;
 import com.lastcallsoftware.farandwide.route.client.RouteNavigationHud;
@@ -32,6 +33,11 @@ public final class FarAndWideCommands {
             GLFW.GLFW_KEY_C,
             "command.farandwide.create_route",
             () -> Minecraft.getInstance().setScreenAndShow(new RouteEditorScreen(null)));
+
+    public static final FarAndWideCommand ORDERS = command(
+            GLFW.GLFW_KEY_O,
+            "command.farandwide.orders",
+            () -> Minecraft.getInstance().setScreenAndShow(new OrderTrackingScreen()));
 
     public static final FarAndWideCommand ADD_OR_REMOVE_WAYPOINT = command(
             GLFW.GLFW_KEY_W,
@@ -91,6 +97,7 @@ public final class FarAndWideCommands {
     public static List<FarAndWideCommand> all() {
         return List.of(
                 MANAGE_ROUTES,
+                ORDERS,
                 CREATE_ROUTE,
                 ADD_OR_REMOVE_WAYPOINT,
                 INVERT_ROUTE,

@@ -633,7 +633,7 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
-    void firstAssignmentIsInactiveAndLaterAssignmentsInheritRouteActivity() {
+    void everyNewAssignmentStartsInactive() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();
         data.addWaypoint(route.getId(), new Waypoint(Vec3.ZERO, OVERWORLD));
@@ -645,7 +645,7 @@ class FarAndWideSavedDataTest {
         data.setAssignmentActive(first, true);
 
         RouteAssignment secondAssignment = data.assignRoute(route.getId(), second, Vec3.ZERO, OVERWORLD);
-        assertTrue(secondAssignment.isActive());
+        assertFalse(secondAssignment.isActive());
     }
 
     @Test

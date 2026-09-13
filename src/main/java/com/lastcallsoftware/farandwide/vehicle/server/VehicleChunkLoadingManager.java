@@ -15,6 +15,7 @@ import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.network.RouteNetwork;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
+import com.lastcallsoftware.farandwide.vehicle.server.cargo.CargoVehicleInventory;
 
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
@@ -68,7 +69,7 @@ public final class VehicleChunkLoadingManager {
         net.minecraft.resources.Identifier entityType =
                 net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType());
         FarAndWideSavedData data = FarAndWideSavedData.get(level.getServer());
-        data.registerVehicle(owner, assigneeId, entityType.getPath());
+        data.registerVehicle(owner, assigneeId, entityType.getPath(), CargoVehicleInventory.find(vehicle).isPresent());
         data.updateVehicleCustomName(
                 owner, vehicle.getCustomName() == null ? null : vehicle.getCustomName().getString());
         rememberLocation(vehicle, false);

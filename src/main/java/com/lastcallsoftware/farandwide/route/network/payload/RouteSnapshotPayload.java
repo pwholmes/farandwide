@@ -28,9 +28,9 @@ import net.minecraft.world.phys.Vec3;
  * Server-to-client replacement snapshot of all route definitions.
  *
  * <p>Snapshots contain immutable copies rather than domain references shared with
- * server storage. {@code selectedRouteId} is player-specific in direct replies;
- * broadcasts use zero so clients preserve their existing selection while replacing
- * route definitions. Assignments use a separate payload because they are scoped to
+ * server storage. {@code selectedRouteId} is always the receiving player's selection;
+ * zero means no route is selected, including when route definitions are broadcast.
+ * Assignments use a separate payload because they are scoped to
  * the player or vehicle currently controlled by the receiving client.
  *
  * <p>Collection and string limits protect decoding from unbounded allocations.
@@ -149,6 +149,7 @@ public record RouteSnapshotPayload(List<RouteSnapshot> routes, int selectedRoute
             writeFilter(buffer, behavior.unloadFilter());
             writeStation(buffer, behavior.loadStation());
             writeStation(buffer, behavior.unloadStation());
+            CargoSourceBindings.write(buffer, behavior.sourceInventories());
         }
 
         private static CargoBehavior readCargoBehavior(FriendlyByteBuf buffer) {
@@ -157,7 +158,8 @@ public record RouteSnapshotPayload(List<RouteSnapshot> routes, int selectedRoute
                     readFilter(buffer),
                     readFilter(buffer),
                     readStation(buffer),
-                    readStation(buffer));
+                    readStation(buffer),
+                    CargoSourceBindings.read(buffer));
         }
 
         private static void writeStation(FriendlyByteBuf buffer, java.util.Optional<CargoStationBinding> station) {

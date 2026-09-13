@@ -7,11 +7,15 @@ import com.lastcallsoftware.farandwide.route.CargoBehavior;
 import com.lastcallsoftware.farandwide.route.CargoFilter;
 import com.lastcallsoftware.farandwide.route.CargoOperation;
 import com.lastcallsoftware.farandwide.route.CargoStationBinding;
+import com.lastcallsoftware.farandwide.route.CargoOrder;
+import com.lastcallsoftware.farandwide.route.OrderLine;
+import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.neoforged.neoforge.transfer.item.ItemResource;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,11 +63,14 @@ public final class RouteCodecs {
             CARGO_FILTER.fieldOf("unloadFilter").forGetter((@NonNull CargoBehavior behavior) -> behavior.unloadFilter()),
             CARGO_STATION.optionalFieldOf("loadStation").forGetter((@NonNull CargoBehavior behavior) -> behavior.loadStation()),
             CARGO_STATION.optionalFieldOf("unloadStation").forGetter((@NonNull CargoBehavior behavior) -> behavior.unloadStation()),
-            CARGO_STATION.optionalFieldOf("station").forGetter((@NonNull CargoBehavior behavior) -> Optional.empty()))
+            CARGO_STATION.optionalFieldOf("station").forGetter((@NonNull CargoBehavior behavior) -> Optional.empty()),
+            CARGO_STATION.listOf().optionalFieldOf("sourceInventories", List.of())
+                    .forGetter((@NonNull CargoBehavior behavior) -> behavior.sourceInventories()))
             .apply(instance, (@NonNull CargoOperation operation, @NonNull CargoFilter loadFilter,
                     @NonNull CargoFilter unloadFilter, @NonNull Optional<CargoStationBinding> loadStation,
-                    @NonNull Optional<CargoStationBinding> unloadStation, @NonNull Optional<CargoStationBinding> legacyStation)
-                    -> cargoBehavior(operation, loadFilter, unloadFilter, loadStation, unloadStation, legacyStation)));
+                    @NonNull Optional<CargoStationBinding> unloadStation, @NonNull Optional<CargoStationBinding> legacyStation,
+                    @NonNull List<CargoStationBinding> sources)
+                    -> cargoBehavior(operation, loadFilter, unloadFilter, loadStation, unloadStation, legacyStation, sources)));
     private static final Codec<Waypoint> WAYPOINT = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.optionalFieldOf("id", 0).forGetter((@NonNull Waypoint waypoint) -> waypoint.id()),
             Codec.DOUBLE.fieldOf("x").forGetter((@NonNull Waypoint waypoint) -> waypoint.position().x),
@@ -125,10 +132,12 @@ public final class RouteCodecs {
             UUIDUtil.CODEC.fieldOf("vehicleUuid").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.vehicleUuid()),
             Codec.STRING.fieldOf("typeKey").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().typeKey()),
             Codec.INT.fieldOf("number").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().number()),
-            Codec.STRING.fieldOf("displayName").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().displayName()))
+            Codec.STRING.fieldOf("displayName").forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().displayName()),
+            Codec.BOOL.optionalFieldOf("cargoCapable", false)
+                    .forGetter((@NonNull VehicleIdentityEntry entry) -> entry.identity().cargoCapable()))
             .apply(instance, (@NonNull UUID vehicleUuid, @NonNull String typeKey, @NonNull Integer number,
-                    @NonNull String displayName) -> new VehicleIdentityEntry(vehicleUuid,
-                            new FarAndWideSavedData.VehicleIdentity(typeKey, number, displayName))));
+                    @NonNull String displayName, @NonNull Boolean cargoCapable) -> new VehicleIdentityEntry(vehicleUuid,
+                            new FarAndWideSavedData.VehicleIdentity(typeKey, number, displayName, cargoCapable))));
 
     private static final Codec<VehicleLocationEntry> VEHICLE_LOCATION_ENTRY = RecordCodecBuilder.create(instance -> instance.group(
             UUIDUtil.CODEC.fieldOf("vehicleUuid").forGetter((@NonNull VehicleLocationEntry entry) -> entry.vehicleUuid()),
@@ -146,6 +155,40 @@ public final class RouteCodecs {
             Codec.INT.fieldOf("routeId").forGetter((@NonNull DeathRouteEntry entry) -> entry.routeId()))
             .apply(instance, (@NonNull UUID playerUuid, @NonNull Integer routeId)
                     -> new DeathRouteEntry(playerUuid, routeId)));
+
+    private static final Codec<OrderLine> ORDER_LINE_WITH_COMPONENTS = RecordCodecBuilder.create(instance -> instance.group(
+            ItemResource.CODEC.fieldOf("resource").forGetter((@NonNull OrderLine line) -> line.resource()),
+            Codec.intRange(1, Constants.Orders.MAX_QUANTITY).fieldOf("requested")
+                    .forGetter((@NonNull OrderLine line) -> line.requested()),
+            Codec.intRange(0, Constants.Orders.MAX_QUANTITY).fieldOf("delivered")
+                    .forGetter((@NonNull OrderLine line) -> line.delivered()))
+            .apply(instance, (@NonNull ItemResource resource, @NonNull Integer requested, @NonNull Integer delivered)
+                    -> new OrderLine(resource, requested, delivered)));
+    private static final Codec<OrderLine> LEGACY_ORDER_LINE = RecordCodecBuilder.create(instance -> instance.group(
+            Identifier.CODEC.fieldOf("item").forGetter((@NonNull OrderLine line) -> line.itemId()),
+            Codec.intRange(1, Constants.Orders.MAX_QUANTITY).fieldOf("requested")
+                    .forGetter((@NonNull OrderLine line) -> line.requested()),
+            Codec.intRange(0, Constants.Orders.MAX_QUANTITY).fieldOf("delivered")
+                    .forGetter((@NonNull OrderLine line) -> line.delivered()))
+            .apply(instance, (@NonNull Identifier item, @NonNull Integer requested, @NonNull Integer delivered)
+                    -> new OrderLine(item, requested, delivered)));
+    private static final Codec<OrderLine> ORDER_LINE = ORDER_LINE_WITH_COMPONENTS.withAlternative(LEGACY_ORDER_LINE);
+    private static final Codec<CargoOrder> ORDER = RecordCodecBuilder.create(instance -> instance.group(
+            UUIDUtil.CODEC.fieldOf("id").forGetter((@NonNull CargoOrder order) -> order.id()),
+            UUIDUtil.CODEC.fieldOf("player").forGetter((@NonNull CargoOrder order) -> order.playerId()),
+            Codec.INT.fieldOf("route").forGetter((@NonNull CargoOrder order) -> order.routeId()),
+            Codec.INT.fieldOf("origin").forGetter((@NonNull CargoOrder order) -> order.originWaypointId()),
+            Codec.INT.fieldOf("destination").forGetter((@NonNull CargoOrder order) -> order.destinationWaypointId()),
+            CARGO_STATION.fieldOf("destinationStation")
+                    .forGetter((@NonNull CargoOrder order) -> order.destinationStation()),
+            ORDER_LINE.listOf().fieldOf("lines").forGetter((@NonNull CargoOrder order) -> order.lines()),
+            enumCodec(RouteOperationResult.class).optionalFieldOf("activation", RouteOperationResult.SUCCESS)
+                    .forGetter((@NonNull CargoOrder order) -> order.activationResult()))
+            .apply(instance, (@NonNull UUID id, @NonNull UUID player, @NonNull Integer route,
+                    @NonNull Integer origin, @NonNull Integer destination,
+                    @NonNull CargoStationBinding destinationStation, @NonNull List<OrderLine> lines,
+                    @NonNull RouteOperationResult activation)
+                    -> new CargoOrder(id, player, route, origin, destination, destinationStation, lines, activation)));
 
     /** Root codec supplied to Minecraft's {@code SavedDataType}. */
     static final Codec<FarAndWideSavedData> SAVED_DATA = RecordCodecBuilder.create(instance -> instance.group(
@@ -166,7 +209,9 @@ public final class RouteCodecs {
             VEHICLE_LOCATION_ENTRY.listOf().optionalFieldOf("vehicleLocations", List.of())
                     .forGetter((@NonNull FarAndWideSavedData data) -> vehicleLocationEntries(data)),
             DEATH_ROUTE_ENTRY.listOf().optionalFieldOf("deathRoutes", List.of())
-                    .forGetter((@NonNull FarAndWideSavedData data) -> deathRouteEntries(data)))
+                    .forGetter((@NonNull FarAndWideSavedData data) -> deathRouteEntries(data)),
+            ORDER.listOf().optionalFieldOf("orders", List.of())
+                    .forGetter((@NonNull FarAndWideSavedData data) -> data.getOrders()))
             .apply(instance, (@NonNull Integer dataVersion, @NonNull Integer nextRouteId,
                     @NonNull Integer nextAssigneeId, @NonNull Integer nextWaypointId,
                     @NonNull List<Route> routes, @NonNull List<AssignmentEntry> assignments,
@@ -174,10 +219,10 @@ public final class RouteCodecs {
                     @NonNull List<VehicleAssigneeEntry> vehicleAssignees,
                     @NonNull List<VehicleIdentityEntry> vehicleIdentities,
                     @NonNull List<VehicleLocationEntry> vehicleLocations,
-                    @NonNull List<DeathRouteEntry> deathRoutes)
+                    @NonNull List<DeathRouteEntry> deathRoutes, @NonNull List<CargoOrder> orders)
                     -> savedData(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
                             assignments, selectedRoutes, vehicleAssignees, vehicleIdentities, vehicleLocations,
-                            deathRoutes)));
+                            deathRoutes, orders)));
 
     private RouteCodecs() {
     }
@@ -197,9 +242,10 @@ public final class RouteCodecs {
 
     private static CargoBehavior cargoBehavior(CargoOperation operation, CargoFilter loadFilter,
             CargoFilter unloadFilter, Optional<CargoStationBinding> loadStation,
-            Optional<CargoStationBinding> unloadStation, Optional<CargoStationBinding> legacyStation) {
+            Optional<CargoStationBinding> unloadStation, Optional<CargoStationBinding> legacyStation,
+            List<CargoStationBinding> sources) {
         return new CargoBehavior(operation, loadFilter, unloadFilter,
-                loadStation.or(() -> legacyStation), unloadStation.or(() -> legacyStation));
+                loadStation.or(() -> legacyStation), unloadStation.or(() -> legacyStation), sources);
     }
 
     private static Route route(int id, String name, TraversalType traversalType, List<Waypoint> waypoints) {
@@ -256,7 +302,7 @@ public final class RouteCodecs {
             int nextWaypointId,
             List<Route> routes, List<AssignmentEntry> assignments, List<SelectedRouteEntry> selectedRoutes,
             List<VehicleAssigneeEntry> vehicleAssignees, List<VehicleIdentityEntry> vehicleIdentities,
-            List<VehicleLocationEntry> vehicleLocations, List<DeathRouteEntry> deathRoutes) {
+            List<VehicleLocationEntry> vehicleLocations, List<DeathRouteEntry> deathRoutes, List<CargoOrder> orders) {
         Map<Integer, RouteAssignment> assignmentsByAssignee = assignments.stream().collect(Collectors.toMap(
                 entry -> entry.assigneeId(), entry -> entry.assignment(), (first, ignored) -> first));
         Map<Integer, Integer> selectedRouteByAssignee = selectedRoutes.stream().collect(Collectors.toMap(
@@ -271,9 +317,11 @@ public final class RouteCodecs {
                         entry -> entry.vehicleUuid(), entry -> entry.location(), (first, ignored) -> first));
         Map<UUID, Integer> deathRouteByPlayerUuid = deathRoutes.stream().collect(Collectors.toMap(
                 entry -> entry.playerUuid(), entry -> entry.routeId(), (first, ignored) -> first));
-        return FarAndWideSavedData.restore(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
+        FarAndWideSavedData data = FarAndWideSavedData.restore(dataVersion, nextRouteId, nextAssigneeId, nextWaypointId, routes,
                 assignmentsByAssignee, selectedRouteByAssignee, vehicleAssigneeByUuid, vehicleIdentityByUuid,
                 vehicleLocationByUuid, deathRouteByPlayerUuid);
+        data.restoreOrders(orders);
+        return data;
     }
 
     private static <E extends Enum<E>> Codec<E> enumCodec(Class<E> enumClass) {

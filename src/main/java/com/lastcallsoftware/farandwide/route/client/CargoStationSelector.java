@@ -55,10 +55,19 @@ final class CargoStationSelector {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.hitResult instanceof BlockHitResult hit) {
             CargoStationBinding station = new CargoStationBinding(hit.getBlockPos(), hit.getDirection());
-            if (!selection.screen.isStationWithinArrivalRadius(station)) {
+            if (!(selection.role == Role.SOURCE ? selection.screen.isSourceWithinRange(station)
+                    : selection.screen.isStationWithinArrivalRadius(station))) {
                 if (minecraft.player != null) {
                     minecraft.player.sendOverlayMessage(
-                            Component.translatable("message.farandwide.cargo_station_out_of_range"));
+                            selection.role == Role.SOURCE
+                                    ? Component.translatable("message.farandwide.source_out_of_range", (int) com.lastcallsoftware.farandwide.Constants.Orders.SOURCE_RADIUS)
+                                    : Component.translatable("message.farandwide.cargo_station_out_of_range"));
+                }
+                return;
+            }
+            if (selection.role == Role.SOURCE && !selection.screen.isInventory(station)) {
+                if (minecraft.player != null) {
+                    minecraft.player.sendOverlayMessage(Component.translatable("message.farandwide.source_not_inventory"));
                 }
                 return;
             }
@@ -119,6 +128,7 @@ final class CargoStationSelector {
 
     enum Role {
         LOAD,
-        UNLOAD
+        UNLOAD,
+        SOURCE
     }
 }

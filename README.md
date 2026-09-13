@@ -47,6 +47,18 @@ Edit any Waypoint by 'using' it (default: right-click) and change it into a Carg
 
 Item filters can restrict which items a Vehicle loads or unloads.  Cargo Stations can use compatible inventory blocks such as chests, barrels, hoppers, and furnaces.
 
+Each stack loaded or unloaded takes one second at normal server speed. There is no fixed wait when nothing can transfer. Resuming a completed One Way Route returns the Vehicle to its last endpoint and performs that Waypoint's cargo operation again before beginning the return journey.
+
+## Orders
+
+Edit the origin Cargo Waypoint, select **Sources**, and link the inventories that supply its Load Station. Sources may be up to 8 blocks from the Waypoint. Press **Done**, then **Save** in the Waypoint editor. The Load Station must be separate from the Source Inventories.
+
+Open **Orders** from the command menu and choose **Place Order**. Select a Route and the numbered origin/destination Waypoints, then move currently available items from the left inventory into the Order Items inventory on the right. Both endpoint filters must allow those items. Named, enchanted, damaged, and other modified item variants are shown and ordered separately so their components remain intact.
+
+An Order is accepted only when all requested items can be moved from the linked sources into the Load Station at once. Insufficient stock or space leaves every inventory unchanged. The Route is then activated; providing suitable Vehicles and arranging enough trips remains the player's responsibility. Remote assembly loads only the linked storage chunks and requires server chunk loading to be enabled when those chunks are not already loaded.
+
+Tracking counts actual unloads at the selected destination, crediting the oldest matching outstanding Order first. Existing chest contents and manual deposits do not count; collecting delivered items does not erase progress. Multiple Vehicles and trips may fulfill one Order. Orders are visible to their requesting player and persist across saves. **Remove Tracking** cancels only the record, leaving cargo and Route activity unchanged. Deleting a Route or an Order's endpoint also removes its tracking record.
+
 ## Important route-safety notes
 
 Vehicles navigate directly toward their next waypoint —- they do not pathfind around obstacles.  Make sure your Routes avoid walls, lava, and other hazards.

@@ -11,6 +11,9 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.lastcallsoftware.farandwide.Constants;
+import com.lastcallsoftware.farandwide.route.CargoOrder;
+import com.lastcallsoftware.farandwide.route.CargoStationBinding;
+import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.FarAndWide;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
@@ -20,12 +23,14 @@ import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 
 import net.minecraft.resources.Identifier;
+import net.neoforged.neoforge.transfer.item.ItemResource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.world.phys.Vec3;
 import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
 
 /**
  * Server-owned, world-scoped route storage.
@@ -47,6 +52,7 @@ public final class FarAndWideSavedData extends SavedData {
             ID, FarAndWideSavedData::new, RouteCodecs.SAVED_DATA, null);
 
     private final List<Route> routes = new ArrayList<>();
+    private final List<CargoOrder> orders = new ArrayList<>();
     private final Map<Integer, RouteAssignment> assignmentsByAssignee = new HashMap<>();
     private final Map<Integer, Integer> selectedRouteByAssignee = new HashMap<>();
     private final Map<UUID, Integer> vehicleAssigneeByUuid = new HashMap<>();
@@ -62,6 +68,74 @@ public final class FarAndWideSavedData extends SavedData {
     }
 
     public List<Route> getRoutes() { return List.copyOf(routes); }
+    public @NonNull List<CargoOrder> getOrders() { return List.copyOf(orders); }
+
+    public @Nullable CargoOrder getOrder(@NonNull UUID id) {
+        return orders.stream().filter(order -> order.id().equals(id)).findFirst().orElse(null);
+    }
+
+    public void addOrder(@NonNull CargoOrder order) {
+        if (orders.size() >= Constants.Orders.MAX_TRACKED_ORDERS || getOrder(order.id()) != null
+                || getWaypoint(order.routeId(), order.originWaypointId()) == null
+                || getWaypoint(order.routeId(), order.destinationWaypointId()) == null) {
+            throw new IllegalArgumentException("Order cannot be added");
+        }
+        orders.add(order);
+        setDirty();
+    }
+
+    /** Cancelling forgets only the owner's tracking record; cargo and assignments remain untouched. */
+    public boolean cancelOrder(@NonNull UUID id, @NonNull UUID playerId) {
+        boolean removed = orders.removeIf(order -> order.id().equals(id) && order.playerId().equals(playerId));
+        if (removed) setDirty();
+        return removed;
+    }
+
+    public void setOrderActivationResult(@NonNull UUID id, @NonNull RouteOperationResult result) {
+        CargoOrder order = getOrder(id);
+        if (order != null && order.activationResult() != result) {
+            orders.set(orders.indexOf(order), order.withActivationResult(result));
+            setDirty();
+        }
+    }
+
+    /** Credits each successfully unloaded item once, in order-placement order across all players. */
+    public boolean creditOrders(int routeId, int waypointId, @NonNull CargoStationBinding station,
+            @NonNull Identifier itemId, int amount) {
+        return creditOrders(routeId, waypointId, station,
+                ItemResource.of(net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(itemId)), amount);
+    }
+
+    public boolean creditOrders(int routeId, int waypointId, @NonNull CargoStationBinding station,
+            @NonNull ItemResource resource, int amount) {
+        boolean changed = false;
+        for (int index = 0; index < orders.size() && amount > 0; index++) {
+            CargoOrder order = orders.get(index);
+            if (order.routeId() != routeId || order.destinationWaypointId() != waypointId
+                    || !order.destinationStation().equals(station)) continue;
+            int credited = Math.min(amount, order.remaining(resource));
+            if (credited > 0) {
+                orders.set(index, order.credit(resource, credited));
+                amount -= credited;
+                changed = true;
+            }
+        }
+        if (changed) setDirty();
+        return changed;
+    }
+
+    /** Old saves have no orders; discard orphaned or duplicate records without disturbing route data. */
+    void restoreOrders(@NonNull List<CargoOrder> savedOrders) {
+        for (CargoOrder order : savedOrders) {
+            if (getOrder(order.id()) == null && orders.size() < Constants.Orders.MAX_TRACKED_ORDERS
+                    && getWaypoint(order.routeId(), order.originWaypointId()) != null
+                    && getWaypoint(order.routeId(), order.destinationWaypointId()) != null) {
+                orders.add(order);
+            } else {
+                setDirty();
+            }
+        }
+    }
     public List<RouteAssignment> getAssignments() { return List.copyOf(assignmentsByAssignee.values()); }
     public Map<Integer, RouteAssignment> getAssignmentsByAssignee() { return Map.copyOf(assignmentsByAssignee); }
     Map<Integer, Integer> getSelectedRoutesByAssignee() { return Map.copyOf(selectedRouteByAssignee); }
@@ -170,6 +244,14 @@ public final class FarAndWideSavedData extends SavedData {
         return vehicleAssigneeByUuid.containsValue(assigneeId);
     }
 
+    /** Whether this vehicle-backed assignment was last observed with usable cargo storage. */
+    public boolean isCargoVehicleAssignee(int assigneeId) {
+        return getVehicleUuid(assigneeId)
+                .map(vehicleIdentityByUuid::get)
+                .map((FarAndWideSavedData.@NonNull VehicleIdentity identity) -> identity.cargoCapable())
+                .orElse(false);
+    }
+
     /** Returns every vehicle-backed assignment without exposing persistent UUIDs to clients. */
     public List<VehicleRouteAssignment> getVehicleRouteAssignments() {
         return vehicleAssigneeByUuid.entrySet().stream()
@@ -220,6 +302,11 @@ public final class FarAndWideSavedData extends SavedData {
      * refreshed when an entity type gains a more specific normalization rule.
      */
     public boolean registerVehicle(UUID vehicleUuid, int assigneeId, String vehicleTypeKey) {
+        return registerVehicle(vehicleUuid, assigneeId, vehicleTypeKey, false);
+    }
+
+    /** Updates a vehicle's persistent identity and its last observed cargo capability. */
+    public boolean registerVehicle(UUID vehicleUuid, int assigneeId, String vehicleTypeKey, boolean cargoCapable) {
         if (vehicleUuid == null || getAssignment(assigneeId) == null
                 || vehicleTypeKey == null || vehicleTypeKey.isBlank()) {
             return false;
@@ -233,7 +320,7 @@ public final class FarAndWideSavedData extends SavedData {
                     .max()
                     .orElse(0) + 1;
             vehicleIdentityByUuid.put(vehicleUuid, new VehicleIdentity(
-                    normalizedType, number, createDisplayName(normalizedType, number)));
+                    normalizedType, number, createDisplayName(normalizedType, number), cargoCapable));
             setDirty();
             changed = true;
         } else {
@@ -241,10 +328,11 @@ public final class FarAndWideSavedData extends SavedData {
             String oldGeneratedName = createDisplayName(identity.typeKey(), identity.number());
             if (!identity.typeKey().equals(normalizedType)) {
                 int number = identity.number();
+                int previousNumber = identity.number();
                 boolean numberInUse = vehicleIdentityByUuid.entrySet().stream()
                         .anyMatch(entry -> !entry.getKey().equals(vehicleUuid)
                                 && normalizeVehicleType(entry.getValue().typeKey()).equals(normalizedType)
-                                && entry.getValue().number() == identity.number());
+                                && entry.getValue().number() == previousNumber);
                 if (numberInUse) {
                     number = vehicleIdentityByUuid.values().stream()
                             .filter(other -> normalizeVehicleType(other.typeKey()).equals(normalizedType))
@@ -256,7 +344,14 @@ public final class FarAndWideSavedData extends SavedData {
                         ? createDisplayName(normalizedType, number)
                         : identity.displayName();
                 vehicleIdentityByUuid.put(vehicleUuid, new VehicleIdentity(
-                        normalizedType, number, displayName));
+                        normalizedType, number, displayName, cargoCapable));
+                setDirty();
+                changed = true;
+                identity = vehicleIdentityByUuid.get(vehicleUuid);
+            }
+            if (identity.cargoCapable() != cargoCapable) {
+                vehicleIdentityByUuid.put(vehicleUuid, new VehicleIdentity(
+                        identity.typeKey(), identity.number(), identity.displayName(), cargoCapable));
                 setDirty();
                 changed = true;
             }
@@ -280,7 +375,7 @@ public final class FarAndWideSavedData extends SavedData {
             return false;
         }
         vehicleIdentityByUuid.put(vehicleUuid,
-                new VehicleIdentity(identity.typeKey(), identity.number(), displayName));
+                new VehicleIdentity(identity.typeKey(), identity.number(), displayName, identity.cargoCapable()));
         setDirty();
         return true;
     }
@@ -361,9 +456,7 @@ public final class FarAndWideSavedData extends SavedData {
         if (targetWaypointIndex < 0) {
             return null;
         }
-        boolean active = assignmentsByAssignee.values().stream()
-                .anyMatch(existing -> existing.getRouteId() == routeId && existing.isActive());
-        RouteAssignment assignment = new RouteAssignment(routeId, assigneeId, targetWaypointIndex, 1, null, active);
+        RouteAssignment assignment = new RouteAssignment(routeId, assigneeId, targetWaypointIndex, 1, null, false);
         assignmentsByAssignee.put(assigneeId, assignment);
         setDirty();
         return assignment;
@@ -634,6 +727,7 @@ public final class FarAndWideSavedData extends SavedData {
         vehicleAssigneeByUuid.keySet().removeAll(removedVehicles);
         vehicleLocationByUuid.keySet().removeAll(removedVehicles);
         deathRouteByPlayerUuid.values().removeIf(deathRouteId -> deathRouteId == routeId);
+        orders.removeIf(order -> order.routeId() == routeId);
         selectedRouteByAssignee.values().removeIf(selectedRouteId -> selectedRouteId == routeId);
         setDirty();
         return true;
@@ -648,6 +742,9 @@ public final class FarAndWideSavedData extends SavedData {
 
     private void replaceRoute(Route oldRoute, Route newRoute) {
         routes.set(routes.indexOf(oldRoute), newRoute);
+        orders.removeIf(order -> order.routeId() == newRoute.getId()
+                && (findWaypointIndex(newRoute, order.originWaypointId()) < 0
+                        || findWaypointIndex(newRoute, order.destinationWaypointId()) < 0));
     }
 
     private static int findWaypointIndex(Route route, int waypointId) {
@@ -827,7 +924,7 @@ public final class FarAndWideSavedData extends SavedData {
     }
 
     /** Persistent human-readable identity retained even while a vehicle is unassigned. */
-    public record VehicleIdentity(String typeKey, int number, String displayName) {
+    public record VehicleIdentity(String typeKey, int number, String displayName, boolean cargoCapable) {
     }
 
     /** Last known location used to reacquire an unloaded assigned vehicle. */

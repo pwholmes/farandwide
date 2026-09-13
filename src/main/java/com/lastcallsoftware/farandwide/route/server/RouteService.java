@@ -13,6 +13,7 @@ import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
 import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
 import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
+import com.lastcallsoftware.farandwide.vehicle.server.cargo.CargoVehicleInventory;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,13 +47,6 @@ public final class RouteService {
         return new RouteState(data.getRoutes(), data.getSelectedRouteId(playerId));
     }
 
-    public static RouteState getRoutesForBroadcast(ServerPlayer player) {
-        // Selections belong to individual persistent player IDs. A broadcast
-        // therefore carries no selection; the initiating player receives a
-        // second, personalized snapshot through getRoutes(player).
-        return new RouteState(data(player).getRoutes(), 0);
-    }
-
     public static AssignmentState getAssignment(ServerPlayer player) {
         FarAndWideSavedData data = data(player);
         Entity assignee = controlledAssignee(player);
@@ -69,11 +63,13 @@ public final class RouteService {
         return data.getSelectedRouteId(assigneeId(player, data));
     }
 
-    /** Records the player's latest death without changing their selected route. */
+    /** Records the player's latest death and clears their selection and assignment. */
     public static Route recordPlayerDeath(ServerPlayer player) {
         FarAndWideSavedData data = data(player);
+        VehicleChunkLoadingManager.release(player);
         return recordPlayerDeath(
                 data,
+                assigneeId(player, data),
                 player.getUUID(),
                 player.getGameProfile().name(),
                 player.position(),
@@ -81,9 +77,11 @@ public final class RouteService {
                 routeId -> stopLoadedAssignees(player, data, routeId));
     }
 
-    static Route recordPlayerDeath(FarAndWideSavedData data, UUID playerUuid, String playerName,
+    static Route recordPlayerDeath(FarAndWideSavedData data, int playerAssigneeId, UUID playerUuid, String playerName,
             Vec3 position, net.minecraft.resources.Identifier dimension,
             java.util.function.IntConsumer stopAssignees) {
+        data.removeAssignment(playerAssigneeId);
+        data.clearSelectedRouteId(playerAssigneeId);
         int existingRouteId = data.getDeathRouteId(playerUuid);
         if (existingRouteId > 0) {
             stopAssignees.accept(existingRouteId);
@@ -218,7 +216,8 @@ public final class RouteService {
         if (assignee != player) {
             net.minecraft.resources.Identifier entityType =
                     net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(assignee.getType());
-            data.registerVehicle(assignee.getUUID(), assigneeId, entityType.getPath());
+            data.registerVehicle(assignee.getUUID(), assigneeId, entityType.getPath(),
+                    CargoVehicleInventory.find(assignee).isPresent());
             data.updateVehicleCustomName(
                     assignee.getUUID(), assignee.getCustomName() == null ? null : assignee.getCustomName().getString());
             data.updateVehicleLocation(assignee.getUUID(), dimension(assignee), assignee.blockPosition());
@@ -451,6 +450,39 @@ public final class RouteService {
         return firstFailure;
     }
 
+    /** Activates only vehicles on the route that were last observed with usable cargo storage. */
+    public static RouteOperationResult activateCargoVehicleAssignmentsForOrder(ServerPlayer player, int routeId) {
+        FarAndWideSavedData data = data(player);
+        if (data.getRoute(routeId) == null) return RouteOperationResult.ROUTE_NOT_FOUND;
+        List<RouteAssignment> assignments = data.getAssignments().stream()
+                .filter(assignment -> assignment.getRouteId() == routeId)
+                .filter(assignment -> data.isVehicleAssignee(assignment.getAssigneeId()))
+                .toList();
+        if (assignments.isEmpty()) return RouteOperationResult.NO_ASSIGNMENT;
+
+        RouteOperationResult firstFailure = RouteOperationResult.SUCCESS;
+        boolean cargoVehicleAssigned = false;
+        for (RouteAssignment assignment : assignments) {
+            int assigneeId = assignment.getAssigneeId();
+            UUID vehicleUuid = data.getVehicleUuid(assigneeId).orElse(null);
+            Entity loadedVehicle = vehicleUuid == null ? null : findLoadedEntity(player.level().getServer(), vehicleUuid);
+            if (loadedVehicle != null) {
+                net.minecraft.resources.Identifier entityType =
+                        net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(loadedVehicle.getType());
+                data.registerVehicle(vehicleUuid, assigneeId, entityType.getPath(),
+                        CargoVehicleInventory.find(loadedVehicle).isPresent());
+            }
+            if (!data.isCargoVehicleAssignee(assigneeId)) continue;
+            cargoVehicleAssigned = true;
+            if (assignment.isActive()) continue;
+            RouteOperationResult result = activateVehicleAssignment(player, data, assigneeId);
+            if (firstFailure == RouteOperationResult.SUCCESS && result != RouteOperationResult.SUCCESS) {
+                firstFailure = result;
+            }
+        }
+        return cargoVehicleAssigned ? firstFailure : RouteOperationResult.NO_ASSIGNMENT;
+    }
+
     public static RouteOperationResult createWaypoint(ServerPlayer player, int routeId, Vec3 position,
             net.minecraft.resources.Identifier dimension, WaypointAction action, double arrivalRadius) {
         FarAndWideSavedData data = data(player);
@@ -575,6 +607,16 @@ public final class RouteService {
         }
         if (!(player.level() instanceof ServerLevel level)) {
             return RouteOperationResult.INVALID_CARGO_STATION;
+        }
+        for (var source : cargo.behavior().sourceInventories()) {
+            if (!com.lastcallsoftware.farandwide.route.WaypointProximity.isWithinArrivalRadius(
+                    waypointPosition, Constants.Orders.SOURCE_RADIUS, source.position())
+                    || cargo.behavior().loadStation().filter(binding -> binding.position().equals(source.position())).isPresent()
+                    || cargo.behavior().unloadStation().filter(binding -> binding.position().equals(source.position())).isPresent()
+                    || !CargoStationResolver.hasLoadedChunk(level, source.position())
+                    || CargoStationResolver.findInventory(level, source).isEmpty()) {
+                return RouteOperationResult.INVALID_CARGO_STATION;
+            }
         }
         boolean valid = switch (cargo.behavior().operation()) {
             case LOAD -> validStation(level, waypointPosition, arrivalRadius, cargo.behavior().loadStation());
