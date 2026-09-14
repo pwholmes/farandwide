@@ -12,6 +12,8 @@ import java.util.UUID;
 
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.CargoOrder;
+import com.lastcallsoftware.farandwide.route.CargoBehavior;
+import com.lastcallsoftware.farandwide.route.CargoOperation;
 import com.lastcallsoftware.farandwide.route.CargoStationBinding;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.FarAndWide;
@@ -89,6 +91,52 @@ public final class FarAndWideSavedData extends SavedData {
         boolean removed = orders.removeIf(order -> order.id().equals(id) && order.playerId().equals(playerId));
         if (removed) setDirty();
         return removed;
+    }
+
+    /** Removes bindings to a destroyed station and downgrades the affected cargo operation without polling routes. */
+    public StationRepair repairDestroyedStation(@NonNull Identifier dimension, @NonNull BlockPos position) {
+        Map<Integer, List<Integer>> affected = new HashMap<>();
+        for (Route route : List.copyOf(routes)) {
+            for (Waypoint waypoint : route.getWaypoints()) {
+                if (!waypoint.dimension().equals(dimension) || !(waypoint.action() instanceof WaypointAction.Cargo cargo)) continue;
+                CargoBehavior behavior = cargo.behavior();
+                boolean lostLoad = behavior.loadStation().map(station -> station.position().equals(position)).orElse(false);
+                boolean lostUnload = behavior.unloadStation().map(station -> station.position().equals(position)).orElse(false);
+                if (!lostLoad && !lostUnload) continue;
+                WaypointAction replacement = replacementAfterStationLoss(behavior, lostLoad, lostUnload);
+                replaceWaypoint(route.getId(), waypoint.id(), new Waypoint(waypoint.id(), waypoint.position(),
+                        waypoint.dimension(), replacement, waypoint.arrivalRadius()));
+                affected.computeIfAbsent(route.getId(), ignored -> new ArrayList<>()).add(waypoint.id());
+            }
+        }
+        Set<UUID> owners = new HashSet<>();
+        if (!affected.isEmpty()) {
+            orders.removeIf(order -> {
+                boolean remove = order.legs().stream().anyMatch(leg -> affected.getOrDefault(leg.routeId(), List.of())
+                        .contains(leg.originWaypointId()) || affected.getOrDefault(leg.routeId(), List.of()).contains(leg.destinationWaypointId()));
+                if (remove) owners.add(order.playerId());
+                return remove;
+            });
+            setDirty();
+        }
+        return new StationRepair(affected, owners);
+    }
+
+    private static WaypointAction replacementAfterStationLoss(CargoBehavior behavior, boolean lostLoad, boolean lostUnload) {
+        if ((behavior.operation() == CargoOperation.LOAD && lostLoad)
+                || (behavior.operation() == CargoOperation.UNLOAD && lostUnload)) return WaypointAction.normal();
+        if (behavior.operation() == CargoOperation.UNLOAD_THEN_LOAD) {
+            if (lostLoad) return WaypointAction.cargo(new CargoBehavior(CargoOperation.UNLOAD,
+                    behavior.loadFilter(), behavior.unloadFilter(), Optional.empty(), behavior.unloadStation(), List.of()));
+            if (lostUnload) return WaypointAction.cargo(new CargoBehavior(CargoOperation.LOAD,
+                    behavior.loadFilter(), behavior.unloadFilter(), behavior.loadStation(), Optional.empty(), behavior.sourceInventories()));
+        }
+        return WaypointAction.cargo(behavior);
+    }
+
+    public record StationRepair(Map<Integer, List<Integer>> waypointsByRoute, Set<UUID> affectedOrderOwners) {
+        public StationRepair { waypointsByRoute = Map.copyOf(waypointsByRoute); affectedOrderOwners = Set.copyOf(affectedOrderOwners); }
+        public boolean changed() { return !waypointsByRoute.isEmpty(); }
     }
 
     public void setOrderActivationResult(@NonNull UUID id, @NonNull RouteOperationResult result) {
@@ -718,11 +766,74 @@ public final class FarAndWideSavedData extends SavedData {
         if (route == null || waypointIndex < 0 || waypointIndex >= route.getWaypoints().size()) {
             return false;
         }
+        Map<Integer, Integer> assignmentTargets = assignmentTargetWaypointIds(route);
         List<Waypoint> waypoints = new ArrayList<>(route.getWaypoints());
         waypoints.remove(waypointIndex);
         replaceRoute(route, new Route(route.getId(), route.getName(), route.getTraversalType(), waypoints));
+        remapAssignmentsAfterWaypointRemoval(route, waypointIndex, waypoints, assignmentTargets);
         setDirty();
         return true;
+    }
+
+    /** Keeps assignments aimed at their stable waypoint, or moves them past a deleted target. */
+    private void remapAssignmentsAfterWaypointRemoval(Route route, int removedIndex, List<Waypoint> waypoints,
+            Map<Integer, Integer> assignmentTargets) {
+        for (Map.Entry<Integer, Integer> entry : assignmentTargets.entrySet()) {
+            RouteAssignment assignment = assignmentsByAssignee.get(entry.getKey());
+            if (assignment == null || assignment.getRouteId() != route.getId()) {
+                continue;
+            }
+            int targetIndex = findWaypointIndex(waypoints, entry.getValue());
+            if (targetIndex >= 0) {
+                assignmentsByAssignee.put(entry.getKey(), new RouteAssignment(
+                        assignment.getRouteId(), assignment.getAssigneeId(), targetIndex,
+                        assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), assignment.isActive(),
+                        assignment.isRestartAnchor()));
+            } else {
+                adjustAssignmentForDeletedTarget(entry.getKey(), assignment, route, removedIndex, waypoints.size());
+            }
+        }
+    }
+
+    private void adjustAssignmentForDeletedTarget(int assigneeId, RouteAssignment assignment, Route route,
+            int removedIndex, int waypointCount) {
+        if (waypointCount == 0) {
+            assignmentsByAssignee.put(assigneeId, new RouteAssignment(
+                    assignment.getRouteId(), assignment.getAssigneeId(), 0,
+                    assignment.getTraversalDirection(), assignment.getTraversalTypeOverride(), false, false));
+            return;
+        }
+
+        int direction = assignment.getTraversalDirection();
+        int targetIndex = removedIndex + (direction > 0 ? 0 : -1);
+        boolean active = assignment.isActive();
+        boolean restartAnchor = false;
+        switch (assignment.getTraversalType(route)) {
+            case LOOP -> targetIndex = Math.floorMod(targetIndex, waypointCount);
+            case REVERSE -> {
+                if (targetIndex >= waypointCount) {
+                    targetIndex = waypointCount - 1;
+                    direction = -1;
+                } else if (targetIndex < 0) {
+                    targetIndex = 0;
+                    direction = 1;
+                }
+            }
+            case ONE_WAY -> {
+                if (targetIndex >= waypointCount) {
+                    targetIndex = waypointCount - 1;
+                    active = false;
+                    restartAnchor = true;
+                } else if (targetIndex < 0) {
+                    targetIndex = 0;
+                    active = false;
+                    restartAnchor = true;
+                }
+            }
+        }
+        assignmentsByAssignee.put(assigneeId, new RouteAssignment(
+                assignment.getRouteId(), assignment.getAssigneeId(), targetIndex, direction,
+                assignment.getTraversalTypeOverride(), active, restartAnchor));
     }
 
     public boolean deleteRoute(int routeId) {

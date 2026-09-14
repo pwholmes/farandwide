@@ -92,6 +92,32 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void deletingWaypointRetargetsAssignmentsAndPreservesOtherTargets() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(1, 64, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(2, 64, 0), OVERWORLD));
+        data.addWaypoint(route.getId(), new Waypoint(new Vec3(3, 64, 0), OVERWORLD));
+        route = data.getRoute(route.getId());
+
+        int forwardAssignee = data.allocateAssigneeId();
+        int reverseAssignee = data.allocateAssigneeId();
+        int unaffectedAssignee = data.allocateAssigneeId();
+        data.assignRoute(route.getId(), forwardAssignee, new Vec3(2, 64, 0), OVERWORLD);
+        data.assignRoute(route.getId(), reverseAssignee, new Vec3(2, 64, 0), OVERWORLD);
+        data.assignRoute(route.getId(), unaffectedAssignee, new Vec3(3, 64, 0), OVERWORLD);
+        data.updateAssignmentProgress(forwardAssignee, 1, 1);
+        data.updateAssignmentProgress(reverseAssignee, 1, -1);
+        data.updateAssignmentProgress(unaffectedAssignee, 2, 1);
+
+        assertTrue(data.removeWaypointById(route.getId(), route.getWaypoints().get(1).id()));
+
+        assertEquals(1, data.getAssignment(forwardAssignee).getTargetWaypointIndex());
+        assertEquals(0, data.getAssignment(reverseAssignee).getTargetWaypointIndex());
+        assertEquals(1, data.getAssignment(unaffectedAssignee).getTargetWaypointIndex());
+    }
+
+    @Test
     void replacementCannotChangeStableWaypointId() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();
