@@ -103,7 +103,10 @@ public final class OrderService {
                     ItemResource resource = source.getResource(slot);
                     if (resource.isEmpty()) continue;
                     int amount = source.getAmountAsInt(slot);
-                    if (amount > 0) quantities.merge(resource, amount, Integer::sum);
+                    if (amount > 0) {
+                        int existingAmount = quantities.getOrDefault(resource, 0);
+                        quantities.put(resource, existingAmount + amount);
+                    }
                 }
             });
         }

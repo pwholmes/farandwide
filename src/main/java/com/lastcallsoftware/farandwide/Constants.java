@@ -62,7 +62,6 @@ public final class Constants {
         public static final float EQUINE_MAX_TURN_PER_TICK = 4.0F;
         public static final float EQUINE_HEADING_DEAD_ZONE_DEGREES = 1.0F;
         public static final float EQUINE_FACING_TARGET_TOLERANCE = 5.0F;
-        public static final double EQUINE_MOVEMENT_SPEED_MODIFIER = 1.0;
         public static final double EQUINE_TURNING_SPEED_RATIO = 0.2;
 
         private Vehicles() {

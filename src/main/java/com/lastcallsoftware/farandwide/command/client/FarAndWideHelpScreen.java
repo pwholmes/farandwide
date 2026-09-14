@@ -21,12 +21,13 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
     private static final int CONTENT_BOTTOM_MARGIN = 60;
     private static final int PANEL_MAX_WIDTH = 400;
     private static final int PANEL_PADDING = 12;
-    private static final int INDEX_LINK_GAP = 18;
+    private static final int INDEX_LINK_GAP = 14;
     private static final int BUTTON_WIDTH = 90;
     private static final int BUTTON_GAP = 6;
     private static final int INDEX_PAGE = 0;
     private static final int ROUTES_PAGE = 1;
     private static final int CARGO_PAGE = 7;
+    private static final int ORDERS_PAGE = 11;
     private static final int TIPS_AND_TRICKS_PAGE = 12;
 
     private static final HelpPage[] PAGES = {
@@ -51,7 +52,16 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
                     texture("cargo_stations")),
             new HelpPage("screen.farandwide.help.cargo.operations.title", "screen.farandwide.help.cargo.operations.body",
                     texture("cargo_transfer")),
-            new HelpPage("screen.farandwide.help.orders.title", "screen.farandwide.help.orders.body", null),
+            new HelpPage("screen.farandwide.help.orders.title", "screen.farandwide.help.orders.body",
+                    texture("order_intro")),
+            new HelpPage("screen.farandwide.help.orders.sources.title", "screen.farandwide.help.orders.sources.body",
+                    texture("order_sources")),
+            new HelpPage("screen.farandwide.help.orders.placement.title", "screen.farandwide.help.orders.placement.body",
+                    texture("order_placement")),
+            new HelpPage("screen.farandwide.help.orders.multileg.title", "screen.farandwide.help.orders.multileg.body",
+                    texture("order_multileg")),
+            new HelpPage("screen.farandwide.help.orders.handoff.title", "screen.farandwide.help.orders.handoff.body",
+                    texture("order_handoff")),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page1.title", "screen.farandwide.help.tips_and_tricks.page1.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page2.title", "screen.farandwide.help.tips_and_tricks.page2.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page3.title", "screen.farandwide.help.tips_and_tricks.page3.body", null),
@@ -97,12 +107,13 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
                 .bounds(left + (BUTTON_WIDTH + BUTTON_GAP) * 2, buttonY, BUTTON_WIDTH, 20)
                 .build());
 
-        int linkY = height - CONTENT_BOTTOM_MARGIN - PANEL_PADDING - font.lineHeight - INDEX_LINK_GAP * 2;
+        int linkY = height - CONTENT_BOTTOM_MARGIN - PANEL_PADDING - font.lineHeight - INDEX_LINK_GAP * 3;
         sectionButtons = List.of(
                 sectionButton("screen.farandwide.help.index.routes", ROUTES_PAGE, linkY),
                 sectionButton("screen.farandwide.help.index.cargo", CARGO_PAGE, linkY + INDEX_LINK_GAP),
+                sectionButton("screen.farandwide.help.index.orders", ORDERS_PAGE, linkY + INDEX_LINK_GAP * 2),
                 sectionButton("screen.farandwide.help.index.tips_and_tricks", TIPS_AND_TRICKS_PAGE,
-                        linkY + INDEX_LINK_GAP * 2));
+                        linkY + INDEX_LINK_GAP * 3));
         updateButtonState();
     }
 

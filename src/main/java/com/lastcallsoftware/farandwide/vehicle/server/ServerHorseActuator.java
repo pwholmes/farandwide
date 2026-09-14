@@ -1,9 +1,10 @@
 package com.lastcallsoftware.farandwide.vehicle.server;
 
-import com.lastcallsoftware.farandwide.vehicle.VehicleActuator;
-import com.lastcallsoftware.farandwide.vehicle.HorseControls;
+import com.lastcallsoftware.farandwide.Config;
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.vehicle.EquineVehicleSupport;
+import com.lastcallsoftware.farandwide.vehicle.HorseControls;
+import com.lastcallsoftware.farandwide.vehicle.VehicleActuator;
 import com.lastcallsoftware.farandwide.vehicle.navigation.NavigationIntent;
 
 import net.minecraft.world.entity.Entity;
@@ -45,13 +46,13 @@ final class ServerHorseActuator implements VehicleActuator {
             // without the full moving-turn behavior used when the setting is enabled.
             if (hasNextNode(path)) {
                 horse.getNavigation().moveTo(
-                        path, Constants.Vehicles.EQUINE_MOVEMENT_SPEED_MODIFIER
+                        path, Config.equineRouteSpeedMultiplier()
                                 * Constants.Vehicles.EQUINE_TURNING_SPEED_RATIO);
             }
             return;
         }
         if (hasNextNode(path)) {
-            horse.getNavigation().moveTo(path, Constants.Vehicles.EQUINE_MOVEMENT_SPEED_MODIFIER);
+            horse.getNavigation().moveTo(path, Config.equineRouteSpeedMultiplier());
         }
     }
 

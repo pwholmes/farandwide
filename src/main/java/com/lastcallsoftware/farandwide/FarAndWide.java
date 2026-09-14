@@ -8,6 +8,7 @@ import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.server.ServerRouteTraversalController;
 import com.lastcallsoftware.farandwide.route.server.ServerMountTransitionController;
 import com.lastcallsoftware.farandwide.route.server.PlayerDeathRouteController;
+import com.lastcallsoftware.farandwide.route.server.CargoStationIntegrityController;
 import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
 import com.lastcallsoftware.farandwide.vehicle.server.BoatNameTagController;
 import com.mojang.logging.LogUtils;
@@ -95,6 +96,7 @@ public class FarAndWide {
         ServerRouteTraversalController.register();
         ServerMountTransitionController.register();
         PlayerDeathRouteController.register();
+        CargoStationIntegrityController.register();
         BoatNameTagController.register();
 
         // Register ourselves for server and other game events we are interested in.

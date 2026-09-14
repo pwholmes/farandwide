@@ -225,7 +225,7 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
         for (OrderLeg leg : order.legs()) {
             List<VehicleRouteAssignment> assignments = RouteManager.getVehicleAssignments(leg.routeId());
             if (assignments.isEmpty()) return Component.translatable("screen.farandwide.order.no_vehicle_assigned");
-            if (assignments.stream().noneMatch(VehicleRouteAssignment::active)) {
+            if (assignments.stream().noneMatch(assignment -> assignment != null && assignment.active())) {
                 return Component.translatable("screen.farandwide.order.vehicles_inactive");
             }
             if (leg.activationResult() != RouteOperationResult.SUCCESS
