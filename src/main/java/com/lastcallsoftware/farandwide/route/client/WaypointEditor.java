@@ -47,6 +47,9 @@ public final class WaypointEditor {
         if (route == null || waypoint == null) {
             showMessage("message.farandwide.no_waypoint_targeted");
         } else {
+            // A station picker keeps its editor hidden while it waits for a block click.
+            // Once the edited waypoint is deleted, that unsaved editor can no longer be valid.
+            CargoStationSelector.cancel();
             RouteManager.deleteWaypoint(route, waypoint.id());
         }
     }
@@ -57,6 +60,8 @@ public final class WaypointEditor {
         if (waypoint == null) {
             RouteManager.addCurrentPosition(route);
         } else {
+            // Delete the waypoint and discard any hidden editor that was selecting one of its stations.
+            CargoStationSelector.cancel();
             RouteManager.deleteWaypoint(route, waypoint.id());
         }
     }

@@ -301,9 +301,11 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             int first = sourcePage * sourcesPerPage();
             for (int index = first; index < Math.min(first + sourcesPerPage(), sourceInventories.size()); index++) {
                 CargoStationBinding source = sourceInventories.get(index);
-                String description = "%d, %d, %d (%s)".formatted(source.position().getX(), source.position().getY(),
-                        source.position().getZ(), source.accessSide().getSerializedName());
-                graphics.text(font, font.plainSubstrByWidth(description, 180), left, 82 + (index - first) * ROW_HEIGHT, 0xFFFFFFFF);
+                Component description = Component.translatable("screen.farandwide.sources.description",
+                        blockName(source), source.position().getX(), source.position().getY(), source.position().getZ(),
+                        source.accessSide().getSerializedName());
+                graphics.text(font, font.plainSubstrByWidth(description.getString(), 180), left,
+                        82 + (index - first) * ROW_HEIGHT, 0xFFFFFFFF);
             }
             if (sourceInventories.isEmpty()) graphics.centeredText(font,
                     Component.translatable("screen.farandwide.sources.empty"), width / 2, 85, 0xFFAAAAAA);
@@ -570,10 +572,17 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         return binding
                 .<Component>map(station -> Component.translatable(
                         "screen.farandwide.cargo_waypoint." + direction + "_station_selected",
-                        station.position().getX(), station.position().getY(), station.position().getZ(),
+                        blockName(station), station.position().getX(), station.position().getY(), station.position().getZ(),
                         station.accessSide().getSerializedName()))
                 .orElseGet(() -> Component.translatable(
                         "screen.farandwide.cargo_waypoint." + direction + "_station_unselected"));
+    }
+
+    /** Returns the localized name of the block currently bound to a station or source. */
+    private Component blockName(CargoStationBinding binding) {
+        return minecraft.level == null
+                ? Component.translatable("block.minecraft.air")
+                : minecraft.level.getBlockState(binding.position()).getBlock().getName();
     }
 
     private int extractFilterItemStrip(GuiGraphicsExtractor graphics, CargoFilter filter,

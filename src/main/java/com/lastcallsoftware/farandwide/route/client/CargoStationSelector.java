@@ -36,6 +36,11 @@ final class CargoStationSelector {
         pending = null;
     }
 
+    /** Discards the hidden waypoint editor when another action removes its waypoint. */
+    static void cancel() {
+        pending = null;
+    }
+
     static boolean isSelecting() {
         return pending != null;
     }
@@ -111,7 +116,8 @@ final class CargoStationSelector {
                 minecraft.font,
                 net.minecraft.network.chat.Component.translatable("message.farandwide.cargo_station_selecting"),
                 graphics.guiWidth() / 2,
-                graphics.guiHeight() - 68,
+                // Leave the action-bar line free for selection errors and other feedback.
+                graphics.guiHeight() - 84,
                 0xFFFFFFFF);
     }
 
