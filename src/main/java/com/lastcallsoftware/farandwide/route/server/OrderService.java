@@ -39,6 +39,8 @@ public final class OrderService {
         }
         if (!validRequest(lines)) return outcome(OrderResult.INVALID_ORDER);
         if (data.getOrders().size() >= Constants.Orders.MAX_TRACKED_ORDERS) return outcome(OrderResult.TRACKING_FULL);
+        OrderResult routeValidation = validateJourneyRoutes(data, journey);
+        if (routeValidation != OrderResult.PLACED) return outcome(routeValidation);
         List<ResolvedLeg> resolved = resolveJourney(data, journey, lines);
         if (resolved == null) return outcome(OrderResult.INVALID_ENDPOINTS);
         Waypoint origin = resolved.getFirst().origin();
@@ -90,6 +92,8 @@ public final class OrderService {
     /** Lists exact item-and-component variants that can presently be extracted from linked source inventories. */
     public static List<AvailableItem> availableItems(ServerPlayer player, int routeId, int originId) {
         FarAndWideSavedData data = FarAndWideSavedData.get(player.level().getServer());
+        Route route = data.getRoute(routeId);
+        if (route == null || !route.supportsOrders()) return List.of();
         Waypoint origin = data.getWaypoint(routeId, originId);
         if (!isOrigin(origin)) return List.of();
         CargoBehavior loading = ((WaypointAction.Cargo) origin.action()).behavior();
@@ -125,6 +129,9 @@ public final class OrderService {
         if (data.getOrders().size() >= Constants.Orders.MAX_TRACKED_ORDERS) return outcome(OrderResult.TRACKING_FULL);
         if (data.getWaypoint(order.routeId(), order.originWaypointId()) == null
                 || data.getWaypoint(order.routeId(), order.destinationWaypointId()) == null) return outcome(OrderResult.INVALID_ENDPOINTS);
+        Route route = data.getRoute(order.routeId());
+        if (route == null) return outcome(OrderResult.INVALID_ENDPOINTS);
+        if (!route.supportsOrders()) return outcome(OrderResult.UNSUPPORTED_TRAVERSAL);
         Outcome assembled = assemble(sources, loadStation, requested);
         if (assembled.result() != OrderResult.PLACED) return assembled;
         data.addOrder(order);
@@ -157,6 +164,16 @@ public final class OrderService {
     static boolean validEndpoints(@Nullable Waypoint origin, @Nullable Waypoint destination) {
         return isOrigin(origin) && isDestination(destination) && origin.id() != destination.id()
                 && origin.dimension().equals(destination.dimension());
+    }
+
+    /** Checks every leg before staging items; PLACED means the traversal check passed. */
+    static OrderResult validateJourneyRoutes(FarAndWideSavedData data, OrderJourney journey) {
+        for (OrderJourney.Leg leg : journey.legs()) {
+            Route route = data.getRoute(leg.routeId());
+            if (route == null) return OrderResult.INVALID_ENDPOINTS;
+            if (!route.supportsOrders()) return OrderResult.UNSUPPORTED_TRAVERSAL;
+        }
+        return OrderResult.PLACED;
     }
 
     private static @Nullable List<ResolvedLeg> resolveJourney(FarAndWideSavedData data, OrderJourney journey,

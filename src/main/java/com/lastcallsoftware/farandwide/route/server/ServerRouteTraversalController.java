@@ -172,10 +172,21 @@ public final class ServerRouteTraversalController {
         boolean finished = session.tick(level.getGameTime(),
                 () -> transferCargoStack(vehicle, unloadStation, behavior.unloadFilter(), level, entity, false,
                         (resource, amount) -> {
-                            if (behavior.unloadStation().isPresent()
-                                    && FarAndWideSavedData.get(level.getServer()).creditOrders(routeId, waypoint.id(),
-                                            behavior.unloadStation().get(), resource, amount)) {
+                            if (behavior.unloadStation().isPresent()) {
+                                FarAndWideSavedData.OrderCreditResult credit = FarAndWideSavedData.get(level.getServer())
+                                        .creditOrdersAndFindCompleted(routeId, waypoint.id(), behavior.unloadStation().get(),
+                                                resource, amount);
+                                if (credit.changed()) {
+                                    for (FarAndWideSavedData.CompletedOrder completedOrder : credit.completedOrders()) {
+                                        net.minecraft.server.level.ServerPlayer owner = level.getServer().getPlayerList()
+                                                .getPlayer(completedOrder.ownerId());
+                                        if (owner != null) owner.sendSystemMessage(
+                                                Component.translatable("message.farandwide.order.delivered", completedOrder.number()), true);
+                                    }
+                                }
+                                if (credit.changed()) {
                                 OrderNetwork.broadcastOrders(level.getServer());
+                                }
                             }
                         }),
                 () -> transferCargoStack(loadStation, vehicle, behavior.loadFilter(), level, entity, true,

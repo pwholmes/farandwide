@@ -162,9 +162,22 @@ public final class FarAndWideSavedData extends SavedData {
                 ItemResource.of(net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(itemId)), amount);
     }
 
+    public OrderCreditResult creditOrdersAndFindCompleted(int routeId, int waypointId,
+            @NonNull CargoStationBinding station, @NonNull Identifier itemId, int amount) {
+        return creditOrdersAndFindCompleted(routeId, waypointId, station,
+                ItemResource.of(net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(itemId)), amount);
+    }
+
     public boolean creditOrders(int routeId, int waypointId, @NonNull CargoStationBinding station,
             @NonNull ItemResource resource, int amount) {
+        return creditOrdersAndFindCompleted(routeId, waypointId, station, resource, amount).changed();
+    }
+
+    /** Credits unload receipts and identifies only orders that became complete in this transfer. */
+    public OrderCreditResult creditOrdersAndFindCompleted(int routeId, int waypointId, @NonNull CargoStationBinding station,
+            @NonNull ItemResource resource, int amount) {
         boolean changed = false;
+        List<CompletedOrder> completedOrders = new ArrayList<>();
         for (int index = 0; index < orders.size() && amount > 0; index++) {
             CargoOrder order = orders.get(index);
             for (int legIndex = 0; legIndex < order.legs().size() && amount > 0; legIndex++) {
@@ -176,16 +189,26 @@ public final class FarAndWideSavedData extends SavedData {
                 int availableForThisLeg = receivedByPreviousLeg - leg.delivered(resource);
                 int credited = Math.min(amount, Math.min(leg.remaining(resource), availableForThisLeg));
                 if (credited > 0) {
+                    boolean wasDelivered = order.delivered();
                     orders.set(index, order.creditLeg(legIndex, resource, credited));
                     order = orders.get(index);
                     amount -= credited;
                     changed = true;
+                    if (!wasDelivered && order.delivered()) completedOrders.add(new CompletedOrder(order.playerId(), index + 1));
                 }
             }
         }
         if (changed) setDirty();
-        return changed;
+        return new OrderCreditResult(changed, List.copyOf(completedOrders));
     }
+
+    /** Receipt outcome used to update order screens and notify owners exactly once on completion. */
+    public record OrderCreditResult(boolean changed, List<CompletedOrder> completedOrders) {
+        public List<UUID> completedOrderOwners() {
+            return completedOrders.stream().map(CompletedOrder::ownerId).toList();
+        }
+    }
+    public record CompletedOrder(UUID ownerId, int number) {}
 
     /** Old saves have no orders; discard orphaned or duplicate records without disturbing route data. */
     void restoreOrders(@NonNull List<CargoOrder> savedOrders) {

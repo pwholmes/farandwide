@@ -2,6 +2,7 @@ package com.lastcallsoftware.farandwide.route.client;
 
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.*;
+import java.util.Comparator;
 import java.util.List;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -21,35 +22,63 @@ final class OrderScreenSupport {
     }
 
     static List<Waypoint> origins(@Nullable Route route) {
-        return route == null ? List.of() : route.getWaypoints().stream()
+        return route == null || !route.supportsOrders() ? List.of() : route.getWaypoints().stream()
                 .filter(waypoint -> waypoint.action() instanceof WaypointAction.Cargo cargo
                         && cargo.behavior().operation() != CargoOperation.UNLOAD
                         && cargo.behavior().loadStation().isPresent() && !cargo.behavior().sourceInventories().isEmpty()).toList();
     }
 
     static List<Waypoint> destinations(@Nullable Route route, @Nullable Waypoint origin) {
-        return route == null || origin == null ? List.of() : route.getWaypoints().stream()
+        return route == null || !route.supportsOrders() || origin == null ? List.of() : route.getWaypoints().stream()
                 .filter(waypoint -> waypoint.id() != origin.id() && waypoint.dimension().equals(origin.dimension())
                         && waypoint.action() instanceof WaypointAction.Cargo cargo
                         && cargo.behavior().operation() != CargoOperation.LOAD && cargo.behavior().unloadStation().isPresent()).toList();
     }
 
-    /** Returns the explicit station-linked continuations of a selected first leg, longest journey last. */
-    static List<OrderJourney> journeys(@Nullable Route route, @Nullable Waypoint origin, @Nullable Waypoint destination) {
-        if (route == null || origin == null || destination == null) return List.of();
-        OrderJourney.Leg first = new OrderJourney.Leg(route.getId(), origin.id(), destination.id());
-        var unload = ((WaypointAction.Cargo) destination.action()).behavior().unloadStation().orElse(null);
-        if (unload == null) return List.of(new OrderJourney(List.of(first)));
+    /** Returns every direct delivery and station-linked continuation from the selected pickup. */
+    static List<OrderJourney> journeys(List<Route> routes, @Nullable Route route, @Nullable Waypoint origin) {
+        if (route == null || origin == null) return List.of();
         List<OrderJourney> journeys = new java.util.ArrayList<>();
-        extend(journeys, List.of(first), unload, destination.dimension());
-        return journeys;
+        for (Waypoint destination : destinations(route, origin)) {
+            OrderJourney.Leg first = new OrderJourney.Leg(route.getId(), origin.id(), destination.id());
+            var unload = ((WaypointAction.Cargo) destination.action()).behavior().unloadStation().orElseThrow();
+            extend(routes, journeys, List.of(first), unload, destination.dimension());
+        }
+        return List.copyOf(journeys);
     }
 
-    private static void extend(List<OrderJourney> result, List<OrderJourney.Leg> prefix,
+    static int destinationRouteId(OrderJourney journey) {
+        return journey.legs().getLast().routeId();
+    }
+
+    static int destinationWaypointId(OrderJourney journey) {
+        return journey.legs().getLast().destinationWaypointId();
+    }
+
+    static List<Integer> destinationRouteIds(List<OrderJourney> journeys) {
+        return journeys.stream().map(OrderScreenSupport::destinationRouteId).distinct().toList();
+    }
+
+    static List<Integer> destinationWaypointIds(List<OrderJourney> journeys, int routeId) {
+        return journeys.stream().filter(journey -> destinationRouteId(journey) == routeId)
+                .map(OrderScreenSupport::destinationWaypointId).distinct().toList();
+    }
+
+    static List<OrderJourney> journeysTo(List<OrderJourney> journeys, int routeId, int waypointId) {
+        return journeys.stream().filter(journey -> destinationRouteId(journey) == routeId
+                && destinationWaypointId(journey) == waypointId).toList();
+    }
+
+    /** Prefers a linked continuation over a direct delivery when choosing an initial itinerary. */
+    static @Nullable OrderJourney preferredJourney(List<OrderJourney> journeys) {
+        return journeys.stream().max(Comparator.comparingInt(journey -> journey.legs().size())).orElse(null);
+    }
+
+    private static void extend(List<Route> routes, List<OrderJourney> result, List<OrderJourney.Leg> prefix,
             CargoStationBinding handoff, Identifier dimension) {
         result.add(new OrderJourney(prefix));
         if (prefix.size() == Constants.Orders.MAX_LEGS) return;
-        for (Route route : RouteManager.getRoutes()) for (Waypoint origin : route.getWaypoints()) {
+        for (Route route : routes) for (Waypoint origin : route.getWaypoints()) {
             if (!(origin.action() instanceof WaypointAction.Cargo cargo) || !origin.dimension().equals(dimension)
                     || cargo.behavior().operation() == CargoOperation.UNLOAD
                     || !handoff.equals(cargo.behavior().loadStation().orElse(null))) continue;
@@ -58,7 +87,7 @@ final class OrderScreenSupport {
                 if (prefix.contains(next)) continue;
                 List<OrderJourney.Leg> extended = new java.util.ArrayList<>(prefix);
                 extended.add(next);
-                extend(result, extended, ((WaypointAction.Cargo) destination.action()).behavior().unloadStation().orElseThrow(), dimension);
+                extend(routes, result, extended, ((WaypointAction.Cargo) destination.action()).behavior().unloadStation().orElseThrow(), dimension);
             }
         }
     }

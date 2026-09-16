@@ -112,13 +112,13 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
             Component cancelLabel = Component.translatable(selected.delivered()
                     ? "screen.farandwide.order.delete_tracking" : "screen.farandwide.order.cancel_tracking");
             cancelButton = addRenderableWidget(Button.builder(cancelLabel, button -> RouteManager.cancelOrder(selected.id()))
-                    .bounds(right() + columnWidth() - cancelWidth, 33, cancelWidth, 20).build());
+                    .bounds(right() + columnWidth() - cancelWidth, 30, cancelWidth, 20).build());
             cancelButton.active = !RouteManager.isOrderRequestPending();
         }
         int buttonWidth = Math.min(180, (panelWidth() - 6) / 2);
         int start = (width - buttonWidth * 2 - 6) / 2;
         boolean canPlaceOrder = !OrderScreenSupport.eligibleRoutes().isEmpty();
-        Button placeButton = addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.place"), button -> {
+        Button placeButton = addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.new"), button -> {
             if (!OrderScreenSupport.eligibleRoutes().isEmpty()) minecraft.setScreenAndShow(new OrderPlacementScreen());
         })
                 .bounds(start, height - 28, buttonWidth, 20).build());
@@ -151,8 +151,6 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
             cancelButton.active = selected() != null && !RouteManager.isOrderRequestPending();
         }
     }
-
-    @Override public boolean isPauseScreen() { return false; }
 
     @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
@@ -223,6 +221,10 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
 
     private @Nullable Component routeWarning(CargoOrder order) {
         for (OrderLeg leg : order.legs()) {
+            Route route = RouteManager.getRoute(leg.routeId());
+            if (route != null && !route.supportsOrders() && leg.lines().stream().anyMatch(line -> line.remaining() > 0)) {
+                return Component.translatable("screen.farandwide.order.one_way_route", route.getName());
+            }
             List<VehicleRouteAssignment> assignments = RouteManager.getVehicleAssignments(leg.routeId());
             if (assignments.isEmpty()) return Component.translatable("screen.farandwide.order.no_vehicle_assigned");
             if (assignments.stream().noneMatch(assignment -> assignment != null && assignment.active())) {

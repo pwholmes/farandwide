@@ -27,14 +27,21 @@ import org.eclipse.jdt.annotation.Nullable;
 @NonNullByDefault
 public final class OrderPlacementScreen extends FarAndWideScreen {
     private static final int SLOT_SIZE = 22;
-    private static final int ITEM_LABEL_TOP = 80;
-    private static final int SEARCH_TOP = 92;
-    private static final int GRID_TOP = 116;
+    private static final int ENDPOINT_LABEL_WIDTH = 72;
+    private static final int WAYPOINT_BUTTON_WIDTH = 112;
+    private static final int PICKUP_TOP = 28;
+    private static final int DELIVERY_TOP = 50;
+    private static final int ITINERARY_HEADER_TOP = 76;
+    private static final int JOURNEY_TOP = 92;
+    private static final int LEG_ROW_HEIGHT = 10;
+    private static final int INVENTORY_HEADER_TOP = 122;
+    private static final int ITEM_LABEL_TOP = 128;
+    private static final int GRID_TOP = 144;
 
     private int routeId = RouteManager.getCurrentRouteId();
     private int originId;
-    private int destinationId;
-    private int journeyIndex;
+    private @Nullable OrderJourney selectedJourney;
+    private List<OrderJourney> journeys = List.of();
     private String search = "";
     private int availableScrollRow;
     private int selectedScrollRow;
@@ -46,9 +53,11 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
     private Map<ItemResource, Integer> pendingSelection = Map.of();
     private @Nullable OrderItemSelectionState selectionState;
     private @Nullable Button submitButton;
+    private @Nullable EditBox searchField;
     private OrderItemSelectionState.@Nullable Side draggedScrollbar;
     private double scrollbarDragOffset;
     private long routeRevision;
+    private List<Route> displayedRoutes = List.of();
     private @Nullable UUID submittedId;
 
     public OrderPlacementScreen() {
@@ -56,63 +65,93 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
     }
 
     @Override protected void init() {
-        RouteManager.getRoutes();
+        displayedRoutes = RouteManager.getRoutes();
         chooseEndpoints();
         reconcileSelectionSource();
         requestAvailabilityIfNeeded();
         routeRevision = RouteManager.getRouteStateRevision();
+        submitButton = null;
+        draggedScrollbar = null;
         int left = left();
-        int column = columnWidth();
         Route route = route();
-        List<OrderJourney> journeys = OrderScreenSupport.journeys(route, origin(), destination());
-        journeyIndex = Math.clamp(journeyIndex, 0, Math.max(0, journeys.size() - 1));
-        OrderJourney journey = journeys.isEmpty() ? null : journeys.get(journeyIndex);
-        int routeWidth = panelWidth() - 110;
+        int controlsLeft = left + ENDPOINT_LABEL_WIDTH;
+        int routeWidth = panelWidth() - ENDPOINT_LABEL_WIDTH - WAYPOINT_BUTTON_WIDTH - 4;
         Component routeLabel = route == null ? Component.translatable("screen.farandwide.order.no_routes")
                 : Component.literal(route.getName() + "  ›");
-        addRenderableWidget(Button.builder(shorten(routeLabel, routeWidth - 12), button -> {
+        Button routeButton = addRenderableWidget(Button.builder(shorten(routeLabel, routeWidth - 12), button -> {
             returnCarried();
             List<Route> choices = OrderScreenSupport.eligibleRoutes();
             int current = choices.indexOf(route());
             if (!choices.isEmpty()) routeId = choices.get((current + 1) % choices.size()).getId();
-            originId = destinationId = journeyIndex = 0;
+            originId = 0;
+            selectedJourney = null;
             resetSelectionSource();
             rebuild();
-        }).bounds(left, 30, routeWidth, 20).tooltip(Tooltip.create(routeLabel)).build());
-        Component journeyLabel = Component.literal("Legs: " + (journey == null ? 0 : journey.legs().size()) + " ›");
-        Button journeyButton = addRenderableWidget(Button.builder(journeyLabel, button -> {
-            journeyIndex = (journeyIndex + 1) % journeys.size();
-            rebuild();
-        }).bounds(left + routeWidth + 4, 30, 106, 20).build());
-        journeyButton.active = journeys.size() > 1;
-        addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.origin",
+        }).bounds(controlsLeft, PICKUP_TOP, routeWidth, 20).tooltip(Tooltip.create(routeLabel)).build());
+        routeButton.active = OrderScreenSupport.eligibleRoutes().size() > 1;
+        Button originButton = addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.waypoint_button",
                 OrderScreenSupport.ordinal(route, originId)), button -> {
             returnCarried();
             List<Waypoint> choices = OrderScreenSupport.origins(route());
             if (!choices.isEmpty()) originId = choices.get((choices.indexOf(origin()) + 1) % choices.size()).id();
-            destinationId = journeyIndex = 0;
+            selectedJourney = null;
             resetSelectionSource();
             rebuild();
-        }).bounds(left, 54, column, 20).build());
-        addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.destination",
-                OrderScreenSupport.ordinal(route, destinationId)), button -> {
-            returnCarried();
-            List<Waypoint> choices = OrderScreenSupport.destinations(route(), origin());
-            int current = -1;
-            for (int index = 0; index < choices.size(); index++) if (choices.get(index).id() == destinationId) current = index;
-            if (!choices.isEmpty()) destinationId = choices.get((current + 1) % choices.size()).id();
-            journeyIndex = 0;
+        }).bounds(controlsLeft + routeWidth + 4, PICKUP_TOP, WAYPOINT_BUTTON_WIDTH, 20).build());
+        originButton.active = OrderScreenSupport.origins(route).size() > 1;
+
+        List<Integer> destinationRouteIds = OrderScreenSupport.destinationRouteIds(journeys);
+        Route destinationRoute = destinationRoute();
+        int selectedDestinationRouteId = destinationRoute == null ? 0 : destinationRoute.id();
+        Component destinationRouteLabel = destinationRoute == null
+                ? Component.translatable("screen.farandwide.order.no_deliveries")
+                : Component.literal(destinationRoute.getName() + "  ›");
+        Button destinationRouteButton = addRenderableWidget(Button.builder(
+                shorten(destinationRouteLabel, routeWidth - 12), button -> {
+            int current = destinationRouteIds.indexOf(selectedDestinationRouteId);
+            if (!destinationRouteIds.isEmpty()) selectDestinationRoute(
+                    destinationRouteIds.get((current + 1) % destinationRouteIds.size()));
             rebuild();
-        }).bounds(right(), 54, column, 20).build());
-        EditBox searchField = addRenderableWidget(new EditBox(font, left, SEARCH_TOP, column, 20,
+        }).bounds(controlsLeft, DELIVERY_TOP, routeWidth, 20).tooltip(Tooltip.create(destinationRouteLabel)).build());
+        destinationRouteButton.active = destinationRouteIds.size() > 1;
+
+        List<Integer> destinationWaypointIds = destinationRoute == null ? List.of()
+                : OrderScreenSupport.destinationWaypointIds(journeys, selectedDestinationRouteId);
+        Button destinationWaypointButton = addRenderableWidget(Button.builder(
+                Component.translatable("screen.farandwide.order.waypoint_button",
+                        selectedJourney == null ? 0 : OrderScreenSupport.ordinal(destinationRoute,
+                                OrderScreenSupport.destinationWaypointId(selectedJourney))), button -> {
+            int currentWaypointId = selectedJourney == null ? 0 : OrderScreenSupport.destinationWaypointId(selectedJourney);
+            int current = destinationWaypointIds.indexOf(currentWaypointId);
+            if (!destinationWaypointIds.isEmpty()) selectDestination(
+                    selectedDestinationRouteId, destinationWaypointIds.get((current + 1) % destinationWaypointIds.size()));
+            rebuild();
+        }).bounds(controlsLeft + routeWidth + 4, DELIVERY_TOP, WAYPOINT_BUTTON_WIDTH, 20).build());
+        destinationWaypointButton.active = destinationWaypointIds.size() > 1;
+
+        List<OrderJourney> alternatives = journeyAlternatives();
+        if (alternatives.size() > 1) {
+            int selected = Math.max(0, alternatives.indexOf(selectedJourney));
+            addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.journey_option",
+                    selected + 1, alternatives.size()), button -> {
+                int current = Math.max(0, alternatives.indexOf(selectedJourney));
+                selectedJourney = alternatives.get((current + 1) % alternatives.size());
+                rebuild();
+            }).bounds(left + panelWidth() - 120, 70, 120, 20).build());
+        }
+        Component availableItemsLabel = Component.translatable("screen.farandwide.order.available_items");
+        int searchLeft = left + font.width(availableItemsLabel) + 8;
+        int searchWidth = Math.max(40, left + gridWidth() - searchLeft);
+        searchField = addRenderableWidget(new EditBox(font, searchLeft, INVENTORY_HEADER_TOP, searchWidth, 20,
                 Component.translatable("screen.farandwide.cargo_filter.search")));
-        searchField.setHint(Component.translatable("screen.farandwide.cargo_filter.search_hint"));
+        searchField.setHint(Component.translatable("screen.farandwide.order.item_filter_hint"));
         searchField.setValue(search);
         searchField.setResponder(value -> { search = value; availableScrollRow = 0; });
         submitButton = addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.order.place"), button -> {
             returnCarried();
             OrderItemSelectionState state = selectionState;
             if (state == null) return;
+            OrderJourney journey = selectedJourney;
             if (journey == null) return;
             submittedId = RouteManager.placeOrder(journey, state.selected().entrySet().stream()
                     .map(entry -> new OrderLine(entry.getKey(), entry.getValue(), 0)).toList());
@@ -123,11 +162,47 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         updateActions();
     }
 
+    private Component routeName(@Nullable Route route) {
+        return route == null ? Component.translatable("screen.farandwide.order.route_unavailable") : Component.literal(route.getName());
+    }
+
+    private Component legLabel(OrderJourney.Leg leg, int number) {
+        Route route = RouteManager.getRoute(leg.routeId());
+        return Component.translatable("screen.farandwide.order.journey_leg", number, routeName(route),
+                OrderScreenSupport.ordinal(route, leg.originWaypointId()),
+                OrderScreenSupport.ordinal(route, leg.destinationWaypointId()));
+    }
+
+    private void extractJourney(GuiGraphicsExtractor graphics, OrderJourney journey, int y, int mouseX, int mouseY) {
+        for (int index = 0; index < journey.legs().size(); index++) {
+            OrderJourney.Leg leg = journey.legs().get(index);
+            Route route = RouteManager.getRoute(leg.routeId());
+            Component endpoints = Component.translatable("screen.farandwide.order.endpoints",
+                    OrderScreenSupport.ordinal(route, leg.originWaypointId()),
+                    OrderScreenSupport.ordinal(route, leg.destinationWaypointId()));
+            Component name = Component.literal((index + 1) + ". ").append(routeName(route));
+            graphics.text(font, shorten(name, panelWidth() - font.width(endpoints) - 8), left(), y, 0xFFAAAAAA);
+            graphics.text(font, endpoints, left() + panelWidth() - font.width(endpoints), y, 0xFFAAAAAA);
+            if (mouseX >= left() && mouseX < left() + panelWidth() && mouseY >= y && mouseY < y + LEG_ROW_HEIGHT) {
+                graphics.setComponentTooltipForNextFrame(font, List.of(legLabel(leg, index + 1)), mouseX, mouseY);
+            }
+            y += LEG_ROW_HEIGHT;
+        }
+    }
+
     @Override public void tick() {
         super.tick();
-        if (routeRevision != RouteManager.getRouteStateRevision()) {
-            rebuild();
-            return;
+        long currentRouteRevision = RouteManager.getRouteStateRevision();
+        if (routeRevision != currentRouteRevision) {
+            List<Route> currentRoutes = RouteManager.getRoutes();
+            if (!displayedRoutes.equals(currentRoutes)) {
+                boolean restoreSearchFocus = searchField != null && searchField.isFocused();
+                rebuild();
+                if (restoreSearchFocus && searchField != null) setInitialFocus(searchField);
+                return;
+            }
+            // Vehicle assignment refreshes share the route-state revision but do not affect this screen.
+            routeRevision = currentRouteRevision;
         }
         if (selectionState == null && routeId == requestedRouteId && originId == requestedOriginId
                 && RouteManager.getAvailableOrderItemsRevision() > requestedAfterRevision
@@ -208,6 +283,19 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
     @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(font, title, width / 2, 12, 0xFFFFFFFF);
+        graphics.text(font, Component.translatable("screen.farandwide.order.pickup_from"), left(), PICKUP_TOP + 6,
+                0xFFFFFFFF);
+        graphics.text(font, Component.translatable("screen.farandwide.order.deliver_to"), left(), DELIVERY_TOP + 6,
+                0xFFFFFFFF);
+        graphics.text(font, Component.translatable("screen.farandwide.order.itinerary"), left(), ITINERARY_HEADER_TOP,
+                0xFFFFFFFF);
+        OrderJourney journey = selectedJourney;
+        if (journey != null) {
+            extractJourney(graphics, journey, JOURNEY_TOP, mouseX, mouseY);
+        } else {
+            graphics.text(font, shorten(Component.translatable("screen.farandwide.order.no_deliveries"), panelWidth()),
+                    left(), JOURNEY_TOP, 0xFFAAAAAA);
+        }
         graphics.text(font, Component.translatable("screen.farandwide.order.available_items"), left(), ITEM_LABEL_TOP,
                 0xFFFFFFFF);
         graphics.text(font, Component.translatable("screen.farandwide.order.items", selectedEntries().size(),
@@ -243,7 +331,7 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
             color = 0xFFFFAA00;
         }
         if (message != null) {
-            int y = height - 53;
+            int y = height - 50;
             for (var line : font.split(message, panelWidth())) {
                 graphics.text(font, line, left(), y, color);
                 y += font.lineHeight;
@@ -252,7 +340,6 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         }
     }
 
-    @Override public boolean isPauseScreen() { return false; }
     @Override public void onClose() { minecraft.setScreenAndShow(new OrderTrackingScreen()); }
 
     private void extractGridBackground(GuiGraphicsExtractor graphics, OrderItemSelectionState.Side side) {
@@ -386,10 +473,35 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         if (routes.stream().noneMatch(route -> route.getId() == routeId)) routeId = routes.isEmpty() ? 0 : routes.getFirst().getId();
         List<Waypoint> origins = OrderScreenSupport.origins(route());
         if (origins.stream().noneMatch(waypoint -> waypoint.id() == originId)) originId = origins.isEmpty() ? 0 : origins.getFirst().id();
-        List<Waypoint> destinations = OrderScreenSupport.destinations(route(), origin());
-        if (destinations.stream().noneMatch(waypoint -> waypoint.id() == destinationId)) {
-            destinationId = destinations.isEmpty() ? 0 : destinations.getLast().id();
+        journeys = OrderScreenSupport.journeys(RouteManager.getRoutes(), route(), origin());
+        if (selectedJourney == null || !journeys.contains(selectedJourney)) {
+            selectedJourney = OrderScreenSupport.preferredJourney(journeys);
         }
+    }
+
+    private @Nullable Route destinationRoute() {
+        return selectedJourney == null ? null : RouteManager.getRoute(OrderScreenSupport.destinationRouteId(selectedJourney));
+    }
+
+    private void selectDestinationRoute(int destinationRouteId) {
+        List<Integer> waypoints = OrderScreenSupport.destinationWaypointIds(journeys, destinationRouteId);
+        if (waypoints.isEmpty()) {
+            selectedJourney = null;
+        } else {
+            selectDestination(destinationRouteId, waypoints.getFirst());
+        }
+    }
+
+    private void selectDestination(int destinationRouteId, int destinationWaypointId) {
+        List<OrderJourney> alternatives = OrderScreenSupport.journeysTo(
+                journeys, destinationRouteId, destinationWaypointId);
+        selectedJourney = alternatives.isEmpty() ? null : alternatives.getFirst();
+    }
+
+    private List<OrderJourney> journeyAlternatives() {
+        return selectedJourney == null ? List.of() : OrderScreenSupport.journeysTo(journeys,
+                OrderScreenSupport.destinationRouteId(selectedJourney),
+                OrderScreenSupport.destinationWaypointId(selectedJourney));
     }
 
     private void reconcileSelectionSource() {
@@ -426,11 +538,14 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
     private void updateActions() {
         OrderItemSelectionState state = selectionState;
         if (submitButton != null) submitButton.active = !RouteManager.isOrderRequestPending()
-                && routeId > 0 && originId > 0 && destinationId > 0 && state != null && !state.selected().isEmpty();
+                && selectedJourney != null && state != null && !state.selected().isEmpty();
     }
 
     private void rebuild() { clearWidgets(); init(); }
-    private Component shorten(Component text, int width) { return Component.literal(font.plainSubstrByWidth(text.getString(), width)); }
+    private Component shorten(Component text, int width) {
+        if (font.width(text) <= width) return text;
+        return Component.literal(font.plainSubstrByWidth(text.getString(), Math.max(0, width - font.width("..."))) + "...");
+    }
     private int panelWidth() { return Math.min(600, width - 20); }
     private int left() { return (width - panelWidth()) / 2; }
     private int columnWidth() { return (panelWidth() - 12) / 2; }
@@ -441,13 +556,19 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         return side == OrderItemSelectionState.Side.AVAILABLE ? left() : right();
     }
     private int scrollbarLeft(OrderItemSelectionState.Side side) { return gridLeft(side) + gridWidth() + 1; }
-    private int visibleRows() { return Math.max(1, (height - GRID_TOP - 48) / SLOT_SIZE); }
+    private int visibleRows() {
+        // Use the space above the fixed footer; a failed submission temporarily reserves one row for its message.
+        int bottomMargin = showsPlacementMessage() ? 52 : 30;
+        return Math.max(1, (height - GRID_TOP - bottomMargin) / SLOT_SIZE);
+    }
+
+    private boolean showsPlacementMessage() {
+        if (RouteManager.isOrderRequestPending()) return true;
+        RouteManager.OrderFeedback feedback = RouteManager.getOrderFeedback();
+        return submittedId != null && feedback != null && submittedId.equals(feedback.id());
+    }
     private @Nullable Route route() { return RouteManager.getRoute(routeId); }
     private @Nullable Waypoint origin() {
         return OrderScreenSupport.origins(route()).stream().filter(waypoint -> waypoint.id() == originId).findFirst().orElse(null);
-    }
-    private @Nullable Waypoint destination() {
-        return OrderScreenSupport.destinations(route(), origin()).stream()
-                .filter(waypoint -> waypoint.id() == destinationId).findFirst().orElse(null);
     }
 }

@@ -30,4 +30,9 @@ public record Route(int id, String name, TraversalType traversalType, List<Waypo
     public String getName() { return name; }
     public TraversalType getTraversalType() { return traversalType; }
     public List<Waypoint> getWaypoints() { return waypoints; }
+
+    /** Orders need repeated visits so vehicles can collect cargo arriving after an earlier pass. */
+    public boolean supportsOrders() {
+        return traversalType == TraversalType.LOOP || traversalType == TraversalType.REVERSE;
+    }
 }

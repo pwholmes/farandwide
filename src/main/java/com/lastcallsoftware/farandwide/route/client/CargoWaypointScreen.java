@@ -35,15 +35,12 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
     private static final int CONTROL_WIDTH = Constants.Client.CARGO_WAYPOINT_CONTROL_WIDTH;
     private static final int FILTER_ITEM_SLOT_SIZE = 22;
     private static final int FILTER_ITEM_SIZE = 16;
+    private static final int ACTION_WIDTH = 64;
 
     private final Route route;
     private final Waypoint existingWaypoint;
     private final Vec3 proposedPosition;
     private final Identifier proposedDimension;
-    private Button selectLoadStationButton;
-    private Button selectUnloadStationButton;
-    private Button editLoadFilterButton;
-    private Button editUnloadFilterButton;
     private Button moveUpButton;
     private Button moveDownButton;
     private Button radiusDecreaseButton;
@@ -57,7 +54,16 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
     private final List<CargoStationBinding> sourceInventories = new ArrayList<>();
     private boolean editingSources;
     private int sourcePage;
-    private Button sourcesButton;
+    private boolean loadTab;
+    private int settingsScroll;
+    private int settingsTop;
+    private int settingsBottom;
+    private int settingsHeight;
+    private int sectionYPos;
+    private int stationYPos;
+    private int filterYPos;
+    private int sourcesYPos;
+    private int validationYPos;
     private int targetPosition;
     private double selectedArrivalRadius;
     private Component validationError;
@@ -117,10 +123,6 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
 
     private static final int ROW_HEIGHT = 23;
     private int waypointControlsYPos;
-    private int unloadStationYPos;
-    private int unloadFilterYPos;
-    private int loadFilterYPos;
-    private int loadStationYPos;
 
     /* Render Waypoint Editor Widgets */
     private void renderWaypointEditorWidgets() {
@@ -128,10 +130,9 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             renderSourceWidgets();
             return;
         }
-        sourcesButton = null;
         int left = (width - CONTROL_WIDTH) / 2;
-        int top = height / 2 - 121 + font.lineHeight;
-        int yPos = top + 8;
+        int top = Math.max(4, (height - 232) / 2);
+        int yPos = top + 14;
         editorLeft = left;
         editorTop = top;
 
@@ -140,13 +141,20 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
                 .builder((CargoWaypointScreen.@NonNull WaypointMode mode) -> mode.displayName(),
                         WaypointMode.of(selectedBehavior, selectedOperation))
                 .withValues(WaypointMode.values())
+                .withTooltip(mode -> Tooltip.create(mode == WaypointMode.CARGO_UNLOAD_THEN_LOAD
+                        ? Component.translatable("screen.farandwide.cargo_waypoint.exchange_description") : mode.displayName()))
                 .create(left, yPos, CONTROL_WIDTH, 20,
                         Component.translatable("screen.farandwide.cargo_waypoint.mode"),
                         (button, value) -> {
                             selectedBehavior = value.isCargo() ? BehaviorType.CARGO : BehaviorType.NORMAL;
-                            if (value.isCargo()) selectedOperation = value.operation();
+                            if (value.isCargo()) {
+                                if (value.operation() == CargoOperation.UNLOAD_THEN_LOAD
+                                        && selectedOperation != CargoOperation.UNLOAD_THEN_LOAD) loadTab = false;
+                                selectedOperation = value.operation();
+                            }
                             validationError = null;
-                            // Cargo modes use different rows, so recreate the controls at their new positions.
+                            settingsScroll = 0;
+                            // Rebuild the shared settings area for the chosen waypoint mode.
                             rebuildEditor();
                         }));
         yPos += ROW_HEIGHT;
@@ -169,59 +177,13 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             yPos += ROW_HEIGHT;
         }
 
-        // Keep the footer stable for every waypoint type by reserving the space
-        // used by the largest configuration: Cargo Unload then Load.
-        int footerYPos = yPos + 2 * (2 * ROW_HEIGHT + 14) + ROW_HEIGHT + 8;
+        // Keep the footer stable for every waypoint type, including Normal, and across cargo tabs.
+        int footerYPos = Math.min(height - 26, yPos + 142);
+        settingsTop = yPos;
+        settingsBottom = footerYPos - 5;
+        if (selectedBehavior == BehaviorType.CARGO) renderCargoWidgets(left);
 
-        // Unload buttons
-        selectLoadStationButton = addRenderableWidget(Button.builder(
-                Component.translatable("screen.farandwide.cargo_waypoint.select_load_station"),
-                button -> CargoStationSelector.begin(this, CargoStationSelector.Role.LOAD))
-                .bounds(left, yPos, 116, 20)
-                .build());
-        selectUnloadStationButton = addRenderableWidget(Button.builder(
-                Component.translatable("screen.farandwide.cargo_waypoint.select_unload_station"),
-                button -> CargoStationSelector.begin(this, CargoStationSelector.Role.UNLOAD))
-                .bounds(left, yPos, 116, 20)
-                .build());
-
-        // Load buttons
-        editLoadFilterButton = addRenderableWidget(Button.builder(
-                Component.translatable("screen.farandwide.cargo_waypoint.edit_load_filter"),
-                button -> minecraft.setScreenAndShow(new CargoFilterScreen(this, true, loadFilter)))
-                .bounds(left + 124, yPos, 116, 20)
-                .build());
-        editUnloadFilterButton = addRenderableWidget(Button.builder(
-                Component.translatable("screen.farandwide.cargo_waypoint.edit_unload_filter"),
-                button -> minecraft.setScreenAndShow(new CargoFilterScreen(this, false, unloadFilter)))
-                .bounds(left + 124, yPos, 116, 20)
-                .build());
-
-        if (selectedOperation == CargoOperation.UNLOAD_THEN_LOAD || selectedOperation == CargoOperation.UNLOAD) {
-            unloadStationYPos = yPos;
-            yPos += ROW_HEIGHT;
-            unloadFilterYPos = yPos;
-            yPos += (ROW_HEIGHT + 14);
-        }
-
-        if (selectedOperation == CargoOperation.UNLOAD_THEN_LOAD || selectedOperation == CargoOperation.LOAD) {
-            loadStationYPos = yPos;
-            yPos += ROW_HEIGHT;
-            loadFilterYPos = yPos;
-            yPos += (ROW_HEIGHT + 14);
-            if (selectedBehavior == BehaviorType.CARGO) {
-                sourcesButton = addRenderableWidget(Button.builder(
-                        Component.translatable("screen.farandwide.sources.button", sourceInventories.size()), button -> {
-                            editingSources = true;
-                            rebuildEditor();
-                        }).bounds(left, yPos, CONTROL_WIDTH, 20)
-                                .tooltip(Tooltip.create(Component.translatable("screen.farandwide.sources.button.tooltip")))
-                                .build());
-                yPos += ROW_HEIGHT + 8;
-            }
-        }
-
-        // Save and Cancel share the footer after the visible waypoint details.
+        // Save and Cancel share the fixed footer below the reserved settings area.
         addRenderableWidget(Button.builder(
                 Component.translatable("screen.farandwide.cargo_waypoint.save"),
                 button -> save())
@@ -232,7 +194,88 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
                 button -> onClose())
                 .bounds(left + 123, footerYPos, 76, 20)
                 .build());
-        updateCargoControls();
+        moveWaypoint(0);
+        if (radiusDecreaseButton != null) adjustRadius(0);
+    }
+
+    private boolean showingLoad() {
+        return selectedOperation == CargoOperation.LOAD
+                || (selectedOperation == CargoOperation.UNLOAD_THEN_LOAD && loadTab);
+    }
+
+    private void renderCargoWidgets(int left) {
+        settingsHeight = 23 + 32 + 38 + (usesLoadStation(selectedOperation) ? 30 : 0);
+        if (validationError != null) settingsHeight += font.split(validationError, CONTROL_WIDTH).size() * font.lineHeight + 4;
+        settingsScroll = Math.clamp(settingsScroll, 0, maximumSettingsScroll());
+        sectionYPos = settingsTop - settingsScroll;
+        stationYPos = sectionYPos + 23;
+        filterYPos = stationYPos + 32;
+        sourcesYPos = filterYPos + 38;
+        validationYPos = usesLoadStation(selectedOperation) ? sourcesYPos + 30 : sourcesYPos;
+        boolean loading = showingLoad();
+        Optional<CargoStationBinding> station = loading ? selectedLoadStation : selectedUnloadStation;
+        if (selectedOperation == CargoOperation.UNLOAD_THEN_LOAD) {
+            addOperationTab(left, false);
+            addOperationTab(left + 124, true);
+        }
+        // The station action stays beside its current value for either cargo operation.
+        addSettingsButton(Button.builder(Component.translatable("screen.farandwide.cargo_waypoint."
+                        + (station.isPresent() ? "change_station" : "select_station")),
+                button -> CargoStationSelector.begin(this,
+                        loading ? CargoStationSelector.Role.LOAD : CargoStationSelector.Role.UNLOAD))
+                .bounds(left + CONTROL_WIDTH - ACTION_WIDTH, stationYPos, ACTION_WIDTH, 20)
+                .tooltip(Tooltip.create(Component.translatable("screen.farandwide.cargo_waypoint.select_station.tooltip")))
+                .build());
+        // The filter action shares its row with the item summary and scrollable item icons.
+        addSettingsButton(Button.builder(Component.translatable("screen.farandwide.cargo_waypoint.edit_items"),
+                button -> minecraft.setScreenAndShow(new CargoFilterScreen(this, loading, loading ? loadFilter : unloadFilter)))
+                .bounds(left + CONTROL_WIDTH - ACTION_WIDTH, filterYPos, ACTION_WIDTH, 20).build());
+        if (usesLoadStation(selectedOperation)) {
+            addSettingsButton(Button.builder(Component.translatable("screen.farandwide.sources.button"), button -> {
+                editingSources = true;
+                rebuildEditor();
+            }).bounds(left + CONTROL_WIDTH - ACTION_WIDTH, sourcesYPos, ACTION_WIDTH, 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.farandwide.sources.button.tooltip"))).build());
+        }
+        if (maximumSettingsScroll() > 0) {
+            Button up = addRenderableWidget(Button.builder(Component.literal("↑"), button -> scrollSettings(-ROW_HEIGHT))
+                    .bounds(left + CONTROL_WIDTH + 4, settingsTop, 20, 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.farandwide.cargo_waypoint.scroll_up"))).build());
+            up.active = settingsScroll > 0;
+            Button down = addRenderableWidget(Button.builder(Component.literal("↓"), button -> scrollSettings(ROW_HEIGHT))
+                    .bounds(left + CONTROL_WIDTH + 4, settingsBottom - 20, 20, 20)
+                    .tooltip(Tooltip.create(Component.translatable("screen.farandwide.cargo_waypoint.scroll_down"))).build());
+            down.active = settingsScroll < maximumSettingsScroll();
+        }
+    }
+
+    private void addOperationTab(int x, boolean loading) {
+        boolean missing = (loading ? selectedLoadStation : selectedUnloadStation).isEmpty();
+        Component name = Component.translatable("screen.farandwide.cargo_waypoint.tab." + (loading ? "load" : "unload"));
+        if (missing) name = name.copy().append(" !").withStyle(ChatFormatting.GOLD);
+        Button tab = addSettingsButton(Button.builder(name, button -> {
+            loadTab = loading;
+            rebuildEditor();
+        }).bounds(x, sectionYPos, 116, 20)
+                .tooltip(Tooltip.create(Component.translatable(missing
+                        ? "screen.farandwide.cargo_waypoint.station_required"
+                        : "screen.farandwide.cargo_waypoint.exchange_description"))).build());
+        tab.active = loading != loadTab;
+    }
+
+    private Button addSettingsButton(Button button) {
+        // Offscreen controls cannot receive focus or clicks over the fixed header and footer.
+        button.visible = button.getY() >= settingsTop && button.getY() + button.getHeight() <= settingsBottom;
+        return addRenderableWidget(button);
+    }
+
+    private int maximumSettingsScroll() {
+        return Math.max(0, settingsHeight - (settingsBottom - settingsTop));
+    }
+
+    private void scrollSettings(int amount) {
+        settingsScroll = Math.clamp(settingsScroll + amount, 0, maximumSettingsScroll());
+        rebuildEditor();
     }
 
     private void rebuildEditor() {
@@ -270,7 +313,7 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             rebuildEditor();
         }).bounds(left + 210, height - 32, 30, 20).build());
         next.active = (sourcePage + 1) * sourcesPerPage() < sourceInventories.size();
-        addRenderableWidget(Button.builder(Component.translatable("gui.done"), button -> {
+        addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> {
             editingSources = false;
             rebuildEditor();
         }).bounds(left + 70, height - 32, 100, 20).build());
@@ -314,7 +357,7 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         int left = editorLeft;
         int top = editorTop;
 
-        graphics.text(font, title, (width - font.width(title)) / 2, top - font.lineHeight + 2, 0xFFFFFFFF);
+        graphics.text(font, title, (width - font.width(title)) / 2, top, 0xFFFFFFFF);
 
         if (existingWaypoint != null) {
             Component position = Component.translatable(
@@ -327,50 +370,64 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         }
 
         if (selectedBehavior == BehaviorType.CARGO) {
+            graphics.enableScissor(left, settingsTop, left + CONTROL_WIDTH, settingsBottom);
+            if (selectedOperation != CargoOperation.UNLOAD_THEN_LOAD) {
+                graphics.text(font, Component.translatable("screen.farandwide.cargo_waypoint.section."
+                        + (showingLoad() ? "load" : "unload")), left, sectionYPos + 5, 0xFFFFFFFF);
+            }
+            // Cargo Exchange defaults to unloading first; each tab keeps its station and filter together.
+            renderCargoDetails(graphics, left, mouseX, mouseY);
+            if (usesLoadStation(selectedOperation)) {
+                graphics.text(font, Component.translatable("screen.farandwide.sources.label"), left, sourcesYPos, 0xFFFFFFFF);
+                String summaryKey = switch (sourceInventories.size()) {
+                    case 0 -> "screen.farandwide.sources.optional";
+                    case 1 -> "screen.farandwide.sources.summary_one";
+                    default -> "screen.farandwide.sources.summary";
+                };
+                graphics.text(font, Component.translatable(summaryKey, sourceInventories.size()),
+                        left, sourcesYPos + 12, 0xFFAAAAAA);
+            }
             if (validationError != null) {
-                // Report an invalid cargo configuration in the space reserved for its first detail row;
-                // this keeps the message attached to the controls that need correction.
-                int validationYPos = usesUnloadStation(selectedOperation) ? unloadFilterYPos : loadFilterYPos;
+                // Keep validation separate from current values so correcting a setting does not hide its details.
+                int errorY = validationYPos;
                 for (FormattedCharSequence line : font.split(validationError, CONTROL_WIDTH)) {
-                    graphics.text(font, line, (width - font.width(line)) / 2, validationYPos, 0xFFFF5555);
-                    validationYPos += font.lineHeight;
-                }
-            } else {
-                // Cargo behavior executes its unload step before its load step, so its summary follows
-                // that same order and keeps each station together with its own filter.
-                if (usesUnloadStation(selectedOperation)) {
-                    renderUnloadDetails(graphics, left, unloadFilterYPos, mouseX, mouseY);
-                }
-                if (usesLoadStation(selectedOperation)) {
-                    renderLoadDetails(graphics, left, loadFilterYPos, mouseX, mouseY);
+                    graphics.text(font, line, left, errorY, 0xFFFF5555);
+                    errorY += font.lineHeight;
                 }
             }
+            graphics.disableScissor();
         }
     }
 
-    private void renderLoadDetails(GuiGraphicsExtractor graphics, int left, int y, int mouseX, int mouseY) {
-        graphics.text(font, stationDescription(selectedLoadStation, "load"), left, y, 0xFFAAAAAA);
-        Component label = filterLabel(true);
-        graphics.text(font, label, left, y + 14, 0xFFAAAAAA);
-        if (loadFilter.isAll()) {
-            graphics.text(font, Component.translatable("screen.farandwide.cargo_filter.summary_all"),
-                    filterStripX(left, label), y + 14, 0xFFAAAAAA);
-        } else {
-            loadFilterScroll = extractFilterItemStrip(graphics, loadFilter, filterStripX(left, label), y + 14,
-                    filterStripWidth(label), loadFilterScroll, mouseX, mouseY);
+    private void renderCargoDetails(GuiGraphicsExtractor graphics, int left, int mouseX, int mouseY) {
+        boolean loading = showingLoad();
+        Optional<CargoStationBinding> station = loading ? selectedLoadStation : selectedUnloadStation;
+        CargoFilter filter = loading ? loadFilter : unloadFilter;
+        Component stationText = stationDescription(station, loading ? "load" : "unload");
+        int detailWidth = CONTROL_WIDTH - ACTION_WIDTH - 8;
+        graphics.text(font, Component.translatable("screen.farandwide.cargo_waypoint.station"), left, stationYPos,
+                station.isEmpty() ? 0xFFFFAA00 : 0xFFFFFFFF);
+        String stationSummary = stationText.getString();
+        if (font.width(stationSummary) > detailWidth) {
+            stationSummary = font.plainSubstrByWidth(stationSummary, detailWidth - font.width("...")) + "...";
         }
-    }
-
-    private void renderUnloadDetails(GuiGraphicsExtractor graphics, int left, int y, int mouseX, int mouseY) {
-        graphics.text(font, stationDescription(selectedUnloadStation, "unload"), left, y, 0xFFAAAAAA);
-        Component label = filterLabel(false);
-        graphics.text(font, label, left, y + 14, 0xFFAAAAAA);
-        if (unloadFilter.isAll()) {
+        graphics.text(font, stationSummary, left, stationYPos + 12, 0xFFAAAAAA);
+        if (mouseY >= settingsTop && mouseY < settingsBottom && mouseX >= left && mouseX < left + detailWidth
+                && mouseY >= stationYPos && mouseY < stationYPos + 26) {
+            graphics.setComponentTooltipForNextFrame(font, List.of(stationText), mouseX, mouseY);
+        }
+        graphics.text(font, filterLabel(loading), left, filterYPos, 0xFFFFFFFF);
+        if (filter.isAll()) {
             graphics.text(font, Component.translatable("screen.farandwide.cargo_filter.summary_all"),
-                    filterStripX(left, label), y + 14, 0xFFAAAAAA);
+                    left, filterYPos + 12, 0xFFAAAAAA);
         } else {
-            unloadFilterScroll = extractFilterItemStrip(graphics, unloadFilter, filterStripX(left, label), y + 14,
-                    filterStripWidth(label), unloadFilterScroll, mouseX, mouseY);
+            Component summary = Component.translatable("screen.farandwide.cargo_filter.summary_only");
+            graphics.text(font, summary, left, filterYPos + 17, 0xFFAAAAAA);
+            int scroll = extractFilterItemStrip(graphics, filter, filterStripX(left, summary), filterYPos + 12,
+                    filterStripWidth(summary), loading ? loadFilterScroll : unloadFilterScroll,
+                    mouseX, mouseY >= settingsTop && mouseY < settingsBottom ? mouseY : -1);
+            if (loading) loadFilterScroll = scroll;
+            else unloadFilterScroll = scroll;
         }
     }
 
@@ -391,59 +448,20 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         radiusIncreaseButton.active = selectedArrivalRadius < Constants.Waypoints.MAX_ARRIVAL_RADIUS;
     }
 
-    private void updateCargoControls() {
-        if (sourcesButton != null) {
-            sourcesButton.visible = selectedBehavior == BehaviorType.CARGO && usesLoadStation(selectedOperation);
-            sourcesButton.active = sourcesButton.visible;
-        }
-        if (selectLoadStationButton != null) {
-            selectLoadStationButton.visible = selectedBehavior == BehaviorType.CARGO
-                    && usesLoadStation(selectedOperation);
-            selectLoadStationButton.active = selectLoadStationButton.visible;
-        }
-        if (selectUnloadStationButton != null) {
-            selectUnloadStationButton.visible = selectedBehavior == BehaviorType.CARGO
-                    && usesUnloadStation(selectedOperation);
-            selectUnloadStationButton.active = selectUnloadStationButton.visible;
-        }
-        if (editLoadFilterButton != null) {
-            editLoadFilterButton.visible = selectedBehavior == BehaviorType.CARGO
-                    && usesLoadStation(selectedOperation);
-            editLoadFilterButton.active = editLoadFilterButton.visible;
-        }
-        if (editUnloadFilterButton != null) {
-            editUnloadFilterButton.visible = selectedBehavior == BehaviorType.CARGO
-                    && usesUnloadStation(selectedOperation);
-            editUnloadFilterButton.active = editUnloadFilterButton.visible;
-        }
-        // These anchors are calculated once with the widget layout so the buttons never drift away
-        // from the station/filter detail rows when an operation has one or two transfer sections.
-        if (selectUnloadStationButton != null) {
-            selectUnloadStationButton.setY(unloadStationYPos);
-        }
-        if (editUnloadFilterButton != null) {
-            editUnloadFilterButton.setY(unloadStationYPos);
-        }
-        if (selectLoadStationButton != null) {
-            selectLoadStationButton.setY(loadStationYPos);
-        }
-        if (editLoadFilterButton != null) {
-            editLoadFilterButton.setY(loadStationYPos);
-        }
-        moveWaypoint(0);
-        if (radiusDecreaseButton != null) {
-            adjustRadius(0);
-        }
-    }
-
     private void save() {
         WaypointAction action = selectedAction();
         if (action instanceof WaypointAction.Cargo && !hasRequiredStations()) {
-            validationError = Component.translatable("message.farandwide.cargo_station_required");
+            loadTab = selectedUnloadStation.isPresent();
+            validationError = Component.translatable("screen.farandwide.cargo_waypoint.station_required_for",
+                    Component.translatable("screen.farandwide.cargo_waypoint.tab." + (showingLoad() ? "load" : "unload")));
+            settingsScroll = 0;
+            rebuildEditor();
             return;
         }
         if (action instanceof WaypointAction.Cargo cargo && conflictsWithRoute(cargo.behavior())) {
             validationError = Component.translatable("message.farandwide.operation.same_cargo_station");
+            settingsScroll = Integer.MAX_VALUE;
+            rebuildEditor();
             return;
         }
         if (existingWaypoint != null && existingWaypoint.action() instanceof WaypointAction.Cargo
@@ -539,13 +557,18 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             }
             return true;
         }
-        if (selectedBehavior == BehaviorType.CARGO && validationError == null && verticalAmount != 0) {
+        if (selectedBehavior == BehaviorType.CARGO && verticalAmount != 0
+                && mouseY >= settingsTop && mouseY < settingsBottom) {
             if (!loadFilter.isAll() && isOverFilterStrip(mouseX, mouseY, true)) {
-                loadFilterScroll = scrollFilter(loadFilter, loadFilterScroll, verticalAmount > 0 ? -1 : 1, true);
+                loadFilterScroll = scrollFilter(loadFilter, loadFilterScroll, verticalAmount > 0 ? -1 : 1);
                 return true;
             }
             if (!unloadFilter.isAll() && isOverFilterStrip(mouseX, mouseY, false)) {
-                unloadFilterScroll = scrollFilter(unloadFilter, unloadFilterScroll, verticalAmount > 0 ? -1 : 1, false);
+                unloadFilterScroll = scrollFilter(unloadFilter, unloadFilterScroll, verticalAmount > 0 ? -1 : 1);
+                return true;
+            }
+            if (maximumSettingsScroll() > 0) {
+                scrollSettings(verticalAmount > 0 ? -ROW_HEIGHT : ROW_HEIGHT);
                 return true;
             }
         }
@@ -627,13 +650,11 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
     }
 
     private boolean isOverFilterStrip(double mouseX, double mouseY, boolean loading) {
-        if (selectedBehavior != BehaviorType.CARGO
-                || (loading && !usesLoadStation(selectedOperation))
-                || (!loading && !usesUnloadStation(selectedOperation))) {
+        if (selectedBehavior != BehaviorType.CARGO || loading != showingLoad()) {
             return false;
         }
-        int stripY = (loading ? loadFilterYPos : unloadFilterYPos) + 14;
-        Component label = filterLabel(loading);
+        int stripY = filterYPos + 12;
+        Component label = Component.translatable("screen.farandwide.cargo_filter.summary_only");
         int stripX = filterStripX(editorLeft, label);
         return mouseX >= stripX && mouseX < stripX + filterStripWidth(label)
                 && mouseY >= stripY && mouseY < stripY + FILTER_ITEM_SLOT_SIZE;
@@ -649,21 +670,18 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
     }
 
     private int filterStripWidth(Component label) {
-        return CONTROL_WIDTH - font.width(label) - 4;
+        return CONTROL_WIDTH - ACTION_WIDTH - font.width(label) - 16;
     }
 
-    private int scrollFilter(CargoFilter filter, int scroll, int amount, boolean loading) {
-        int visibleItems = Math.max(1, filterStripWidth(filterLabel(loading)) / FILTER_ITEM_SLOT_SIZE);
+    private int scrollFilter(CargoFilter filter, int scroll, int amount) {
+        int visibleItems = Math.max(1, filterStripWidth(Component.translatable(
+                "screen.farandwide.cargo_filter.summary_only")) / FILTER_ITEM_SLOT_SIZE);
         int maximumScroll = Math.max(0, filter.itemIds().size() - visibleItems);
         return Math.clamp(scroll + amount, 0, maximumScroll);
     }
 
     private static boolean usesLoadStation(CargoOperation operation) {
         return operation != CargoOperation.UNLOAD;
-    }
-
-    private static boolean usesUnloadStation(CargoOperation operation) {
-        return operation != CargoOperation.LOAD;
     }
 
     private enum BehaviorType {

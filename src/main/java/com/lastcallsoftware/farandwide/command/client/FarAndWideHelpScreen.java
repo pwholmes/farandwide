@@ -15,8 +15,6 @@ import net.minecraft.resources.Identifier;
 
 /** A linked, self-contained guide to routes, cargo, terminology, and commands. */
 public final class FarAndWideHelpScreen extends FarAndWideScreen {
-    private static final int IMAGE_TEXTURE_WIDTH = 1400;
-    private static final int IMAGE_TEXTURE_HEIGHT = 1200;
     private static final int CONTENT_TOP = 44;
     private static final int CONTENT_BOTTOM_MARGIN = 60;
     private static final int PANEL_MAX_WIDTH = 400;
@@ -33,40 +31,41 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
     private static final HelpPage[] PAGES = {
             new HelpPage("screen.farandwide.help.index.title", "screen.farandwide.help.index.body", null),
             new HelpPage("screen.farandwide.help.routes.title", "screen.farandwide.help.routes.body",
-                    texture("route_intro")),
+                    texture("route_intro", 1254, 1254)),
             new HelpPage("screen.farandwide.help.create.title", "screen.farandwide.help.create.body",
-                    texture("route_create")),
+                    texture("route_create", 1322, 1190)),
             new HelpPage("screen.farandwide.help.select.title", "screen.farandwide.help.select.body",
-                    texture("route_select")),
+                    texture("route_select", 1402, 1122)),
             new HelpPage("screen.farandwide.help.waypoints.title", "screen.farandwide.help.waypoints.body",
-                    texture("route_waypoints")),
+                    texture("route_waypoints", 1402, 1122)),
             new HelpPage("screen.farandwide.help.assign.title", "screen.farandwide.help.assign.body",
-                    texture("route_assign")),
+                    texture("route_assign", 1402, 1122)),
             new HelpPage("screen.farandwide.help.activate.title", "screen.farandwide.help.activate.body",
-                    texture("route_activate")),
+                    texture("route_activate", 1402, 1122)),
             new HelpPage("screen.farandwide.help.cargo.title", "screen.farandwide.help.cargo.body",
-                    texture("cargo_intro")),
+                    texture("cargo_intro", 1254, 1254)),
             new HelpPage("screen.farandwide.help.cargo.create.title", "screen.farandwide.help.cargo.create.body",
-                    texture("cargo_create")),
+                    texture("cargo_create", 1354, 1161)),
             new HelpPage("screen.farandwide.help.cargo.stations.title", "screen.farandwide.help.cargo.stations.body",
-                    texture("cargo_stations")),
+                    texture("cargo_stations", 1354, 1161)),
             new HelpPage("screen.farandwide.help.cargo.operations.title", "screen.farandwide.help.cargo.operations.body",
-                    texture("cargo_transfer")),
+                    texture("cargo_transfer", 1351, 1164)),
             new HelpPage("screen.farandwide.help.orders.title", "screen.farandwide.help.orders.body",
-                    texture("order_intro")),
+                    texture("order_intro", 1536, 1024)),
             new HelpPage("screen.farandwide.help.orders.sources.title", "screen.farandwide.help.orders.sources.body",
-                    texture("order_sources")),
+                    texture("order_sources", 1672, 941)),
             new HelpPage("screen.farandwide.help.orders.placement.title", "screen.farandwide.help.orders.placement.body",
-                    texture("order_placement")),
+                    texture("order_placement", 1254, 1254)),
             new HelpPage("screen.farandwide.help.orders.multileg.title", "screen.farandwide.help.orders.multileg.body",
-                    texture("order_multileg")),
+                    texture("order_multileg", 1774, 887)),
             new HelpPage("screen.farandwide.help.orders.handoff.title", "screen.farandwide.help.orders.handoff.body",
-                    texture("order_handoff")),
+                    texture("order_handoff", 1536, 1024)),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page1.title", "screen.farandwide.help.tips_and_tricks.page1.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page2.title", "screen.farandwide.help.tips_and_tricks.page2.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page3.title", "screen.farandwide.help.tips_and_tricks.page3.body", null),
             new HelpPage("screen.farandwide.help.tips_and_tricks.page4.title", "screen.farandwide.help.tips_and_tricks.page4.body", null),
-            new HelpPage("screen.farandwide.help.tips_and_tricks.page5.title", "screen.farandwide.help.tips_and_tricks.page5.body", null)
+            new HelpPage("screen.farandwide.help.tips_and_tricks.page5.title", "screen.farandwide.help.tips_and_tricks.page5.body", null),
+            new HelpPage("screen.farandwide.help.tips_and_tricks.page6.title", "screen.farandwide.help.tips_and_tricks.page6.body", null)
     };
 
     private int pageIndex;
@@ -156,7 +155,7 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
         } else if (page.image() == null) {
             drawCenteredLines(graphics, bodyLines, panelY + PANEL_PADDING);
         } else {
-            drawImagePage(graphics, page.image(), bodyLines, panelY, panelHeight);
+            drawImagePage(graphics, page.image(), bodyLines, panelY, panelWidth, panelHeight);
         }
 
         graphics.centeredText(
@@ -178,28 +177,33 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
         }
     }
 
-    private void drawImagePage(GuiGraphicsExtractor graphics, Identifier image,
-            List<FormattedCharSequence> bodyLines, int panelY, int panelHeight) {
+    private void drawImagePage(GuiGraphicsExtractor graphics, HelpImage image,
+            List<FormattedCharSequence> bodyLines, int panelY, int panelWidth, int panelHeight) {
         int textHeight = bodyLines.size() * font.lineHeight;
         int availableHeight = panelHeight - PANEL_PADDING * 2 - 8 - textHeight;
-        int imageHeight = Math.max(1, Math.min(270, availableHeight));
-        int imageWidth = imageHeight * IMAGE_TEXTURE_WIDTH / IMAGE_TEXTURE_HEIGHT;
+        int maxImageWidth = Math.max(1, panelWidth - PANEL_PADDING * 2);
+        int maxImageHeight = Math.max(1, Math.min(270, availableHeight));
+        double scale = Math.min(
+                (double) maxImageWidth / image.width(),
+                (double) maxImageHeight / image.height());
+        int imageWidth = Math.max(1, (int) Math.round(image.width() * scale));
+        int imageHeight = Math.max(1, (int) Math.round(image.height() * scale));
         int imageX = (width - imageWidth) / 2;
         int imageY = panelY + PANEL_PADDING;
 
         graphics.blit(
                 RenderPipelines.GUI_TEXTURED,
-                image,
+                image.identifier(),
                 imageX,
                 imageY,
                 0,
                 0,
                 imageWidth,
                 imageHeight,
-                IMAGE_TEXTURE_WIDTH,
-                IMAGE_TEXTURE_HEIGHT,
-                IMAGE_TEXTURE_WIDTH,
-                IMAGE_TEXTURE_HEIGHT);
+                image.width(),
+                image.height(),
+                image.width(),
+                image.height());
         drawCenteredLines(graphics, bodyLines, imageY + imageHeight + 8);
     }
 
@@ -238,10 +242,16 @@ public final class FarAndWideHelpScreen extends FarAndWideScreen {
                 .withStyle(style -> style.withColor(0xFFD27F));
     }
 
-    private static Identifier texture(String name) {
-        return Identifier.fromNamespaceAndPath(FarAndWide.MODID, "textures/gui/help/" + name + ".png");
+    private static HelpImage texture(String name, int width, int height) {
+        Identifier identifier = Identifier.fromNamespaceAndPath(
+                FarAndWide.MODID,
+                "textures/gui/help/" + name + ".png");
+        return new HelpImage(identifier, width, height);
     }
 
-    private record HelpPage(String titleKey, String bodyKey, Identifier image) {
+    private record HelpPage(String titleKey, String bodyKey, HelpImage image) {
+    }
+
+    private record HelpImage(Identifier identifier, int width, int height) {
     }
 }

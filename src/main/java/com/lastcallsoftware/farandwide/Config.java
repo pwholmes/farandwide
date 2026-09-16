@@ -1,8 +1,8 @@
 package com.lastcallsoftware.farandwide;
 
+import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.common.ModConfigSpec;
-
-import java.util.Arrays;
+import net.neoforged.neoforge.common.TranslatableEnum;
 
 /** User-editable client preferences and server-owned operational limits. */
 public final class Config {
@@ -33,21 +33,40 @@ public final class Config {
             .translation("farandwide.configuration.autoSelectVehicleRouteOnMount")
             .define("autoSelectVehicleRouteOnMount", false);
 
-    public static final ModConfigSpec.ConfigValue<String> EQUINE_ROUTE_SPEED = SERVER_BUILDER
+    public static final ModConfigSpec.EnumValue<EquineRouteSpeed> EQUINE_ROUTE_SPEED = SERVER_BUILDER
             .comment("Movement speed for automated horses, donkeys, and mules.",
-                    "1x is the original autonomous speed; 2x matches their automated mounted speed.")
+                    "Choose from 1.0x, 1.5x, or 2.0x.",
+                    "1.0x is the original autonomous speed; 2.0x matches their automated mounted speed.")
             .translation("farandwide.configuration.equineRouteSpeed")
-            // Arrays.asList accepts contains(null), allowing NeoForge to replace a missing
-            // value from an older world config with this setting's default.
-            .defineInList("equineRouteSpeed", "1x", Arrays.asList("1x", "1.5x", "2x"));
+            .defineEnum("equineRouteSpeed", EquineRouteSpeed.ONE_AND_A_HALF_X);
 
     /** Returns the configured speed relative to the original autonomous equine speed. */
     public static double equineRouteSpeedMultiplier() {
-        return switch (EQUINE_ROUTE_SPEED.get()) {
-            case "1.5x" -> 1.5;
-            case "2x" -> 2.0;
-            default -> 1.0;
-        };
+        return EQUINE_ROUTE_SPEED.get().multiplier();
+    }
+
+    /** The fixed automated-equine speeds presented by the configuration screen. */
+    public enum EquineRouteSpeed implements TranslatableEnum {
+        ONE_X(1.0, "1.0x"),
+        ONE_AND_A_HALF_X(1.5, "1.5x"),
+        TWO_X(2.0, "2.0x");
+
+        private final double multiplier;
+        private final String label;
+
+        EquineRouteSpeed(double multiplier, String label) {
+            this.multiplier = multiplier;
+            this.label = label;
+        }
+
+        public double multiplier() {
+            return multiplier;
+        }
+
+        @Override
+        public Component getTranslatedName() {
+            return Component.literal(label);
+        }
     }
 
     static final ModConfigSpec CLIENT_SPEC = CLIENT_BUILDER.build();

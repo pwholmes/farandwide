@@ -163,6 +163,17 @@ class OrderPersistenceTest {
         assertFalse(fixture.data.creditOrders(fixture.order.routeId(), fixture.order.destinationWaypointId(), DESTINATION, GOLD, 100));
     }
 
+    @Test void creditReportsOnlyTheOrderOwnerThatBecomesDelivered() {
+        Fixture fixture = fixture();
+        assertTrue(fixture.data.creditOrdersAndFindCompleted(fixture.order.routeId(), fixture.order.destinationWaypointId(),
+                DESTINATION, GOLD, 100).completedOrderOwners().isEmpty());
+        var completion = fixture.data.creditOrdersAndFindCompleted(fixture.order.routeId(), fixture.order.destinationWaypointId(),
+                DESTINATION, REDSTONE, 100);
+        assertEquals(List.of(fixture.order.playerId()), completion.completedOrderOwners());
+        assertTrue(fixture.data.creditOrdersAndFindCompleted(fixture.order.routeId(), fixture.order.destinationWaypointId(),
+                DESTINATION, REDSTONE, 100).completedOrderOwners().isEmpty());
+    }
+
     @Test void onlyOwnerCanCancelAndAssignmentsAreUnchanged() {
         Fixture fixture = fixture();
         int assignee = fixture.data.allocateAssigneeId();
