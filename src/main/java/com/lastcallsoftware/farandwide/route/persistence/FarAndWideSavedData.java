@@ -205,7 +205,7 @@ public final class FarAndWideSavedData extends SavedData {
     /** Receipt outcome used to update order screens and notify owners exactly once on completion. */
     public record OrderCreditResult(boolean changed, List<CompletedOrder> completedOrders) {
         public List<UUID> completedOrderOwners() {
-            return completedOrders.stream().map(CompletedOrder::ownerId).toList();
+            return completedOrders.stream().map((@NonNull CompletedOrder order) -> order.ownerId()).toList();
         }
     }
     public record CompletedOrder(UUID ownerId, int number) {}
