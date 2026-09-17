@@ -7,45 +7,48 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
+import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.NameTagItem;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
-/** Gives boats the same resource-backed custom-name interaction as living entities. */
-public final class BoatNameTagController {
-    private BoatNameTagController() {
+/** Gives boats and minecarts the same resource-backed custom-name interaction as living entities. */
+public final class VehicleNameTagController {
+    private VehicleNameTagController() {
     }
 
     public static void register() {
-        NeoForge.EVENT_BUS.addListener(BoatNameTagController::onEntityInteract);
+        NeoForge.EVENT_BUS.addListener(VehicleNameTagController::onEntityInteract);
     }
 
     private static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        if (!(event.getTarget() instanceof AbstractBoat boat) || !boat.isAlive()) {
+        Entity vehicle = event.getTarget();
+        if (!(vehicle instanceof AbstractBoat || vehicle instanceof AbstractMinecart) || !vehicle.isAlive()) {
             return;
         }
         ItemStack heldItem = event.getItemStack();
         Component customName = heldItem.get(DataComponents.CUSTOM_NAME);
         if (!(heldItem.getItem() instanceof NameTagItem) || customName == null
-                || !boat.getType().canSerialize()) {
+                || !vehicle.getType().canSerialize()) {
             return;
         }
 
         // Consume the interaction on both sides so using the tag does not also
-        // mount the boat. The server owns the name and item-count mutation.
+        // mount or open the vehicle. The server owns the name and item-count mutation.
         event.setCancellationResult(InteractionResult.SUCCESS);
         event.setCanceled(true);
-        if (boat.level().isClientSide()) {
+        if (vehicle.level().isClientSide()) {
             return;
         }
 
-        boat.setCustomName(customName);
+        vehicle.setCustomName(customName);
         heldItem.shrink(1);
-        if (boat.level() instanceof ServerLevel level) {
+        if (vehicle.level() instanceof ServerLevel level) {
             FarAndWideSavedData.get(level.getServer())
-                    .updateVehicleCustomName(boat.getUUID(), customName.getString());
+                    .updateVehicleCustomName(vehicle.getUUID(), customName.getString());
             RouteNetwork.broadcastVehicleAssignments(level.getServer());
         }
     }

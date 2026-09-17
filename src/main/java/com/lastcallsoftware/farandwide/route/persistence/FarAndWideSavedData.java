@@ -840,6 +840,7 @@ public final class FarAndWideSavedData extends SavedData {
         boolean restartAnchor = false;
         switch (assignment.getTraversalType(route)) {
             case LOOP -> targetIndex = Math.floorMod(targetIndex, waypointCount);
+            case ROUND_TRIP -> targetIndex = Math.clamp(targetIndex, 0, waypointCount - 1);
             case REVERSE -> {
                 if (targetIndex >= waypointCount) {
                     targetIndex = waypointCount - 1;

@@ -49,8 +49,9 @@ class RouteSnapshotPayloadTest {
         assertRouteEquals(original, reconstructed.getFirst());
     }
 
-    @Test
-    void wireRoundTripPreservesWaypointIdentityAndCargoSettings() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(TraversalType.class)
+    void wireRoundTripPreservesWaypointIdentityAndCargoSettings(TraversalType traversalType) {
         Identifier coal = Identifier.parse("minecraft:coal");
         Identifier iron = Identifier.parse("minecraft:iron_ingot");
         Identifier charcoal = Identifier.parse("minecraft:charcoal");
@@ -64,7 +65,7 @@ class RouteSnapshotPayloadTest {
         Waypoint waypoint = new Waypoint(
                 73, new Vec3(2, 65, -4), Identifier.parse("minecraft:overworld"),
                 WaypointAction.cargo(behavior));
-        Route route = new Route(8, "Freight", TraversalType.REVERSE, List.of(waypoint));
+        Route route = new Route(8, "Freight", traversalType, List.of(waypoint));
         RouteSnapshotPayload sent = RouteSnapshotPayload.from(List.of(route), 8);
         RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
                 Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);

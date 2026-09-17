@@ -188,12 +188,13 @@ class FarAndWideSavedDataTest {
         assertFalse(data.invertRoute(999));
     }
 
-    @Test
-    void routeAndAssignmentFieldsSurviveDiskRoundTrip() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(TraversalType.class)
+    void routeAndAssignmentFieldsSurviveDiskRoundTrip(TraversalType traversalType) {
         FarAndWideSavedData original = new FarAndWideSavedData();
         Route route = original.createRoute();
         assertTrue(original.renameRoute(route.getId(), "Supply Run"));
-        assertTrue(original.setTraversalType(route.getId(), TraversalType.REVERSE));
+        original.setTraversalType(route.getId(), traversalType);
         assertTrue(original.addWaypoint(route.getId(), new Waypoint(new Vec3(1.25, 64, -8.5), OVERWORLD)));
         assertTrue(original.addWaypoint(route.getId(), new Waypoint(new Vec3(4, 70.5, 12), NETHER)));
         route = original.getRoute(route.getId());
@@ -211,7 +212,7 @@ class FarAndWideSavedDataTest {
         Route restoredRoute = restored.getRoute(route.getId());
         assertNotNull(restoredRoute);
         assertEquals("Supply Run", restoredRoute.getName());
-        assertEquals(TraversalType.REVERSE, restoredRoute.getTraversalType());
+        assertEquals(traversalType, restoredRoute.getTraversalType());
         assertEquals(route.getWaypoints(), restoredRoute.getWaypoints());
 
         RouteAssignment restoredAssignment = restored.getAssignment(assigneeId);

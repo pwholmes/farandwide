@@ -131,9 +131,9 @@ public final class ServerRouteTraversalController {
         }
 
         ServerVehicleController.stop(entity);
-        boolean departingFromOneWayAnchor = isOneWayRestartAnchor(route, assignment);
+        boolean departingFromRestartAnchor = isRestartAnchor(route, assignment);
         if (target.action() instanceof WaypointAction.Cargo cargo
-                && !processCargo(assigneeId, route.getId(), entity, target, cargo.behavior(), departingFromOneWayAnchor)) {
+                && !processCargo(assigneeId, route.getId(), entity, target, cargo.behavior(), departingFromRestartAnchor)) {
             return;
         }
         if (waitForReverseDeparture(assigneeId, route, assignment, entity.level().getGameTime())) {
@@ -177,17 +177,20 @@ public final class ServerRouteTraversalController {
     }
 
     static boolean reversesAtTarget(Route route, RouteAssignment assignment) {
-        if (assignment.getTraversalType(route) != TraversalType.REVERSE || route.getWaypoints().size() < 2) {
+        TraversalType type = assignment.getTraversalType(route);
+        if ((type != TraversalType.REVERSE && type != TraversalType.ROUND_TRIP)
+                || route.getWaypoints().size() < 2) {
             return false;
         }
         int target = assignment.getTargetWaypointIndex();
-        return (target == 0 && assignment.getTraversalDirection() < 0)
+        return (type == TraversalType.REVERSE && target == 0 && assignment.getTraversalDirection() < 0)
                 || (target == route.getWaypoints().size() - 1 && assignment.getTraversalDirection() > 0);
     }
 
-    private static boolean isOneWayRestartAnchor(Route route, RouteAssignment assignment) {
+    private static boolean isRestartAnchor(Route route, RouteAssignment assignment) {
         if (!assignment.isRestartAnchor()
-                || assignment.getTraversalType(route) != com.lastcallsoftware.farandwide.route.TraversalType.ONE_WAY
+                || (assignment.getTraversalType(route) != TraversalType.ONE_WAY
+                    && assignment.getTraversalType(route) != TraversalType.ROUND_TRIP)
                 || route.getWaypoints().size() <= 1) {
             return false;
         }
@@ -195,10 +198,11 @@ public final class ServerRouteTraversalController {
         return target == 0 || target == route.getWaypoints().size() - 1;
     }
 
-    /** A one-way route needs return trips while it has cargo still owed to an order. */
+    /** One-way and round-trip routes keep traversing while cargo is still owed to an order. */
     private static TraversalType effectiveTraversalType(FarAndWideSavedData data, Route route,
             RouteAssignment assignment) {
-        return route.getTraversalType() == TraversalType.ONE_WAY && data.hasOutstandingOrdersOnRoute(route.getId())
+        return (route.getTraversalType() == TraversalType.ONE_WAY
+                || route.getTraversalType() == TraversalType.ROUND_TRIP) && data.hasOutstandingOrdersOnRoute(route.getId())
                 ? TraversalType.REVERSE : assignment.getTraversalType(route);
     }
 
@@ -335,7 +339,7 @@ public final class ServerRouteTraversalController {
         }
         return switch (effectiveTraversalType(data, route, assignment)) {
             case ONE_WAY -> {
-                if (isOneWayRestartAnchor(route, assignment)) {
+                if (isRestartAnchor(route, assignment)) {
                     int direction = assignment.getTargetWaypointIndex() == 0 ? 1 : -1;
                     yield data.updateAssignmentProgress(
                             assigneeId, assignment.getTargetWaypointIndex() + direction, direction);
@@ -353,6 +357,17 @@ public final class ServerRouteTraversalController {
             }
             case LOOP -> data.updateAssignmentProgress(assigneeId,
                     (assignment.getTargetWaypointIndex() + 1) % waypointCount, assignment.getTraversalDirection());
+            case ROUND_TRIP -> {
+                int direction = isRestartAnchor(route, assignment) ? 1 : assignment.getTraversalDirection();
+                int next = assignment.getTargetWaypointIndex() + direction;
+                if (next >= waypointCount) {
+                    yield data.updateAssignmentProgress(assigneeId, waypointCount - 2, -1);
+                }
+                if (next < 0) {
+                    yield data.stopAssignmentAtWaypoint(assigneeId, 0, -1);
+                }
+                yield data.updateAssignmentProgress(assigneeId, next, direction);
+            }
             case REVERSE -> {
                 int next = assignment.getTargetWaypointIndex() + assignment.getTraversalDirection();
                 if (next >= waypointCount) {

@@ -10,7 +10,8 @@ import org.eclipse.jdt.annotation.NonNullByDefault;
 public enum TraversalType {
     ONE_WAY("one_way"),
     LOOP("loop"),
-    REVERSE("reverse");
+    REVERSE("reverse"),
+    ROUND_TRIP("round_trip");
 
     public static final Codec<TraversalType> CODEC = Codec.STRING.xmap(
             value -> TraversalType.valueOf(value.toUpperCase(java.util.Locale.ROOT)),

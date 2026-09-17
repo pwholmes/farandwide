@@ -313,6 +313,98 @@ class ServerRouteTraversalControllerTest {
         assertTrue(fixture.data.getAssignment(fixture.assigneeId).isActive());
     }
 
+    @Test
+    void roundTripVisitsEveryWaypointInBothDirectionsThenCanRestart() {
+        Fixture fixture = cargoFixture(TraversalType.ROUND_TRIP, 3);
+        AtomicInteger processed = new AtomicInteger();
+        for (int target : new int[] {0, 1, 2, 1, 0}) {
+            RouteAssignment assignment = fixture.data.getAssignment(fixture.assigneeId);
+            assertTrue(assignment.isActive());
+            assertEquals(target, assignment.getTargetWaypointIndex());
+            assertTrue(ServerRouteTraversalController.processArrival(
+                    fixture.data, fixture.assigneeId, fixture.route, assignment,
+                    fixture.route.getWaypoints().get(target), behavior -> processed.incrementAndGet()));
+        }
+        RouteAssignment stopped = fixture.data.getAssignment(fixture.assigneeId);
+        assertFalse(stopped.isActive());
+        assertEquals(0, stopped.getTargetWaypointIndex());
+        assertTrue(stopped.isRestartAnchor());
+        assertEquals(5, processed.get());
+
+        fixture.data.setAssignmentActive(fixture.assigneeId, true);
+        ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId));
+        RouteAssignment restarted = fixture.data.getAssignment(fixture.assigneeId);
+        assertTrue(restarted.isActive());
+        assertEquals(1, restarted.getTargetWaypointIndex());
+        assertEquals(1, restarted.getTraversalDirection());
+        assertFalse(restarted.isRestartAnchor());
+    }
+
+    @Test
+    void roundTripKeepsRunningUntilAllOrdersAreDeliveredThenReturnsHome() {
+        Fixture fixture = fixture(TraversalType.ROUND_TRIP, 3);
+        addOutstandingOrder(fixture);
+        addOutstandingOrder(fixture);
+        for (int delivered = 0; delivered < 2; delivered++) {
+            fixture.data.updateAssignmentProgress(fixture.assigneeId, 0, -1);
+            ServerRouteTraversalController.advanceAssignment(
+                    fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId));
+            assertTrue(fixture.data.getAssignment(fixture.assigneeId).isActive());
+            assertEquals(1, fixture.data.getAssignment(fixture.assigneeId).getTraversalDirection());
+            assertTrue(fixture.data.creditOrders(fixture.route.id(), fixture.route.waypoints().getLast().id(),
+                    new CargoStationBinding(BlockPos.ZERO, Direction.UP), Identifier.parse("minecraft:gold_ingot"), 1));
+        }
+        assertFalse(fixture.data.hasOutstandingOrdersOnRoute(fixture.route.id()));
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        for (int target : new int[] {2, 1, 0}) {
+            RouteAssignment assignment = fixture.data.getAssignment(fixture.assigneeId);
+            assertTrue(assignment.isActive());
+            assertEquals(target, assignment.getTargetWaypointIndex());
+            ServerRouteTraversalController.advanceAssignment(fixture.data, fixture.assigneeId, fixture.route, assignment);
+        }
+        assertFalse(fixture.data.getAssignment(fixture.assigneeId).isActive());
+    }
+
+    @Test
+    void roundTripDwellsAtFarEndButStopsAtHome() {
+        Fixture fixture = fixture(TraversalType.ROUND_TRIP, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        assertTrue(ServerRouteTraversalController.reversesAtTarget(
+                fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 0, -1);
+        assertFalse(ServerRouteTraversalController.reversesAtTarget(
+                fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+    }
+
+    @Test
+    void roundTripWithOneWaypointStopsOnArrival() {
+        Fixture fixture = fixture(TraversalType.ROUND_TRIP, 1);
+        assertTrue(ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+        assertFalse(fixture.data.getAssignment(fixture.assigneeId).isActive());
+    }
+
+    @Test
+    void roundTripRetargetsDeletedEndpointsBeforeTurningOrStopping() {
+        Fixture fixture = fixture(TraversalType.ROUND_TRIP, 4);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 3, 1);
+        assertTrue(fixture.data.removeWaypoint(fixture.route.id(), 3));
+        Route route = fixture.data.getRoute(fixture.route.id());
+        assertEquals(2, fixture.data.getAssignment(fixture.assigneeId).getTargetWaypointIndex());
+        ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, route, fixture.data.getAssignment(fixture.assigneeId));
+        assertEquals(-1, fixture.data.getAssignment(fixture.assigneeId).getTraversalDirection());
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 0, -1);
+        assertTrue(fixture.data.removeWaypoint(fixture.route.id(), 0));
+        route = fixture.data.getRoute(fixture.route.id());
+        assertEquals(0, fixture.data.getAssignment(fixture.assigneeId).getTargetWaypointIndex());
+        assertTrue(fixture.data.getAssignment(fixture.assigneeId).isActive());
+        ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, route, fixture.data.getAssignment(fixture.assigneeId));
+        assertFalse(fixture.data.getAssignment(fixture.assigneeId).isActive());
+    }
+
     private static Fixture fixture(TraversalType traversalType, int waypointCount) {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();

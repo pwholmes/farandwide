@@ -241,6 +241,7 @@
   "hud.farandwide.waypoint": "%s Waypoint %s/%s • %s/%s m",
   "hud.farandwide.player_position": "X: %s  Y: %s  Z: %s",
 
+  "traversal.farandwide.round_trip": "Round-Trip",
   "traversal.farandwide.one_way": "One Way",
   "traversal.farandwide.one_way.description": "Stop at each end, return to that endpoint when restarted, then travel in the opposite direction.",
   "traversal.farandwide.loop": "Loop",

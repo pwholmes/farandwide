@@ -80,7 +80,7 @@ public class RouteEditorScreen extends FarAndWideScreen {
         traversalTypeButton = addRenderableWidget(CycleButton
                 .builder((@NonNull TraversalType traversalType) -> traversalType.getDisplayName(), initialTraversalType)
                 .withValues(TraversalType.values())
-                .withTooltip(type -> Tooltip.create(type.getDescription()))
+                .withTooltip(type -> type == TraversalType.ROUND_TRIP ? null : Tooltip.create(type.getDescription()))
                 .create(
                         fieldX,
                         traversalY,

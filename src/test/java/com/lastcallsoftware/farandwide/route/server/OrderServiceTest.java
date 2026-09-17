@@ -133,9 +133,12 @@ class OrderServiceTest {
         assertEquals(RouteOperationResult.NO_ASSIGNMENT, data.getOrder(order.id()).activationResult());
     }
 
-    @Test void acceptsOneWayOrdersAndActivatesCargoVehicles() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = TraversalType.class, names = {"ONE_WAY", "ROUND_TRIP"})
+    void acceptsFiniteRouteOrdersAndActivatesCargoVehicles(TraversalType traversalType) {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();
+        data.setTraversalType(route.id(), traversalType);
         data.addWaypoint(route.id(), new Waypoint(Vec3.ZERO));
         data.addWaypoint(route.id(), new Waypoint(new Vec3(10, 0, 0)));
         List<Waypoint> waypoints = data.getRoute(route.id()).waypoints();
