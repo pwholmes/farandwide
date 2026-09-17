@@ -23,11 +23,16 @@ public final class Constants {
     }
 
     public static final class Cargo {
+        /** Wait between unloading and loading, measured in simulation seconds. */
+        public static final double DWELL_SECONDS = 2.0;
+        /** Load and unload stations must be within this distance of their cargo waypoint. */
+        public static final double STATION_RADIUS = 8.0;
         public static final int MAX_SCANNED_SLOTS = 256;
         public static final int MAX_ITEMS_PER_OPERATION = 4_096;
-        public static final int MAX_ITEMS_PER_STACK = 64;
-        /** One second after each successful stack transfer, with no idle delay for empty cargo stops. */
-        public static final long TRANSFER_INTERVAL_TICKS = 20;
+        /** Maximum number of items moved by one scheduled cargo transfer. */
+        public static final int ITEMS_PER_TRANSFER = 4;
+        /** Delay after each successful cargo transfer, measured in simulation seconds. */
+        public static final double TRANSFER_DELAY_SECONDS = 0.25;
         public static final int EQUINE_EQUIPMENT_SLOT_COUNT = 2;
 
         private Cargo() {

@@ -52,7 +52,7 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
     private Optional<CargoStationBinding> selectedLoadStation;
     private Optional<CargoStationBinding> selectedUnloadStation;
     private final List<CargoStationBinding> sourceInventories = new ArrayList<>();
-    private boolean editingSources;
+    private boolean editingSourceInventories;
     private int sourcePage;
     private boolean loadTab;
     private int settingsScroll;
@@ -72,6 +72,7 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
     /** Layout anchors calculated while placing the widgets and reused by the content renderer. */
     private int editorLeft;
     private int editorTop;
+    private int footerYPos;
 
     /** Opens creation mode. No waypoint exists until the player presses Save. */
     public CargoWaypointScreen(Route route, Vec3 proposedPosition, Identifier proposedDimension) {
@@ -117,6 +118,13 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        if (editingSourceInventories) {
+            int left = (width - CONTROL_WIDTH) / 2;
+            graphics.fill(left - 10, 43, left + CONTROL_WIDTH + 10, height - 36, 0xCC000000);
+        } else {
+            graphics.fill(editorLeft - 10, editorTop + 12, editorLeft + CONTROL_WIDTH + 30,
+                    footerYPos - 3, 0xCC000000);
+        }
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         renderWaypointEditorContents(graphics, mouseX, mouseY);
     }
@@ -126,8 +134,8 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
 
     /* Render Waypoint Editor Widgets */
     private void renderWaypointEditorWidgets() {
-        if (editingSources) {
-            renderSourceWidgets();
+        if (editingSourceInventories) {
+            renderSourceInventoryWidgets();
             return;
         }
         int left = (width - CONTROL_WIDTH) / 2;
@@ -178,7 +186,7 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         }
 
         // Keep the footer stable for every waypoint type, including Normal, and across cargo tabs.
-        int footerYPos = Math.min(height - 26, yPos + 142);
+        footerYPos = Math.min(height - 26, yPos + 142);
         settingsTop = yPos;
         settingsBottom = footerYPos - 5;
         if (selectedBehavior == BehaviorType.CARGO) renderCargoWidgets(left);
@@ -231,11 +239,11 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
                 button -> minecraft.setScreenAndShow(new CargoFilterScreen(this, loading, loading ? loadFilter : unloadFilter)))
                 .bounds(left + CONTROL_WIDTH - ACTION_WIDTH, filterYPos, ACTION_WIDTH, 20).build());
         if (usesLoadStation(selectedOperation)) {
-            addSettingsButton(Button.builder(Component.translatable("screen.farandwide.sources.button"), button -> {
-                editingSources = true;
+            addSettingsButton(Button.builder(Component.translatable("screen.farandwide.source_inventories.button"), button -> {
+                editingSourceInventories = true;
                 rebuildEditor();
             }).bounds(left + CONTROL_WIDTH - ACTION_WIDTH, sourcesYPos, ACTION_WIDTH, 20)
-                    .tooltip(Tooltip.create(Component.translatable("screen.farandwide.sources.button.tooltip"))).build());
+                    .tooltip(Tooltip.create(Component.translatable("screen.farandwide.source_inventories.button.tooltip"))).build());
         }
         if (maximumSettingsScroll() > 0) {
             Button up = addRenderableWidget(Button.builder(Component.literal("↑"), button -> scrollSettings(-ROW_HEIGHT))
@@ -283,22 +291,22 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         renderWaypointEditorWidgets();
     }
 
-    private int sourcesPerPage() {
+    private int sourceInventoriesPerPage() {
         return Math.max(1, (height - 126) / ROW_HEIGHT);
     }
 
-    private void renderSourceWidgets() {
+    private void renderSourceInventoryWidgets() {
         int left = (width - CONTROL_WIDTH) / 2;
-        sourcePage = Math.clamp(sourcePage, 0, Math.max(0, (sourceInventories.size() - 1) / sourcesPerPage()));
-        Button add = addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.sources.add"),
-                button -> CargoStationSelector.begin(this, CargoStationSelector.Role.SOURCE))
+        sourcePage = Math.clamp(sourcePage, 0, Math.max(0, (sourceInventories.size() - 1) / sourceInventoriesPerPage()));
+        Button add = addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.source_inventories.add"),
+                button -> CargoStationSelector.begin(this, CargoStationSelector.Role.SOURCE_INVENTORY))
                 .bounds(left, 46, CONTROL_WIDTH, 20).build());
         add.active = sourceInventories.size() < Constants.Orders.MAX_SOURCE_INVENTORIES;
-        int first = sourcePage * sourcesPerPage();
-        for (int index = first; index < Math.min(first + sourcesPerPage(), sourceInventories.size()); index++) {
+        int first = sourcePage * sourceInventoriesPerPage();
+        for (int index = first; index < Math.min(first + sourceInventoriesPerPage(), sourceInventories.size()); index++) {
             CargoStationBinding source = sourceInventories.get(index);
             int row = index - first;
-            addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.sources.remove"), button -> {
+            addRenderableWidget(Button.builder(Component.translatable("screen.farandwide.source_inventories.remove"), button -> {
                 sourceInventories.remove(source);
                 rebuildEditor();
             }).bounds(left + 186, 76 + row * ROW_HEIGHT, 54, 20).build());
@@ -312,17 +320,17 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             sourcePage++;
             rebuildEditor();
         }).bounds(left + 210, height - 32, 30, 20).build());
-        next.active = (sourcePage + 1) * sourcesPerPage() < sourceInventories.size();
+        next.active = (sourcePage + 1) * sourceInventoriesPerPage() < sourceInventories.size();
         addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> {
-            editingSources = false;
+            editingSourceInventories = false;
             rebuildEditor();
         }).bounds(left + 70, height - 32, 100, 20).build());
     }
 
     @Override
     public void onClose() {
-        if (editingSources) {
-            editingSources = false;
+        if (editingSourceInventories) {
+            editingSourceInventories = false;
             rebuildEditor();
         } else {
             super.onClose();
@@ -335,23 +343,23 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
      * and cycle controls render themselves through {@link #extractRenderState}.
      */
     private void renderWaypointEditorContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
-        if (editingSources) {
+        if (editingSourceInventories) {
             int left = (width - CONTROL_WIDTH) / 2;
-            graphics.centeredText(font, Component.translatable("screen.farandwide.sources.title", sourceInventories.size()),
+            graphics.centeredText(font, Component.translatable("screen.farandwide.source_inventories.title", sourceInventories.size()),
                     width / 2, 12, 0xFFFFFFFF);
-            graphics.centeredText(font, Component.translatable("screen.farandwide.sources.range", (int) Constants.Orders.SOURCE_RADIUS),
+            graphics.centeredText(font, Component.translatable("screen.farandwide.source_inventories.range", (int) Constants.Orders.SOURCE_RADIUS),
                     width / 2, 28, 0xFFAAAAAA);
-            int first = sourcePage * sourcesPerPage();
-            for (int index = first; index < Math.min(first + sourcesPerPage(), sourceInventories.size()); index++) {
+            int first = sourcePage * sourceInventoriesPerPage();
+            for (int index = first; index < Math.min(first + sourceInventoriesPerPage(), sourceInventories.size()); index++) {
                 CargoStationBinding source = sourceInventories.get(index);
-                Component description = Component.translatable("screen.farandwide.sources.description",
+                Component description = Component.translatable("screen.farandwide.source_inventories.description",
                         blockName(source), source.position().getX(), source.position().getY(), source.position().getZ(),
                         source.accessSide().getSerializedName());
                 graphics.text(font, font.plainSubstrByWidth(description.getString(), 180), left,
                         82 + (index - first) * ROW_HEIGHT, 0xFFFFFFFF);
             }
             if (sourceInventories.isEmpty()) graphics.centeredText(font,
-                    Component.translatable("screen.farandwide.sources.empty"), width / 2, 85, 0xFFAAAAAA);
+                    Component.translatable("screen.farandwide.source_inventories.empty"), width / 2, 85, 0xFFAAAAAA);
             return;
         }
         int left = editorLeft;
@@ -378,11 +386,11 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             // Cargo Exchange defaults to unloading first; each tab keeps its station and filter together.
             renderCargoDetails(graphics, left, mouseX, mouseY);
             if (usesLoadStation(selectedOperation)) {
-                graphics.text(font, Component.translatable("screen.farandwide.sources.label"), left, sourcesYPos, 0xFFFFFFFF);
+                graphics.text(font, Component.translatable("screen.farandwide.source_inventories.label"), left, sourcesYPos, 0xFFFFFFFF);
                 String summaryKey = switch (sourceInventories.size()) {
-                    case 0 -> "screen.farandwide.sources.optional";
-                    case 1 -> "screen.farandwide.sources.summary_one";
-                    default -> "screen.farandwide.sources.summary";
+                    case 0 -> "screen.farandwide.source_inventories.optional";
+                    case 1 -> "screen.farandwide.source_inventories.summary_one";
+                    default -> "screen.farandwide.source_inventories.summary";
                 };
                 graphics.text(font, Component.translatable(summaryKey, sourceInventories.size()),
                         left, sourcesYPos + 12, 0xFFAAAAAA);
@@ -517,11 +525,12 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         }
     }
 
-    boolean isStationWithinArrivalRadius(CargoStationBinding station) {
-        return WaypointProximity.isWithinArrivalRadius(proposedPosition, selectedArrivalRadius, station.position());
+    boolean isStationWithinRange(CargoStationBinding station) {
+        return WaypointProximity.isWithinArrivalRadius(
+                proposedPosition, Constants.Cargo.STATION_RADIUS, station.position());
     }
 
-    boolean isSourceWithinRange(CargoStationBinding station) {
+    boolean isSourceInventoryWithinRange(CargoStationBinding station) {
         return WaypointProximity.isWithinArrivalRadius(proposedPosition, Constants.Orders.SOURCE_RADIUS, station.position());
     }
 
@@ -550,7 +559,7 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (editingSources) {
+        if (editingSourceInventories) {
             if (verticalAmount != 0) {
                 sourcePage += verticalAmount > 0 ? -1 : 1;
                 rebuildEditor();

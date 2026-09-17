@@ -101,7 +101,7 @@ class OrderPayloadsTest {
         var buffer = buffer();
         try {
             buffer.writeVarInt(Constants.Orders.MAX_SOURCE_INVENTORIES + 1);
-            assertThrows(IllegalArgumentException.class, () -> CargoSourceBindings.read(buffer));
+            assertThrows(IllegalArgumentException.class, () -> SourceInventoryBindings.read(buffer));
         } finally { buffer.release(); }
     }
 

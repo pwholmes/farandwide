@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.server;
 
+import com.lastcallsoftware.farandwide.Constants;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.lastcallsoftware.farandwide.route.CargoOperation;
@@ -135,17 +136,18 @@ class CargoTransferServiceTest {
 
     @Test
     void timedTransferStepsRespectDifferentDirectionFilters() {
+        int amount = Constants.Cargo.ITEMS_PER_TRANSFER;
         TestHandler vehicle = new TestHandler(2);
-        vehicle.set(0, TestResource.COAL, 10);
+        vehicle.set(0, TestResource.COAL, amount);
         vehicle.set(1, TestResource.COPPER, 6);
         TestHandler unloadStation = new TestHandler(1);
         TestHandler loadStation = new TestHandler(2);
-        loadStation.set(0, TestResource.IRON, 5);
+        loadStation.set(0, TestResource.IRON, amount);
         loadStation.set(1, TestResource.COPPER, 7);
 
-        assertEquals(10, CargoTransferService.transferOneStack(
+        assertEquals(amount, CargoTransferService.transferItems(
                 vehicle, unloadStation, resource -> resource == TestResource.COAL));
-        assertEquals(5, CargoTransferService.transferOneStack(
+        assertEquals(amount, CargoTransferService.transferItems(
                 loadStation, vehicle, resource -> resource == TestResource.IRON));
 
         assertEquals(TestResource.COPPER, vehicle.getResource(1));
@@ -154,33 +156,51 @@ class CargoTransferServiceTest {
     }
 
     @Test
-    void timedTransferMovesNoMoreThanOneStackPerStep() {
+    void timedTransferMovesTheConfiguredItemAmountPerStep() {
         TestHandler source = new TestHandler(2);
         source.set(0, TestResource.IRON, 64);
         source.set(1, TestResource.IRON, 64);
         TestHandler destination = new TestHandler(2);
 
-        assertEquals(64, CargoTransferService.transferOneStack(source, destination, resource -> true));
-        assertEquals(0, source.getAmountAsInt(0));
+        int amount = Constants.Cargo.ITEMS_PER_TRANSFER;
+        assertEquals(amount, CargoTransferService.transferItems(source, destination, resource -> true));
+        assertEquals(64 - amount, source.getAmountAsInt(0));
         assertEquals(64, source.getAmountAsInt(1));
-        assertEquals(64, destination.getAmountAsInt(0));
+        assertEquals(amount, destination.getAmountAsInt(0));
         assertEquals(0, destination.getAmountAsInt(1));
 
-        assertEquals(64, CargoTransferService.transferOneStack(source, destination, resource -> true));
-        assertEquals(0, source.getAmountAsInt(1));
-        assertEquals(64, destination.getAmountAsInt(1));
+        assertEquals(amount, CargoTransferService.transferItems(source, destination, resource -> true));
+        assertEquals(64 - 2 * amount, source.getAmountAsInt(0));
+        assertEquals(2 * amount, destination.getAmountAsInt(0));
+    }
+
+    @Test
+    void timedTransferUsesMultipleSourceStacksToMeetItsItemAmount() {
+        int amount = Constants.Cargo.ITEMS_PER_TRANSFER;
+        int firstSourceAmount = amount - 1;
+        TestHandler source = new TestHandler(2);
+        source.set(0, TestResource.IRON, firstSourceAmount);
+        source.set(1, TestResource.IRON, amount);
+        TestHandler destination = new TestHandler(1);
+
+        assertEquals(amount,
+                CargoTransferService.transferItems(source, destination, resource -> true));
+        assertEquals(0, source.getAmountAsInt(0));
+        assertEquals(amount - 1, source.getAmountAsInt(1));
+        assertEquals(amount, destination.getAmountAsInt(0));
     }
 
     @Test
     void timedUnloadThenLoadUsesCurrentStationContents() {
-        TestHandler vehicle = handler(10, TestResource.COAL);
-        TestHandler station = handler(5, TestResource.COAL);
+        int amount = Constants.Cargo.ITEMS_PER_TRANSFER;
+        TestHandler vehicle = handler(amount, TestResource.COAL);
+        TestHandler station = handler(amount, TestResource.COAL);
 
-        assertEquals(10, CargoTransferService.transferOneStack(vehicle, station, resource -> true));
-        assertEquals(15, CargoTransferService.transferOneStack(station, vehicle, resource -> true));
+        assertEquals(amount, CargoTransferService.transferItems(vehicle, station, resource -> true));
+        assertEquals(amount, CargoTransferService.transferItems(station, vehicle, resource -> true));
 
-        assertEquals(15, vehicle.getAmountAsInt(0));
-        assertEquals(0, station.getAmountAsInt(0));
+        assertEquals(amount, vehicle.getAmountAsInt(0));
+        assertEquals(amount, station.getAmountAsInt(0));
     }
 
     private static CargoTransferService.TransferResult transfer(TestHandler vehicle, TestHandler station,

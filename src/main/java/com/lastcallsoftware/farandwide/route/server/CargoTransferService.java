@@ -47,41 +47,41 @@ public final class CargoTransferService {
         return new TransferResult(unloaded, loaded);
     }
 
-    /**
-     * Moves at most one source stack, returning the quantity actually moved.
-     * A zero result means that no eligible source stack can currently be moved.
-     */
-    static <T extends Resource> int transferOneStack(ResourceHandler<T> source, ResourceHandler<T> destination,
+    /** Moves up to the configured item amount, returning the quantity actually moved. */
+    static <T extends Resource> int transferItems(ResourceHandler<T> source, ResourceHandler<T> destination,
             Predicate<T> filter) {
-        return transferOneStack(source, destination, filter, (resource, amount) -> {});
+        return transferItems(source, destination, filter, (resource, amount) -> {});
     }
 
     /** Reports only committed transfers; order receipts must never include simulated or rejected moves. */
-    static <T extends Resource> int transferOneStack(ResourceHandler<T> source, ResourceHandler<T> destination,
+    static <T extends Resource> int transferItems(ResourceHandler<T> source, ResourceHandler<T> destination,
             Predicate<T> filter, ObjIntConsumer<T> receipt) {
         int sourceSlots = Math.min(source.size(), Constants.Cargo.MAX_SCANNED_SLOTS);
         int destinationSlots = Math.min(destination.size(), Constants.Cargo.MAX_SCANNED_SLOTS);
-        for (int sourceSlot = 0; sourceSlot < sourceSlots; sourceSlot++) {
+        int remaining = Constants.Cargo.ITEMS_PER_TRANSFER;
+        int movedTotal = 0;
+        for (int sourceSlot = 0; sourceSlot < sourceSlots && remaining > 0; sourceSlot++) {
             T resource = source.getResource(sourceSlot);
             if (resource.isEmpty() || !filter.test(resource)) {
                 continue;
             }
-            int available = Math.min(source.getAmountAsInt(sourceSlot), Constants.Cargo.MAX_ITEMS_PER_STACK);
+            int available = Math.min(source.getAmountAsInt(sourceSlot), remaining);
             if (available <= 0) {
                 continue;
             }
-            int movedTotal = 0;
+            int movedFromResource = 0;
             for (int destinationSlot = 0; destinationSlot < destinationSlots && available > 0; destinationSlot++) {
                 int moved = moveTransactional(source, sourceSlot, destination, destinationSlot, resource, available);
                 available -= moved;
-                movedTotal += moved;
+                movedFromResource += moved;
             }
-            if (movedTotal > 0) {
-                receipt.accept(resource, movedTotal);
-                return movedTotal;
+            if (movedFromResource > 0) {
+                remaining -= movedFromResource;
+                movedTotal += movedFromResource;
+                receipt.accept(resource, movedFromResource);
             }
         }
-        return 0;
+        return movedTotal;
     }
 
     static <T extends Resource> TransferResult transferResources(ResourceHandler<T> vehicle,

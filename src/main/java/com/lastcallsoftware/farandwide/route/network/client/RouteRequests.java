@@ -4,6 +4,8 @@ import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.OrderLine;
 import com.lastcallsoftware.farandwide.route.OrderJourney;
 import com.lastcallsoftware.farandwide.route.network.payload.OrderPayloads;
+import com.lastcallsoftware.farandwide.route.network.payload.TargetedAssignmentMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.TargetedVehicleActivationPayload;
 import java.util.List;
 import java.util.UUID;
 import com.lastcallsoftware.farandwide.route.Waypoint;
@@ -117,12 +119,20 @@ public final class RouteRequests {
         send(new AssignmentMutationPayload(AssignmentMutationPayload.Action.ASSIGN, routeId));
     }
 
+    public static void assignRouteToTarget(int routeId, int entityId) {
+        send(new TargetedAssignmentMutationPayload(routeId, entityId));
+    }
+
     public static void toggleAssignment() {
         send(new AssignmentMutationPayload(AssignmentMutationPayload.Action.TOGGLE_ACTIVE, 0));
     }
 
     public static void toggleVehicle() {
         send(new AssignmentMutationPayload(AssignmentMutationPayload.Action.TOGGLE_VEHICLE, 0));
+    }
+
+    public static void toggleTargetVehicle(int entityId) {
+        send(new TargetedVehicleActivationPayload(entityId));
     }
 
     public static void setRouteAssignmentsActive(int routeId, boolean active) {

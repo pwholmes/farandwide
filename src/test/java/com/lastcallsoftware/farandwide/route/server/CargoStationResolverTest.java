@@ -19,19 +19,19 @@ class CargoStationResolverTest {
     }
 
     @Test
-    void requiresTheExplicitStationToBeWithinArrivalRadius() {
+    void requiresTheExplicitStationToBeWithinTheFixedStationRadius() {
         Waypoint waypoint = new Waypoint(
                 1, new Vec3(10.5, 64.5, -2.5), Identifier.parse("minecraft:overworld"),
                 com.lastcallsoftware.farandwide.route.WaypointAction.normal());
 
-        assertTrue(CargoStationResolver.isWithinArrivalRadius(
+        assertTrue(CargoStationResolver.isWithinStationRadius(
                 waypoint, new CargoStationBinding(new BlockPos(13, 64, -3), Direction.UP)));
-        assertFalse(CargoStationResolver.isWithinArrivalRadius(
-                waypoint, new CargoStationBinding(new BlockPos(14, 64, -3), Direction.UP)));
+        assertFalse(CargoStationResolver.isWithinStationRadius(
+                waypoint, new CargoStationBinding(new BlockPos(19, 64, -3), Direction.UP)));
 
         Waypoint widerWaypoint = new Waypoint(
                 2, waypoint.position(), waypoint.dimension(), waypoint.action(), 5.0);
-        assertTrue(CargoStationResolver.isWithinArrivalRadius(
-                widerWaypoint, new CargoStationBinding(new BlockPos(14, 64, -3), Direction.UP)));
+        assertFalse(CargoStationResolver.isWithinStationRadius(
+                widerWaypoint, new CargoStationBinding(new BlockPos(19, 64, -3), Direction.UP)));
     }
 }

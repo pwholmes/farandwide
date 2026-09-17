@@ -1,6 +1,8 @@
 package com.lastcallsoftware.farandwide.route.network;
 
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.TargetedAssignmentMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.TargetedVehicleActivationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RequestAssignmentSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RequestRouteSnapshotPayload;
@@ -40,7 +42,7 @@ public final class RouteNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("14");
+        var registrar = event.registrar("15");
         OrderNetwork.register(registrar);
         registrar.playToServer(RequestRouteSnapshotPayload.TYPE, RequestRouteSnapshotPayload.STREAM_CODEC,
                 (payload, context) -> replyWithRoutes((ServerPlayer) context.player(), context));
@@ -110,6 +112,34 @@ public final class RouteNetwork {
                         if (result == RouteOperationResult.SUCCESS) {
                             broadcastVehicleAssignments(player);
                         }
+                    }
+                });
+        registrar.playToServer(TargetedAssignmentMutationPayload.TYPE,
+                TargetedAssignmentMutationPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    ServerPlayer player = (ServerPlayer) context.player();
+                    RouteOperationResult result = RouteService.assignRouteToTarget(
+                            player, payload.routeId(), payload.entityId());
+                    replyWithResult(context, result);
+                    if (result == RouteOperationResult.SUCCESS) {
+                        Entity target = player.level().getEntity(payload.entityId());
+                        if (target != null) {
+                            RouteService.AssignmentState state = RouteService.getAssignment(player, target);
+                            PacketDistributor.sendToAllPlayers(
+                                    new AssignmentSnapshotPayload(state.entityId(), state.assignment()));
+                        }
+                        broadcastVehicleAssignments(player);
+                    }
+                });
+        registrar.playToServer(TargetedVehicleActivationPayload.TYPE,
+                TargetedVehicleActivationPayload.STREAM_CODEC,
+                (payload, context) -> {
+                    ServerPlayer player = (ServerPlayer) context.player();
+                    RouteOperationResult result = RouteService.toggleTargetVehicle(player, payload.entityId());
+                    replyWithResult(context, result);
+                    sendAssignmentSnapshot(player);
+                    if (result == RouteOperationResult.SUCCESS) {
+                        broadcastVehicleAssignments(player);
                     }
                 });
         registrar.playToServer(RouteActivationMutationPayload.TYPE, RouteActivationMutationPayload.STREAM_CODEC,

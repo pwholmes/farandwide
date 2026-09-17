@@ -149,7 +149,7 @@ public record RouteSnapshotPayload(List<RouteSnapshot> routes, int selectedRoute
             writeFilter(buffer, behavior.unloadFilter());
             writeStation(buffer, behavior.loadStation());
             writeStation(buffer, behavior.unloadStation());
-            CargoSourceBindings.write(buffer, behavior.sourceInventories());
+            SourceInventoryBindings.write(buffer, behavior.sourceInventories());
         }
 
         private static CargoBehavior readCargoBehavior(FriendlyByteBuf buffer) {
@@ -159,7 +159,7 @@ public record RouteSnapshotPayload(List<RouteSnapshot> routes, int selectedRoute
                     readFilter(buffer),
                     readStation(buffer),
                     readStation(buffer),
-                    CargoSourceBindings.read(buffer));
+                    SourceInventoryBindings.read(buffer));
         }
 
         private static void writeStation(FriendlyByteBuf buffer, java.util.Optional<CargoStationBinding> station) {

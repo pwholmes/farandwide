@@ -3,7 +3,12 @@ package com.lastcallsoftware.farandwide.route.server;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.CargoBehavior;
+import com.lastcallsoftware.farandwide.route.CargoOrder;
+import com.lastcallsoftware.farandwide.route.CargoStationBinding;
 import com.lastcallsoftware.farandwide.route.CargoOperation;
+import com.lastcallsoftware.farandwide.route.OrderLeg;
+import com.lastcallsoftware.farandwide.route.OrderLine;
+import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
@@ -13,13 +18,32 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.minecraft.SharedConstants;
 import net.minecraft.resources.Identifier;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
+import java.util.UUID;
 
 class ServerRouteTraversalControllerTest {
     private static final Identifier OVERWORLD = Identifier.parse("minecraft:overworld");
+
+    @SuppressWarnings("deprecation")
+    @BeforeAll
+    static void bootstrap() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+        for (var item : List.of(Items.AIR, Items.GOLD_INGOT)) {
+            item.builtInRegistryHolder().bindComponents(DataComponents.COMMON_ITEM_COMPONENTS);
+        }
+    }
 
     @Test
     void oneWayStopsAfterFinalWaypointAndPreparesReverseLeg() {
@@ -114,6 +138,35 @@ class ServerRouteTraversalControllerTest {
     }
 
     @Test
+    void oneWayReversesAtEndpointsWhileOrderCargoIsOutstanding() {
+        Fixture fixture = fixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        addOutstandingOrder(fixture);
+
+        assertTrue(ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+
+        RouteAssignment result = fixture.data.getAssignment(fixture.assigneeId);
+        assertTrue(result.isActive());
+        assertEquals(1, result.getTargetWaypointIndex());
+        assertEquals(-1, result.getTraversalDirection());
+    }
+
+    @Test
+    void oneWayStopsAtEndpointAfterItsOutstandingOrderIsCancelled() {
+        Fixture fixture = fixture(TraversalType.ONE_WAY, 3);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        UUID owner = addOutstandingOrder(fixture);
+        CargoOrder order = fixture.data.getOrders().getFirst();
+        assertTrue(fixture.data.cancelOrder(order.id(), owner));
+
+        assertTrue(ServerRouteTraversalController.advanceAssignment(
+                fixture.data, fixture.assigneeId, fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+
+        assertFalse(fixture.data.getAssignment(fixture.assigneeId).isActive());
+    }
+
+    @Test
     void oneWayEndpointCargoKeepsEndpointAsRestartTarget() {
         Fixture fixture = cargoFixture(TraversalType.ONE_WAY, 3);
         fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
@@ -129,6 +182,24 @@ class ServerRouteTraversalControllerTest {
         assertFalse(result.isActive());
         assertEquals(2, result.getTargetWaypointIndex());
         assertEquals(1, result.getTraversalDirection());
+    }
+
+    @Test
+    void reverseDwellsOnlyAtTheEndpointBeforeItChangesDirection() {
+        Fixture fixture = fixture(TraversalType.REVERSE, 3);
+
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        assertTrue(ServerRouteTraversalController.reversesAtTarget(
+                fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 1, 1);
+        assertFalse(ServerRouteTraversalController.reversesAtTarget(
+                fixture.route, fixture.data.getAssignment(fixture.assigneeId)));
+
+        fixture.data.setTraversalType(fixture.route.id(), TraversalType.LOOP);
+        fixture.data.updateAssignmentProgress(fixture.assigneeId, 2, 1);
+        assertFalse(ServerRouteTraversalController.reversesAtTarget(
+                fixture.data.getRoute(fixture.route.id()), fixture.data.getAssignment(fixture.assigneeId)));
     }
 
     @Test
@@ -264,6 +335,16 @@ class ServerRouteTraversalControllerTest {
         }
         return new Fixture(fixture.data, fixture.data.getRoute(fixture.route.getId()),
                 fixture.assigneeId, fixture.data.getAssignment(fixture.assigneeId));
+    }
+
+    private static UUID addOutstandingOrder(Fixture fixture) {
+        UUID owner = UUID.randomUUID();
+        List<Waypoint> waypoints = fixture.route.getWaypoints();
+        fixture.data.addOrder(new CargoOrder(UUID.randomUUID(), owner, List.of(new OrderLeg(
+                fixture.route.getId(), waypoints.getFirst().id(), waypoints.getLast().id(),
+                new CargoStationBinding(BlockPos.ZERO, Direction.UP),
+                List.of(new OrderLine(Identifier.parse("minecraft:gold_ingot"), 1, 0)), RouteOperationResult.SUCCESS))));
+        return owner;
     }
 
     private record Fixture(FarAndWideSavedData data, Route route, int assigneeId, RouteAssignment assignment) {

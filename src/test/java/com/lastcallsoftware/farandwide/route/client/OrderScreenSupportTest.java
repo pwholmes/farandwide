@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 class OrderScreenSupportTest {
     @Test
-    void oneWayRoutesCannotSupplyOrdersOrAppearInAnyJourneyLeg() {
+    void oneWayRoutesCanSupplyOrdersAndAppearInAnyJourneyLeg() {
         Route first = fourStops(1, "First", 0, 10);
         Route second = fourStops(2, "Second", 10, 20);
         Route third = fourStops(3, "Third", 20, 30);
@@ -20,12 +20,16 @@ class OrderScreenSupportTest {
             Route original = routes.get(excluded);
             Route oneWay = new Route(original.id(), original.name(), TraversalType.ONE_WAY, original.waypoints());
             routes.set(excluded, oneWay);
-            assertTrue(OrderScreenSupport.origins(oneWay).isEmpty());
-            List<OrderJourney> journeys = OrderScreenSupport.journeys(routes, routes.getFirst(), routes.getFirst().waypoints().getFirst());
-            // A one-way handoff blocks the entire continuation, not just that leg's display.
-            assertEquals(excluded, journeys.size());
-            assertTrue(journeys.stream().flatMap(journey -> journey.legs().stream())
-                    .noneMatch(leg -> leg.routeId() == oneWay.id()));
+            List<OrderJourney> orderJourneys = OrderScreenSupport.journeys(
+                    routes, routes.getFirst(), routes.getFirst().waypoints().getFirst());
+            assertEquals(3, orderJourneys.size());
+            boolean includesOneWayRoute = false;
+            for (OrderJourney journey : orderJourneys) {
+                if (journey.legs().stream().anyMatch(leg -> leg.routeId() == oneWay.id())) {
+                    includesOneWayRoute = true;
+                }
+            }
+            assertTrue(includesOneWayRoute);
         }
     }
 
@@ -93,7 +97,7 @@ class OrderScreenSupportTest {
     }
 
     @Test
-    void linkedDeliveryStopsAtThreeLegsAndRequiresMatchingStationFace() {
+    void linkedDeliveryStopsAtThreeLegsAndAllowsDifferentStationFaces() {
         Route first = fourStops(1, "First", 0, 10);
         Route second = fourStops(2, "Second", 10, 20);
         Route third = fourStops(3, "Third", 20, 30);
@@ -101,12 +105,13 @@ class OrderScreenSupportTest {
         Waypoint wrongFace = new Waypoint(51, Vec3.ZERO, Waypoint.DEFAULT_DIMENSION,
                 WaypointAction.cargo(CargoBehavior.unfiltered(CargoOperation.LOAD)
                         .withLoadStation(new CargoStationBinding(new BlockPos(10, 64, 0), Direction.DOWN))));
-        Route unrelated = route(5, "Wrong face", wrongFace, cargo(54, CargoOperation.UNLOAD, 50));
-        List<OrderJourney> journeys = OrderScreenSupport.journeys(List.of(first, second, third, fourth, unrelated),
+        Route linkedByBlock = route(5, "Different face", wrongFace, cargo(54, CargoOperation.UNLOAD, 50));
+        List<OrderJourney> journeys = OrderScreenSupport.journeys(List.of(first, second, third, fourth, linkedByBlock),
                 first, first.getWaypoints().getFirst());
 
-        assertEquals(List.of(1, 2, 3), journeys.stream().map(journey -> journey.legs().size()).toList());
-        assertEquals(3, journeys.getLast().legs().getLast().routeId());
+        assertEquals(List.of(1, 2, 3, 2), journeys.stream().map(journey -> journey.legs().size()).toList());
+        assertEquals(3, journeys.get(2).legs().getLast().routeId());
+        assertEquals(5, journeys.getLast().legs().getLast().routeId());
     }
 
     private static OrderJourney journey(OrderJourney.Leg... legs) { return new OrderJourney(List.of(legs)); }

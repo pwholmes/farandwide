@@ -53,7 +53,7 @@ Each stack loaded or unloaded takes one second at normal server speed. There is 
 
 Edit the origin Cargo Waypoint, select **Sources**, and link the inventories that supply its Load Station. Sources may be up to 8 blocks from the Waypoint. Press **Done**, then **Save** in the Waypoint editor. The Load Station must be separate from the Source Inventories.
 
-Open **Orders** from the command menu and choose **Place Order**. Select a Route and the numbered origin/destination Waypoints, then move currently available items from the left inventory into the Order Items inventory on the right. Both endpoint filters must allow those items. Named, enchanted, damaged, and other modified item variants are shown and ordered separately so their components remain intact.
+Open **Manage Orders** from the command menu and choose **Place Order**. Select a Route and the numbered origin/destination Waypoints, then move currently available items from the left inventory into the Order Items inventory on the right. Both endpoint filters must allow those items. Named, enchanted, damaged, and other modified item variants are shown and ordered separately so their components remain intact.
 
 An Order is accepted only when all requested items can be moved from the linked sources into the Load Station at once. Insufficient stock or space leaves every inventory unchanged. The Route is then activated; providing suitable Vehicles and arranging enough trips remains the player's responsibility. Remote assembly loads only the linked storage chunks and requires server chunk loading to be enabled when those chunks are not already loaded.
 

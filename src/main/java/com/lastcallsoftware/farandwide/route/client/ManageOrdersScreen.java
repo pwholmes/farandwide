@@ -15,7 +15,7 @@ import org.eclipse.jdt.annotation.Nullable;
 
 /** Shows confirmed receipts; removing a record never changes cargo or route activity. */
 @NonNullByDefault
-public final class OrderTrackingScreen extends FarAndWideScreen {
+public final class ManageOrdersScreen extends FarAndWideScreen {
     private @Nullable UUID selectedId;
     private int page;
     private int itemPage;
@@ -25,13 +25,13 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
     private long routeRevision;
     private @Nullable Button cancelButton;
 
-    public OrderTrackingScreen() { this(null); }
-    public OrderTrackingScreen(@Nullable UUID selectedId) {
-        super(Component.translatable("screen.farandwide.order.tracking_title"));
+    public ManageOrdersScreen() { this(null); }
+    public ManageOrdersScreen(@Nullable UUID selectedId) {
+        super(Component.translatable("screen.farandwide.manage_orders.title"));
         this.selectedId = selectedId;
     }
 
-    private int panelWidth() { return Math.min(600, width - 20); }
+    private int panelWidth() { return Math.min(600, width - 60); }
     private int left() { return (width - panelWidth()) / 2; }
     private int columnWidth() { return (panelWidth() - 12) / 2; }
     private int right() { return left() + columnWidth() + 12; }
@@ -153,6 +153,7 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
     }
 
     @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(left() - 10, 27, left() + panelWidth() + 10, height - 35, 0xCC000000);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(font, title, width / 2, 12, 0xFFFFFFFF);
         List<CargoOrder> orders = filtered();
@@ -221,10 +222,6 @@ public final class OrderTrackingScreen extends FarAndWideScreen {
 
     private @Nullable Component routeWarning(CargoOrder order) {
         for (OrderLeg leg : order.legs()) {
-            Route route = RouteManager.getRoute(leg.routeId());
-            if (route != null && !route.supportsOrders() && leg.lines().stream().anyMatch(line -> line.remaining() > 0)) {
-                return Component.translatable("screen.farandwide.order.one_way_route", route.getName());
-            }
             List<VehicleRouteAssignment> assignments = RouteManager.getVehicleAssignments(leg.routeId());
             if (assignments.isEmpty()) return Component.translatable("screen.farandwide.order.no_vehicle_assigned");
             if (assignments.stream().noneMatch(assignment -> assignment != null && assignment.active())) {

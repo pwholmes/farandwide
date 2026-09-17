@@ -19,49 +19,66 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 class CargoTransferSessionTest {
     private static final long ARRIVAL_TICK = 100;
-    private static final long INTERVAL = Constants.Cargo.TRANSFER_INTERVAL_TICKS;
+    private static final long TICKS_PER_SECOND = 20;
+    private static final long INTERVAL = secondsToTicks(Constants.Cargo.TRANSFER_DELAY_SECONDS);
+    private static final long DWELL = secondsToTicks(Constants.Cargo.DWELL_SECONDS);
 
     @ParameterizedTest
-    @EnumSource(CargoOperation.class)
-    void noMovableCargoFinishesOnArrival(CargoOperation operation) {
-        assertTrue(session(operation).tick(ARRIVAL_TICK, () -> 0, () -> 0));
+    @EnumSource(value = CargoOperation.class, names = {"UNLOAD", "UNLOAD_THEN_LOAD"})
+    void noMovableUnloadDwellsBeforeDeparture(CargoOperation operation) {
+        CargoTransferSession session = session(operation);
+
+        assertFalse(session.tick(ARRIVAL_TICK, () -> 0, () -> 0));
+        assertFalse(session.tick(ARRIVAL_TICK + DWELL - 1, () -> fail("Still dwelling"), () -> fail("Still dwelling")));
+        assertTrue(session.tick(ARRIVAL_TICK + DWELL, () -> 0, () -> 0));
     }
 
     @ParameterizedTest
     @EnumSource(value = CargoOperation.class, names = {"LOAD", "UNLOAD"})
-    void eachMovedStackDelaysNextTransferAndDeparture(CargoOperation operation) {
+    void eachSuccessfulTransferDelaysNextTransferAndDeparture(CargoOperation operation) {
         CargoTransferSession session = session(operation);
         AtomicInteger attempts = new AtomicInteger();
-        IntSupplier transfer = () -> attempts.getAndIncrement() < 2 ? 64 : 0;
-        IntSupplier unexpected = () -> fail("The other transfer direction must not run");
-        IntSupplier unload = operation == CargoOperation.UNLOAD ? transfer : unexpected;
-        IntSupplier load = operation == CargoOperation.LOAD ? transfer : unexpected;
+        IntSupplier transfer = () -> attempts.getAndIncrement() < 2 ? Constants.Cargo.ITEMS_PER_TRANSFER : 0;
+        IntSupplier unload = operation == CargoOperation.LOAD ? () -> 0 : transfer;
+        IntSupplier load = operation == CargoOperation.UNLOAD ? () -> 0 : transfer;
 
-        assertFalse(session.tick(ARRIVAL_TICK, unload, load));
+        long firstTransferTick = ARRIVAL_TICK;
+        assertFalse(session.tick(firstTransferTick, unload, load));
         assertEquals(1, attempts.get());
-        assertFalse(session.tick(ARRIVAL_TICK + INTERVAL - 1, unload, load));
+        assertFalse(session.tick(firstTransferTick + INTERVAL - 1, unload, load));
         assertEquals(1, attempts.get());
-        assertFalse(session.tick(ARRIVAL_TICK + INTERVAL, unload, load));
+        assertFalse(session.tick(firstTransferTick + INTERVAL, unload, load));
         assertEquals(2, attempts.get());
-        assertFalse(session.tick(ARRIVAL_TICK + 2 * INTERVAL - 1, unload, load));
+        assertFalse(session.tick(firstTransferTick + 2 * INTERVAL - 1, unload, load));
         assertEquals(2, attempts.get());
-        assertTrue(session.tick(ARRIVAL_TICK + 2 * INTERVAL, unload, load));
-        assertEquals(3, attempts.get());
+        if (operation == CargoOperation.UNLOAD) {
+            assertFalse(session.tick(firstTransferTick + 2 * INTERVAL, unload, load));
+            assertEquals(3, attempts.get());
+            assertTrue(session.tick(firstTransferTick + 2 * INTERVAL + DWELL, unload, load));
+        } else {
+            assertTrue(session.tick(firstTransferTick + 2 * INTERVAL, unload, load));
+            assertEquals(3, attempts.get());
+        }
     }
 
     @Test
-    void emptyUnloadStageLoadsImmediately() {
+    void emptyUnloadStageDwellsBeforeLoading() {
         CargoTransferSession session = session(CargoOperation.UNLOAD_THEN_LOAD);
         AtomicInteger loaded = new AtomicInteger();
 
         assertFalse(session.tick(ARRIVAL_TICK, () -> 0, () -> loaded.incrementAndGet()));
 
+        assertEquals(0, loaded.get());
+        assertFalse(session.tick(ARRIVAL_TICK + DWELL - 1,
+                () -> fail("Unloading is finished"), () -> fail("Still dwelling")));
+        assertFalse(session.tick(ARRIVAL_TICK + DWELL,
+                () -> fail("Unloading is finished"), () -> loaded.incrementAndGet()));
         assertEquals(1, loaded.get());
-        assertTrue(session.tick(ARRIVAL_TICK + INTERVAL, () -> fail("Unloading is finished"), () -> 0));
+        assertTrue(session.tick(ARRIVAL_TICK + DWELL + INTERVAL, () -> fail("Unloading is finished"), () -> 0));
     }
 
     @Test
-    void unloadThenLoadHasOnlySuccessfulTransferDelays() {
+    void unloadThenLoadDwellsOnceBetweenTransferStages() {
         CargoTransferSession session = session(CargoOperation.UNLOAD_THEN_LOAD);
         List<String> attempts = new ArrayList<>();
         AtomicInteger unloaded = new AtomicInteger();
@@ -80,20 +97,47 @@ class CargoTransferSessionTest {
         assertFalse(session.tick(ARRIVAL_TICK + INTERVAL - 1, unload, load));
         assertEquals(List.of("unload"), attempts);
         assertFalse(session.tick(ARRIVAL_TICK + INTERVAL, unload, load));
+        assertEquals(List.of("unload", "unload"), attempts);
+        assertFalse(session.tick(ARRIVAL_TICK + INTERVAL + DWELL - 1, unload, load));
+        assertEquals(List.of("unload", "unload"), attempts);
+        assertFalse(session.tick(ARRIVAL_TICK + INTERVAL + DWELL, unload, load));
         assertEquals(List.of("unload", "unload", "load"), attempts);
-        assertTrue(session.tick(ARRIVAL_TICK + 2 * INTERVAL, unload, load));
+        assertTrue(session.tick(ARRIVAL_TICK + 2 * INTERVAL + DWELL, unload, load));
         assertEquals(List.of("unload", "unload", "load", "load"), attempts);
     }
 
     @Test
-    void unloadWithNoLoadFinishesAfterLastTransferDelay() {
+    void unloadWithNoLoadFinishesAfterTransferDelayAndDwell() {
         CargoTransferSession session = session(CargoOperation.UNLOAD_THEN_LOAD);
 
         assertFalse(session.tick(ARRIVAL_TICK, () -> 1, () -> fail("Must unload first")));
-        assertTrue(session.tick(ARRIVAL_TICK + INTERVAL, () -> 0, () -> 0));
+        assertFalse(session.tick(ARRIVAL_TICK + INTERVAL, () -> 0, () -> fail("Still dwelling")));
+        assertTrue(session.tick(ARRIVAL_TICK + INTERVAL + DWELL, () -> fail("Unloading is finished"), () -> 0));
+    }
+
+    @Test
+    void emptyUnloadThenLoadStillDwells() {
+        CargoTransferSession session = session(CargoOperation.UNLOAD_THEN_LOAD);
+
+        assertFalse(session.tick(ARRIVAL_TICK, () -> 0, () -> fail("Still dwelling")));
+        assertFalse(session.tick(ARRIVAL_TICK + DWELL - 1,
+                () -> fail("Unloading is finished"), () -> fail("Still dwelling")));
+        assertTrue(session.tick(ARRIVAL_TICK + DWELL, () -> fail("Unloading is finished"), () -> 0));
+    }
+
+    @Test
+    void departureFromOneWayAnchorSkipsUnloadingAndDwell() {
+        CargoTransferSession session = new CargoTransferSession(1, 1,
+                CargoBehavior.unfiltered(CargoOperation.UNLOAD_THEN_LOAD), true);
+
+        assertTrue(session.tick(ARRIVAL_TICK, () -> fail("Departure must not unload"), () -> 0));
     }
 
     private static CargoTransferSession session(CargoOperation operation) {
         return new CargoTransferSession(1, 1, CargoBehavior.unfiltered(operation));
+    }
+
+    private static long secondsToTicks(double seconds) {
+        return (long) Math.ceil(seconds * TICKS_PER_SECOND);
     }
 }

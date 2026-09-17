@@ -219,7 +219,7 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         RouteManager.OrderFeedback feedback = RouteManager.getOrderFeedback();
         if (submittedId != null && feedback != null && submittedId.equals(feedback.id())
                 && feedback.result() == OrderResult.PLACED) {
-            minecraft.setScreenAndShow(new OrderTrackingScreen(submittedId));
+            minecraft.setScreenAndShow(new ManageOrdersScreen(submittedId));
             return;
         }
         updateActions();
@@ -281,6 +281,7 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
     }
 
     @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(left() - 10, 25, left() + panelWidth() + 10, height - 30, 0xCC000000);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(font, title, width / 2, 12, 0xFFFFFFFF);
         graphics.text(font, Component.translatable("screen.farandwide.order.pickup_from"), left(), PICKUP_TOP + 6,
@@ -340,7 +341,7 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         }
     }
 
-    @Override public void onClose() { minecraft.setScreenAndShow(new OrderTrackingScreen()); }
+    @Override public void onClose() { minecraft.setScreenAndShow(new ManageOrdersScreen()); }
 
     private void extractGridBackground(GuiGraphicsExtractor graphics, OrderItemSelectionState.Side side) {
         int gridLeft = gridLeft(side);
@@ -546,7 +547,7 @@ public final class OrderPlacementScreen extends FarAndWideScreen {
         if (font.width(text) <= width) return text;
         return Component.literal(font.plainSubstrByWidth(text.getString(), Math.max(0, width - font.width("..."))) + "...");
     }
-    private int panelWidth() { return Math.min(600, width - 20); }
+    private int panelWidth() { return Math.min(600, width - 60); }
     private int left() { return (width - panelWidth()) / 2; }
     private int columnWidth() { return (panelWidth() - 12) / 2; }
     private int right() { return left() + columnWidth() + 12; }

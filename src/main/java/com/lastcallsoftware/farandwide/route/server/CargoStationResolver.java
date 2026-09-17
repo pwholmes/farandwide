@@ -1,5 +1,6 @@
 package com.lastcallsoftware.farandwide.route.server;
 
+import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.CargoStationBinding;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointProximity;
@@ -23,15 +24,15 @@ public final class CargoStationResolver {
 
     public static Optional<ResourceHandler<ItemResource>> find(
             ServerLevel level, Waypoint waypoint, Optional<CargoStationBinding> station) {
-        return find(level, waypoint.position(), waypoint.arrivalRadius(), station);
+        return find(level, waypoint.position(), station);
     }
 
     static Optional<ResourceHandler<ItemResource>> find(ServerLevel level,
-            net.minecraft.world.phys.Vec3 waypointPosition, double arrivalRadius,
+            net.minecraft.world.phys.Vec3 waypointPosition,
             Optional<CargoStationBinding> station) {
         return station
                 .filter(binding -> WaypointProximity.isWithinArrivalRadius(
-                        waypointPosition, arrivalRadius, binding.position()))
+                        waypointPosition, Constants.Cargo.STATION_RADIUS, binding.position()))
                 .filter(binding -> hasLoadedChunk(level, binding.position()))
                 .flatMap(binding -> findInventory(level, binding));
     }
@@ -59,8 +60,9 @@ public final class CargoStationResolver {
                 : VanillaContainerWrapper.of(container);
     }
 
-    static boolean isWithinArrivalRadius(Waypoint waypoint, CargoStationBinding binding) {
-        return WaypointProximity.isWithinArrivalRadius(waypoint, binding.position());
+    static boolean isWithinStationRadius(Waypoint waypoint, CargoStationBinding binding) {
+        return WaypointProximity.isWithinArrivalRadius(
+                waypoint.position(), Constants.Cargo.STATION_RADIUS, binding.position());
     }
 
     static boolean hasLoadedChunk(ServerLevel level, BlockPos position) {

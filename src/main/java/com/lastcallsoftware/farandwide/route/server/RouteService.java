@@ -11,6 +11,7 @@ import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideSavedData;
+import com.lastcallsoftware.farandwide.vehicle.VehicleSupport;
 import com.lastcallsoftware.farandwide.vehicle.server.ServerVehicleController;
 import com.lastcallsoftware.farandwide.vehicle.server.VehicleChunkLoadingManager;
 import com.lastcallsoftware.farandwide.vehicle.server.cargo.CargoVehicleInventory;
@@ -21,6 +22,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.eclipse.jdt.annotation.NonNull;
 
@@ -189,8 +192,36 @@ public final class RouteService {
     }
 
     public static RouteOperationResult assignRoute(ServerPlayer player, int routeId) {
+        return assignRoute(player, routeId, controlledAssignee(player));
+    }
+
+    /** Assigns the looked-at vehicle without changing the on-foot player's assignment. */
+    public static RouteOperationResult assignRouteToTarget(ServerPlayer player, int routeId, int entityId) {
+        Entity target = player.level().getEntity(entityId);
+        if (player.getVehicle() != null || target == null || !target.isAlive()
+                || !VehicleSupport.supportsNavigation(target)
+                || !player.isWithinEntityInteractionRange(target, 0.0)
+                || !isLookingAt(player, target)) {
+            return RouteOperationResult.VEHICLE_NOT_FOUND;
+        }
+        return assignRoute(player, routeId, target);
+    }
+
+    private static boolean isLookingAt(ServerPlayer player, Entity target) {
+        Vec3 eye = player.getEyePosition();
+        Vec3 end = eye.add(player.getViewVector(1.0F).scale(player.entityInteractionRange()));
+        Vec3 hit = target.getBoundingBox().inflate(0.25).clip(eye, end).orElse(null);
+        if (hit == null) {
+            return false;
+        }
+        HitResult blockHit = player.level().clip(new ClipContext(
+                eye, hit, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player));
+        return blockHit.getType() == HitResult.Type.MISS
+                || blockHit.getLocation().distanceToSqr(eye) >= hit.distanceToSqr(eye);
+    }
+
+    private static RouteOperationResult assignRoute(ServerPlayer player, int routeId, Entity assignee) {
         FarAndWideSavedData data = data(player);
-        Entity assignee = controlledAssignee(player);
         int assigneeId = assigneeId(assignee, data);
         RouteOperationResult result = assignRoute(
                 data,
@@ -405,6 +436,22 @@ public final class RouteService {
     /** Toggles the ridden vehicle, or the player's own assignment when on foot. */
     public static RouteOperationResult toggleCurrentVehicle(ServerPlayer player) {
         Entity vehicle = controlledAssignee(player);
+        return toggleVehicle(player, vehicle);
+    }
+
+    /** Toggles a looked-at vehicle without changing the on-foot player's assignment. */
+    public static RouteOperationResult toggleTargetVehicle(ServerPlayer player, int entityId) {
+        Entity target = player.level().getEntity(entityId);
+        if (player.getVehicle() != null || target == null || !target.isAlive()
+                || !VehicleSupport.supportsNavigation(target)
+                || !player.isWithinEntityInteractionRange(target, 0.0)
+                || !isLookingAt(player, target)) {
+            return RouteOperationResult.VEHICLE_NOT_FOUND;
+        }
+        return toggleVehicle(player, target);
+    }
+
+    private static RouteOperationResult toggleVehicle(ServerPlayer player, Entity vehicle) {
         FarAndWideSavedData data = data(player);
         int vehicleAssigneeId = assigneeId(vehicle, data);
         RouteAssignment assignment = data.getAssignment(vehicleAssigneeId);
@@ -495,7 +542,7 @@ public final class RouteService {
         if (requestValidation != RouteOperationResult.SUCCESS) {
             return requestValidation;
         }
-        return data.addWaypoint(routeId, new Waypoint(0, position, dimension, action, arrivalRadius))
+        return data.addWaypoint(routeId, new Waypoint(0, centerWaypointPosition(position), dimension, action, arrivalRadius))
                 ? RouteOperationResult.SUCCESS
                 : RouteOperationResult.ROUTE_NOT_FOUND;
     }
@@ -542,7 +589,7 @@ public final class RouteService {
                         > Constants.Waypoints.EDIT_RADIUS * Constants.Waypoints.EDIT_RADIUS) {
             return RouteOperationResult.INVALID_WAYPOINT;
         }
-        RouteOperationResult cargoValidation = validateCargoStations(player, waypoint.position(), action, waypoint.arrivalRadius(),
+        RouteOperationResult cargoValidation = validateCargoStations(player, waypoint.position(), action,
                 data.getRoute(routeId), waypointId);
         if (cargoValidation != RouteOperationResult.SUCCESS) {
             return cargoValidation;
@@ -594,11 +641,11 @@ public final class RouteService {
                         * Constants.Waypoints.EDIT_RADIUS)) {
             return RouteOperationResult.INVALID_WAYPOINT;
         }
-        return validateCargoStations(player, position, action, arrivalRadius, route, replacedWaypointId);
+        return validateCargoStations(player, position, action, route, replacedWaypointId);
     }
 
     private static RouteOperationResult validateCargoStations(ServerPlayer player, Vec3 waypointPosition,
-            WaypointAction action, double arrivalRadius, Route route, int replacedWaypointId) {
+            WaypointAction action, Route route, int replacedWaypointId) {
         if (!(action instanceof WaypointAction.Cargo cargo)) {
             return RouteOperationResult.SUCCESS;
         }
@@ -619,10 +666,10 @@ public final class RouteService {
             }
         }
         boolean valid = switch (cargo.behavior().operation()) {
-            case LOAD -> validStation(level, waypointPosition, arrivalRadius, cargo.behavior().loadStation());
-            case UNLOAD -> validStation(level, waypointPosition, arrivalRadius, cargo.behavior().unloadStation());
-            case UNLOAD_THEN_LOAD -> validStation(level, waypointPosition, arrivalRadius, cargo.behavior().loadStation())
-                    && validStation(level, waypointPosition, arrivalRadius, cargo.behavior().unloadStation());
+            case LOAD -> validStation(level, waypointPosition, cargo.behavior().loadStation());
+            case UNLOAD -> validStation(level, waypointPosition, cargo.behavior().unloadStation());
+            case UNLOAD_THEN_LOAD -> validStation(level, waypointPosition, cargo.behavior().loadStation())
+                    && validStation(level, waypointPosition, cargo.behavior().unloadStation());
         };
         return valid ? RouteOperationResult.SUCCESS : RouteOperationResult.INVALID_CARGO_STATION;
     }
@@ -635,9 +682,9 @@ public final class RouteService {
                 .anyMatch(proposedBehavior::conflictsWithOppositeRole);
     }
 
-    private static boolean validStation(ServerLevel level, Vec3 waypointPosition, double arrivalRadius,
+    private static boolean validStation(ServerLevel level, Vec3 waypointPosition,
             java.util.Optional<com.lastcallsoftware.farandwide.route.CargoStationBinding> station) {
-        return CargoStationResolver.find(level, waypointPosition, arrivalRadius, station).isPresent();
+        return CargoStationResolver.find(level, waypointPosition, station).isPresent();
     }
 
     private static RouteOperationResult activateVehicleAssignment(
@@ -731,7 +778,12 @@ public final class RouteService {
                 look.x * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE,
                 0.0,
                 look.z * Constants.Waypoints.PLACEMENT_OFFSET_DISTANCE);
-        return new Waypoint(position, dimension(player));
+        return new Waypoint(centerWaypointPosition(position), dimension(player));
+    }
+
+    private static Vec3 centerWaypointPosition(Vec3 position) {
+        // Center placement horizontally within the block while preserving elevation.
+        return new Vec3(Math.floor(position.x) + 0.5, position.y, Math.floor(position.z) + 0.5);
     }
 
     public static List<VehicleRouteAssignment> getVehicleRouteAssignments(ServerPlayer player) {

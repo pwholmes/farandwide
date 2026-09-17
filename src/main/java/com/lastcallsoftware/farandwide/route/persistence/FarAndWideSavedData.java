@@ -86,6 +86,13 @@ public final class FarAndWideSavedData extends SavedData {
         setDirty();
     }
 
+    /** True while this route still has cargo to deliver for at least one order leg. */
+    public boolean hasOutstandingOrdersOnRoute(int routeId) {
+        return orders.stream().flatMap(order -> order.legs().stream())
+                .anyMatch(leg -> leg.routeId() == routeId
+                        && leg.lines().stream().anyMatch(line -> line.remaining() > 0));
+    }
+
     /** Cancelling forgets only the owner's tracking record; cargo and assignments remain untouched. */
     public boolean cancelOrder(@NonNull UUID id, @NonNull UUID playerId) {
         boolean removed = orders.removeIf(order -> order.id().equals(id) && order.playerId().equals(playerId));

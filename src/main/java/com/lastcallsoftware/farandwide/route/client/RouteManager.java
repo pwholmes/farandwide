@@ -14,6 +14,7 @@ import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.VehicleRouteAssignment;
 import com.lastcallsoftware.farandwide.route.network.client.RouteRequests;
 import com.lastcallsoftware.farandwide.route.network.payload.OrderPayloads;
+import com.lastcallsoftware.farandwide.vehicle.VehicleSupport;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.EntityHitResult;
 
 /**
  * Client-facing route API and replaceable snapshot cache.
@@ -322,10 +324,24 @@ public class RouteManager {
         sendOverlayMessage("message.farandwide.route_assigned", route.getName());
     }
 
-    /** Assigns or replaces with the selected route; selecting the same route (or none) unassigns it. */
+    /** Assigns the selected route to a ridden or looked-at vehicle, otherwise the player. */
     public static void toggleRouteAssignment() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return;
+        }
         Route route = getCurrentRoute();
-        RouteRequests.assignRoute(route == null ? 0 : route.getId());
+        int routeId = route == null ? 0 : route.getId();
+        if (minecraft.player.getVehicle() == null
+                && minecraft.hitResult instanceof EntityHitResult entityHit
+                && VehicleSupport.supportsNavigation(entityHit.getEntity())) {
+            RouteRequests.assignRouteToTarget(routeId, entityHit.getEntity().getId());
+        } else {
+            RouteRequests.assignRoute(routeId);
+        }
+        if (route != null) {
+            sendOverlayMessage("message.farandwide.route_assigned", route.getName());
+        }
     }
 
     public static void updateRoute(Route route, String name, TraversalType traversalType) {
@@ -499,13 +515,19 @@ public class RouteManager {
         RouteRequests.toggleAssignment();
     }
 
-    /** Toggles the controlled vehicle, falling back to the player's own assignment. */
+    /** Toggles a ridden or looked-at vehicle, otherwise the player's own assignment. */
     public static void toggleCurrentVehicle() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
             return;
         }
-        RouteRequests.toggleVehicle();
+        if (minecraft.player.getVehicle() == null
+                && minecraft.hitResult instanceof EntityHitResult entityHit
+                && VehicleSupport.supportsNavigation(entityHit.getEntity())) {
+            RouteRequests.toggleTargetVehicle(entityHit.getEntity().getId());
+        } else {
+            RouteRequests.toggleVehicle();
+        }
     }
 
     private static void requestAssignmentSnapshot() {

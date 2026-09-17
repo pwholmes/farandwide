@@ -155,6 +155,8 @@ final class CargoFilterScreen extends FarAndWideScreen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        int left = (width - panelWidth()) / 2;
+        graphics.fill(left - 10, 27, left + panelWidth() + 10, height - 30, 0xCC000000);
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
         graphics.centeredText(font, title, width / 2, 12, 0xFFFFFFFF);
 
@@ -262,7 +264,7 @@ final class CargoFilterScreen extends FarAndWideScreen {
     }
 
     private int panelWidth() {
-        return Math.min(PANEL_WIDTH, Math.max(SLOT_SIZE * 4, width - 20));
+        return Math.min(PANEL_WIDTH, Math.max(SLOT_SIZE * 4, width - 60));
     }
 
     private int columns() {

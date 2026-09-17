@@ -13,10 +13,10 @@ import com.lastcallsoftware.farandwide.route.network.RouteNetwork;
 import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
+import com.lastcallsoftware.farandwide.route.TraversalType;
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.CargoBehavior;
 import com.lastcallsoftware.farandwide.route.CargoFilter;
-import com.lastcallsoftware.farandwide.route.CargoOperation;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.WaypointAction;
 import com.lastcallsoftware.farandwide.route.persistence.FarAndWideAttachments;
@@ -51,6 +51,7 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  */
 public final class ServerRouteTraversalController {
     private static final Map<Integer, CargoTransferSession> cargoTransfersByAssignee = new HashMap<>();
+    private static final Map<Integer, Long> reverseDwellUntilByAssignee = new HashMap<>();
 
     private ServerRouteTraversalController() {
     }
@@ -63,6 +64,7 @@ public final class ServerRouteTraversalController {
         FarAndWideSavedData data = FarAndWideSavedData.get(event.getServer());
         Map<Integer, RouteAssignment> assignments = data.getAssignmentsByAssignee();
         if (assignments.isEmpty()) {
+            reverseDwellUntilByAssignee.clear();
             return;
         }
 
@@ -79,6 +81,10 @@ public final class ServerRouteTraversalController {
             }
         }
 
+        reverseDwellUntilByAssignee.keySet().removeIf(assigneeId -> {
+            RouteAssignment assignment = assignments.get(assigneeId);
+            return assignment == null || !assignment.isActive();
+        });
         assignments.forEach((assigneeId, assignment) -> {
             Entity entity = entitiesByAssigneeId.get(assigneeId);
             if (entity != null) {
@@ -91,6 +97,7 @@ public final class ServerRouteTraversalController {
             Entity entity, int assigneeId,
             RouteAssignment assignment) {
         if (!assignment.isActive()) {
+            cargoTransfersByAssignee.remove(assigneeId);
             VehicleChunkLoadingManager.release(entity);
             return;
         }
@@ -124,8 +131,12 @@ public final class ServerRouteTraversalController {
         }
 
         ServerVehicleController.stop(entity);
+        boolean departingFromOneWayAnchor = isOneWayRestartAnchor(route, assignment);
         if (target.action() instanceof WaypointAction.Cargo cargo
-                && !processCargo(assigneeId, route.getId(), entity, target, cargo.behavior())) {
+                && !processCargo(assigneeId, route.getId(), entity, target, cargo.behavior(), departingFromOneWayAnchor)) {
+            return;
+        }
+        if (waitForReverseDeparture(assigneeId, route, assignment, entity.level().getGameTime())) {
             return;
         }
         if (advanceAssignment(data, assigneeId, route, assignment)) {
@@ -146,6 +157,34 @@ public final class ServerRouteTraversalController {
         return advanceAssignment(data, assigneeId, route, assignment);
     }
 
+    private static boolean waitForReverseDeparture(int assigneeId, Route route, RouteAssignment assignment,
+            long gameTime) {
+        if (!reversesAtTarget(route, assignment)) {
+            reverseDwellUntilByAssignee.remove(assigneeId);
+            return false;
+        }
+        Long dwellUntil = reverseDwellUntilByAssignee.get(assigneeId);
+        if (dwellUntil == null) {
+            reverseDwellUntilByAssignee.put(assigneeId,
+                    gameTime + (long) Math.ceil(Constants.Cargo.DWELL_SECONDS * 20.0));
+            return true;
+        }
+        if (gameTime < dwellUntil) {
+            return true;
+        }
+        reverseDwellUntilByAssignee.remove(assigneeId);
+        return false;
+    }
+
+    static boolean reversesAtTarget(Route route, RouteAssignment assignment) {
+        if (assignment.getTraversalType(route) != TraversalType.REVERSE || route.getWaypoints().size() < 2) {
+            return false;
+        }
+        int target = assignment.getTargetWaypointIndex();
+        return (target == 0 && assignment.getTraversalDirection() < 0)
+                || (target == route.getWaypoints().size() - 1 && assignment.getTraversalDirection() > 0);
+    }
+
     private static boolean isOneWayRestartAnchor(Route route, RouteAssignment assignment) {
         if (!assignment.isRestartAnchor()
                 || assignment.getTraversalType(route) != com.lastcallsoftware.farandwide.route.TraversalType.ONE_WAY
@@ -156,8 +195,15 @@ public final class ServerRouteTraversalController {
         return target == 0 || target == route.getWaypoints().size() - 1;
     }
 
+    /** A one-way route needs return trips while it has cargo still owed to an order. */
+    private static TraversalType effectiveTraversalType(FarAndWideSavedData data, Route route,
+            RouteAssignment assignment) {
+        return route.getTraversalType() == TraversalType.ONE_WAY && data.hasOutstandingOrdersOnRoute(route.getId())
+                ? TraversalType.REVERSE : assignment.getTraversalType(route);
+    }
+
     private static boolean processCargo(int assigneeId, int routeId, Entity entity, Waypoint waypoint,
-            CargoBehavior behavior) {
+            CargoBehavior behavior, boolean departing) {
         if (!(entity.level() instanceof ServerLevel level)) {
             return true;
         }
@@ -165,12 +211,12 @@ public final class ServerRouteTraversalController {
         Optional<ResourceHandler<ItemResource>> loadStation = CargoStationResolver.find(level, waypoint, behavior.loadStation());
         Optional<ResourceHandler<ItemResource>> unloadStation = CargoStationResolver.find(level, waypoint, behavior.unloadStation());
         CargoTransferSession session = cargoTransfersByAssignee.get(assigneeId);
-        if (session == null || !session.matches(routeId, waypoint.id(), behavior)) {
-            session = new CargoTransferSession(routeId, waypoint.id(), behavior);
+        if (session == null || !session.matches(routeId, waypoint.id(), behavior, departing)) {
+            session = new CargoTransferSession(routeId, waypoint.id(), behavior, departing);
             cargoTransfersByAssignee.put(assigneeId, session);
         }
-        boolean finished = session.tick(level.getGameTime(),
-                () -> transferCargoStack(vehicle, unloadStation, behavior.unloadFilter(), level, entity, false,
+        IntSupplier unload = behavior.operation().unloads()
+                ? () -> transferCargoStack(vehicle, unloadStation, behavior.unloadFilter(), level, entity, false,
                         (resource, amount) -> {
                             if (behavior.unloadStation().isPresent()) {
                                 FarAndWideSavedData.OrderCreditResult credit = FarAndWideSavedData.get(level.getServer())
@@ -188,9 +234,13 @@ public final class ServerRouteTraversalController {
                                 OrderNetwork.broadcastOrders(level.getServer());
                                 }
                             }
-                        }),
-                () -> transferCargoStack(loadStation, vehicle, behavior.loadFilter(), level, entity, true,
-                        (resource, amount) -> {}));
+                        })
+                : () -> 0;
+        IntSupplier load = behavior.operation().loads()
+                ? () -> transferCargoStack(loadStation, vehicle, behavior.loadFilter(), level, entity, true,
+                        (resource, amount) -> {})
+                : () -> 0;
+        boolean finished = session.tick(level.getGameTime(), unload, load);
         if (finished) {
             cargoTransfersByAssignee.remove(assigneeId);
         }
@@ -200,7 +250,7 @@ public final class ServerRouteTraversalController {
     private static int transferCargoStack(Optional<ResourceHandler<ItemResource>> source,
             Optional<ResourceHandler<ItemResource>> destination, CargoFilter filter,
             ServerLevel level, Entity entity, boolean loading, ObjIntConsumer<ItemResource> receipt) {
-        int moved = source.flatMap(handler -> destination.map(station -> CargoTransferService.transferOneStack(
+        int moved = source.flatMap(handler -> destination.map(station -> CargoTransferService.transferItems(
                 handler, station, resource -> CargoTransferService.matches(filter, resource), receipt))).orElse(0);
         if (moved > 0) {
             playCargoTransferSound(level, entity, loading);
@@ -222,40 +272,53 @@ public final class ServerRouteTraversalController {
         private final int routeId;
         private final int waypointId;
         private final CargoBehavior behavior;
+        private final boolean departing;
         private CargoStage stage;
         private long nextTransferTick;
 
         CargoTransferSession(int routeId, int waypointId, CargoBehavior behavior) {
+            this(routeId, waypointId, behavior, false);
+        }
+
+        CargoTransferSession(int routeId, int waypointId, CargoBehavior behavior, boolean departing) {
             this.routeId = routeId;
             this.waypointId = waypointId;
             this.behavior = behavior;
-            this.stage = behavior.operation() == CargoOperation.LOAD ? CargoStage.LOAD : CargoStage.UNLOAD;
+            this.departing = departing;
+            this.stage = departing || !behavior.operation().unloads() ? CargoStage.LOAD : CargoStage.UNLOAD;
         }
 
-        /** Empty stages finish immediately; every moved stack delays further transfers and departure. */
+        /** Cargo dwells after unloading before loading or departure; unavailable stages are skipped. */
         boolean tick(long gameTime, IntSupplier unload, IntSupplier load) {
             if (gameTime < nextTransferTick) {
                 return false;
             }
             if (stage == CargoStage.UNLOAD) {
                 if (unload.getAsInt() > 0) {
-                    nextTransferTick = gameTime + Constants.Cargo.TRANSFER_INTERVAL_TICKS;
+                    nextTransferTick = gameTime + transferDelayTicks();
                     return false;
                 }
-                if (behavior.operation() == CargoOperation.UNLOAD) {
-                    return true;
-                }
                 stage = CargoStage.LOAD;
+                long dwellTicks = (long) Math.ceil(Constants.Cargo.DWELL_SECONDS * 20.0);
+                nextTransferTick = gameTime + dwellTicks;
+                if (dwellTicks > 0) {
+                    return false;
+                }
             }
             if (load.getAsInt() > 0) {
-                nextTransferTick = gameTime + Constants.Cargo.TRANSFER_INTERVAL_TICKS;
+                nextTransferTick = gameTime + transferDelayTicks();
                 return false;
             }
             return true;
         }
 
-        boolean matches(int routeId, int waypointId, CargoBehavior behavior) {
-            return this.routeId == routeId && this.waypointId == waypointId && this.behavior.equals(behavior);
+        boolean matches(int routeId, int waypointId, CargoBehavior behavior, boolean departing) {
+            return this.routeId == routeId && this.waypointId == waypointId && this.behavior.equals(behavior)
+                    && this.departing == departing;
+        }
+
+        private static long transferDelayTicks() {
+            return (long) Math.ceil(Constants.Cargo.TRANSFER_DELAY_SECONDS * 20.0);
         }
     }
 
@@ -270,7 +333,7 @@ public final class ServerRouteTraversalController {
         if (waypointCount <= 1) {
             return data.setAssignmentActive(assigneeId, false);
         }
-        return switch (assignment.getTraversalType(route)) {
+        return switch (effectiveTraversalType(data, route, assignment)) {
             case ONE_WAY -> {
                 if (isOneWayRestartAnchor(route, assignment)) {
                     int direction = assignment.getTargetWaypointIndex() == 0 ? 1 : -1;

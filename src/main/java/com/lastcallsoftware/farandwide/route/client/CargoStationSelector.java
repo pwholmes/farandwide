@@ -60,19 +60,19 @@ final class CargoStationSelector {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.hitResult instanceof BlockHitResult hit) {
             CargoStationBinding station = new CargoStationBinding(hit.getBlockPos(), hit.getDirection());
-            if (!(selection.role == Role.SOURCE ? selection.screen.isSourceWithinRange(station)
-                    : selection.screen.isStationWithinArrivalRadius(station))) {
+            if (!(selection.role == Role.SOURCE_INVENTORY ? selection.screen.isSourceInventoryWithinRange(station)
+                    : selection.screen.isStationWithinRange(station))) {
                 if (minecraft.player != null) {
                     minecraft.player.sendOverlayMessage(
-                            selection.role == Role.SOURCE
-                                    ? Component.translatable("message.farandwide.source_out_of_range", (int) com.lastcallsoftware.farandwide.Constants.Orders.SOURCE_RADIUS)
+                            selection.role == Role.SOURCE_INVENTORY
+                                    ? Component.translatable("message.farandwide.source_inventory_out_of_range", (int) com.lastcallsoftware.farandwide.Constants.Orders.SOURCE_RADIUS)
                                     : Component.translatable("message.farandwide.cargo_station_out_of_range"));
                 }
                 return;
             }
-            if (selection.role == Role.SOURCE && !selection.screen.isInventory(station)) {
+            if (selection.role == Role.SOURCE_INVENTORY && !selection.screen.isInventory(station)) {
                 if (minecraft.player != null) {
-                    minecraft.player.sendOverlayMessage(Component.translatable("message.farandwide.source_not_inventory"));
+                    minecraft.player.sendOverlayMessage(Component.translatable("message.farandwide.source_inventory_not_inventory"));
                 }
                 return;
             }
@@ -135,6 +135,6 @@ final class CargoStationSelector {
     enum Role {
         LOAD,
         UNLOAD,
-        SOURCE
+        SOURCE_INVENTORY
     }
 }

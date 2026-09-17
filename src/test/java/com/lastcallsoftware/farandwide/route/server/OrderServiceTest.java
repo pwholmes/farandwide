@@ -133,7 +133,7 @@ class OrderServiceTest {
         assertEquals(RouteOperationResult.NO_ASSIGNMENT, data.getOrder(order.id()).activationResult());
     }
 
-    @Test void rejectsOneWayOrdersBeforeMovingStockOrActivatingVehicles() {
+    @Test void acceptsOneWayOrdersAndActivatesCargoVehicles() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();
         data.addWaypoint(route.id(), new Waypoint(Vec3.ZERO));
@@ -145,18 +145,18 @@ class OrderServiceTest {
         var source = stock(gold, 16);
         var destination = new ItemStacksResourceHandler(1);
         AtomicInteger activated = new AtomicInteger();
-        assertEquals(OrderResult.UNSUPPORTED_TRAVERSAL, OrderService.fulfill(data, order, List.of(source), destination,
+        assertEquals(OrderResult.PLACED, OrderService.fulfill(data, order, List.of(source), destination,
                 Map.of(gold, 4), () -> {
                     activated.incrementAndGet();
                     return RouteOperationResult.SUCCESS;
                 }).result());
-        assertEquals(16, count(source, gold));
-        assertEquals(0, count(destination, gold));
-        assertEquals(0, activated.get());
-        assertNull(data.getOrder(order.id()));
+        assertEquals(12, count(source, gold));
+        assertEquals(4, count(destination, gold));
+        assertEquals(1, activated.get());
+        assertEquals(order, data.getOrder(order.id()));
     }
 
-    @Test void serverRejectsOneWayTraversalAtEveryPositionInAMultilegJourney() {
+    @Test void serverAcceptsOneWayTraversalAtEveryPositionInAMultilegJourney() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         List<Route> routes = List.of(data.createRoute(), data.createRoute(), data.createRoute());
         OrderJourney journey = new OrderJourney(routes.stream().map(route -> new OrderJourney.Leg(route.id(), 1, 2)).toList());
@@ -164,7 +164,7 @@ class OrderServiceTest {
         assertEquals(OrderResult.PLACED, OrderService.validateJourneyRoutes(data, journey));
         for (Route route : routes) {
             data.setTraversalType(route.id(), TraversalType.ONE_WAY);
-            assertEquals(OrderResult.UNSUPPORTED_TRAVERSAL, OrderService.validateJourneyRoutes(data, journey));
+            assertEquals(OrderResult.PLACED, OrderService.validateJourneyRoutes(data, journey));
             data.setTraversalType(route.id(), TraversalType.REVERSE);
             assertEquals(OrderResult.PLACED, OrderService.validateJourneyRoutes(data, journey));
         }
@@ -174,11 +174,11 @@ class OrderServiceTest {
         var source = stock(gold, 8);
         var full = stock(gold, 64);
         AtomicInteger credited = new AtomicInteger();
-        assertEquals(0, CargoTransferService.transferOneStack(source, full, item -> true,
+        assertEquals(0, CargoTransferService.transferItems(source, full, item -> true,
                 (item, amount) -> credited.addAndGet(amount)));
         assertEquals(0, credited.get());
         var partial = stock(gold, 62);
-        assertEquals(2, CargoTransferService.transferOneStack(source, partial, item -> true,
+        assertEquals(2, CargoTransferService.transferItems(source, partial, item -> true,
                 (item, amount) -> credited.addAndGet(amount)));
         assertEquals(2, credited.get());
         assertEquals(6, count(source, gold));

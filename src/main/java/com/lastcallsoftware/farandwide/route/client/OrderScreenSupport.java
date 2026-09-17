@@ -22,14 +22,14 @@ final class OrderScreenSupport {
     }
 
     static List<Waypoint> origins(@Nullable Route route) {
-        return route == null || !route.supportsOrders() ? List.of() : route.getWaypoints().stream()
+        return route == null ? List.of() : route.getWaypoints().stream()
                 .filter(waypoint -> waypoint.action() instanceof WaypointAction.Cargo cargo
                         && cargo.behavior().operation() != CargoOperation.UNLOAD
                         && cargo.behavior().loadStation().isPresent() && !cargo.behavior().sourceInventories().isEmpty()).toList();
     }
 
     static List<Waypoint> destinations(@Nullable Route route, @Nullable Waypoint origin) {
-        return route == null || !route.supportsOrders() || origin == null ? List.of() : route.getWaypoints().stream()
+        return route == null || origin == null ? List.of() : route.getWaypoints().stream()
                 .filter(waypoint -> waypoint.id() != origin.id() && waypoint.dimension().equals(origin.dimension())
                         && waypoint.action() instanceof WaypointAction.Cargo cargo
                         && cargo.behavior().operation() != CargoOperation.LOAD && cargo.behavior().unloadStation().isPresent()).toList();
@@ -79,9 +79,11 @@ final class OrderScreenSupport {
         result.add(new OrderJourney(prefix));
         if (prefix.size() == Constants.Orders.MAX_LEGS) return;
         for (Route route : routes) for (Waypoint origin : route.getWaypoints()) {
+            @Nullable CargoStationBinding loadStation = origin.action() instanceof WaypointAction.Cargo cargo
+                    ? cargo.behavior().loadStation().orElse(null) : null;
             if (!(origin.action() instanceof WaypointAction.Cargo cargo) || !origin.dimension().equals(dimension)
                     || cargo.behavior().operation() == CargoOperation.UNLOAD
-                    || !handoff.equals(cargo.behavior().loadStation().orElse(null))) continue;
+                    || loadStation == null || !handoff.position().equals(loadStation.position())) continue;
             for (Waypoint destination : destinations(route, origin)) {
                 OrderJourney.Leg next = new OrderJourney.Leg(route.getId(), origin.id(), destination.id());
                 if (prefix.contains(next)) continue;

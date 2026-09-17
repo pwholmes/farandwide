@@ -10,7 +10,8 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
 public final class CargoVehicleInventory {
     private static final List<CargoVehicleAdapter> ADAPTERS = List.of(
             new EquineCargoVehicleAdapter(),
-            new ChestBoatCargoVehicleAdapter());
+            new ChestBoatCargoVehicleAdapter(),
+            new MinecartCargoVehicleAdapter());
 
     private CargoVehicleInventory() {
     }
