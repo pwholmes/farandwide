@@ -58,6 +58,18 @@ class WaypointMutationPayloadTest {
     }
 
     @Test
+    void portalRequestRoundTripPreservesAction() {
+        WaypointMutationPayload sent = WaypointMutationPayload.create(7, new Vec3(1.5, 64, 2.5),
+                Identifier.parse("minecraft:the_nether"), WaypointAction.portal());
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);
+
+        WaypointMutationPayload.STREAM_CODEC.encode(buffer, sent);
+
+        assertEquals(sent, WaypointMutationPayload.STREAM_CODEC.decode(buffer));
+    }
+
+    @Test
     void requestRoundTripAcceptsTheMaximumFilterSize() {
         List<Identifier> itemIds = identifiers(Constants.Network.MAX_FILTER_ITEMS);
         CargoBehavior behavior = new CargoBehavior(

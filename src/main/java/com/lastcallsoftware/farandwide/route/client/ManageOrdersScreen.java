@@ -220,8 +220,9 @@ public final class ManageOrdersScreen extends FarAndWideScreen {
         }
     }
 
-    private @Nullable Component routeWarning(CargoOrder order) {
+    static @Nullable Component routeWarning(CargoOrder order) {
         for (OrderLeg leg : order.legs()) {
+            if (leg.lines().stream().allMatch(line -> line.remaining() == 0)) continue;
             List<VehicleRouteAssignment> assignments = RouteManager.getVehicleAssignments(leg.routeId());
             if (assignments.isEmpty()) return Component.translatable("screen.farandwide.order.no_vehicle_assigned");
             if (assignments.stream().noneMatch(assignment -> assignment != null && assignment.active())) {

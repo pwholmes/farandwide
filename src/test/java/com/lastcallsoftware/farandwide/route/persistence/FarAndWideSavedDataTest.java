@@ -92,6 +92,21 @@ class FarAndWideSavedDataTest {
     }
 
     @Test
+    void portalWaypointsSurviveSavedDataRoundTrip() {
+        FarAndWideSavedData data = new FarAndWideSavedData();
+        Route route = data.createRoute();
+        data.addWaypoint(route.getId(), new Waypoint(0, new Vec3(1.5, 64, 2.5), OVERWORLD,
+                WaypointAction.portal()));
+        data.addWaypoint(route.getId(), new Waypoint(0, new Vec3(10.5, 70, 11.5), NETHER,
+                WaypointAction.portal()));
+
+        JsonElement encoded = RouteCodecs.SAVED_DATA.encodeStart(JsonOps.INSTANCE, data).getOrThrow();
+        FarAndWideSavedData restored = RouteCodecs.SAVED_DATA.parse(JsonOps.INSTANCE, encoded).getOrThrow();
+
+        assertEquals(data.getRoute(route.getId()), restored.getRoute(route.getId()));
+    }
+
+    @Test
     void deletingWaypointRetargetsAssignmentsAndPreservesOtherTargets() {
         FarAndWideSavedData data = new FarAndWideSavedData();
         Route route = data.createRoute();

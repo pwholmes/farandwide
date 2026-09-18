@@ -78,6 +78,21 @@ class RouteSnapshotPayloadTest {
     }
 
     @Test
+    void wireRoundTripPreservesPortalWaypoints() {
+        Route route = new Route(8, "Crossing", TraversalType.ONE_WAY, List.of(
+                new Waypoint(1, new Vec3(1.5, 64, 2.5), Identifier.parse("minecraft:overworld"),
+                        WaypointAction.portal()),
+                new Waypoint(2, new Vec3(4.5, 70, 5.5), Identifier.parse("minecraft:the_nether"),
+                        WaypointAction.portal())));
+        RegistryFriendlyByteBuf buffer = new RegistryFriendlyByteBuf(
+                Unpooled.buffer(), RegistryAccess.EMPTY, ConnectionType.NEOFORGE);
+
+        RouteSnapshotPayload.STREAM_CODEC.encode(buffer, RouteSnapshotPayload.from(List.of(route), 8));
+
+        assertEquals(route, RouteSnapshotPayload.STREAM_CODEC.decode(buffer).routes().getFirst().toRoute());
+    }
+
+    @Test
     void snapshotRoundTripAcceptsTheMaximumFilterSize() {
         List<Identifier> itemIds = identifiers(Constants.Network.MAX_FILTER_ITEMS);
         CargoBehavior behavior = new CargoBehavior(

@@ -31,4 +31,41 @@ public record Route(int id, String name, TraversalType traversalType, List<Waypo
     public TraversalType getTraversalType() { return traversalType; }
     public List<Waypoint> getWaypoints() { return waypoints; }
 
+    /** Returns the adjacent portal exit in the current traversal direction, if paired. */
+    public int portalExitIndex(int entranceIndex, int direction) {
+        return portalExitIndex(entranceIndex, direction, traversalType);
+    }
+
+    public int portalExitIndex(int entranceIndex, int direction, TraversalType activeTraversalType) {
+        if (entranceIndex < 0 || entranceIndex >= waypoints.size()
+                || !(waypoints.get(entranceIndex).action() instanceof WaypointAction.Portal)) {
+            return -1;
+        }
+        int exitIndex = entranceIndex + (direction < 0 ? -1 : 1);
+        if (activeTraversalType == TraversalType.LOOP && waypoints.size() > 1) {
+            exitIndex = Math.floorMod(exitIndex, waypoints.size());
+        }
+        if (exitIndex < 0 || exitIndex >= waypoints.size()) {
+            return -1;
+        }
+        Waypoint entrance = waypoints.get(entranceIndex);
+        Waypoint exit = waypoints.get(exitIndex);
+        return exit.action() instanceof WaypointAction.Portal
+                && !entrance.dimension().equals(exit.dimension()) ? exitIndex : -1;
+    }
+
+    /** Returns the portal to approach when the current target is across a crossing. */
+    public int portalEntranceIndex(int targetIndex, int direction, TraversalType activeTraversalType) {
+        if (targetIndex < 0 || targetIndex >= waypoints.size()) {
+            return -1;
+        }
+        int entranceIndex = targetIndex - (direction < 0 ? -1 : 1);
+        if (activeTraversalType == TraversalType.LOOP && waypoints.size() > 1) {
+            entranceIndex = Math.floorMod(entranceIndex, waypoints.size());
+        }
+        return entranceIndex >= 0 && entranceIndex < waypoints.size()
+                && portalExitIndex(entranceIndex, direction, activeTraversalType) == targetIndex
+                        ? entranceIndex : -1;
+    }
+
 }

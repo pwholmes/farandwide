@@ -112,10 +112,10 @@ public record RouteSnapshotPayload(List<RouteSnapshot> routes, int selectedRoute
                 target.writeUtf(waypoint.dimension().toString(), Constants.Network.MAX_IDENTIFIER_LENGTH);
                 target.writeDouble(waypoint.arrivalRadius());
                 if (waypoint.action() instanceof WaypointAction.Cargo cargo) {
-                    target.writeBoolean(true);
+                    target.writeVarInt(1);
                     writeCargoBehavior(target, cargo.behavior());
                 } else {
-                    target.writeBoolean(false);
+                    target.writeVarInt(waypoint.action() instanceof WaypointAction.Portal ? 2 : 0);
                 }
             });
         }
@@ -137,9 +137,13 @@ public record RouteSnapshotPayload(List<RouteSnapshot> routes, int selectedRoute
             Vec3 position = new Vec3(source.readDouble(), source.readDouble(), source.readDouble());
             Identifier dimension = Identifier.parse(source.readUtf(Constants.Network.MAX_IDENTIFIER_LENGTH));
             double arrivalRadius = source.readDouble();
-            WaypointAction action = source.readBoolean()
-                    ? WaypointAction.cargo(readCargoBehavior(source))
-                    : WaypointAction.normal();
+            int actionType = source.readVarInt();
+            WaypointAction action = switch (actionType) {
+                case 0 -> WaypointAction.normal();
+                case 1 -> WaypointAction.cargo(readCargoBehavior(source));
+                case 2 -> WaypointAction.portal();
+                default -> throw new IllegalArgumentException("Unknown waypoint action");
+            };
             return new Waypoint(waypointId, position, dimension, action, arrivalRadius);
         }
 

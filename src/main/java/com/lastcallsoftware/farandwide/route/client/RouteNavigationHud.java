@@ -110,6 +110,16 @@ public final class RouteNavigationHud {
                         assigneeLabel(minecraft, navigationEntity),
                         Component.literal(assignedRoute.getName()));
         Waypoint target = RouteManager.getTargetWaypoint(assignment);
+        boolean approachingPortal = false;
+        if (target != null && assignment != null && assignedRoute != null
+                && !target.dimension().equals(navigationEntity.level().dimension().identifier())) {
+            int entranceIndex = assignedRoute.portalEntranceIndex(assignment.getTargetWaypointIndex(),
+                    assignment.getTraversalDirection(), assignment.getTraversalType(assignedRoute));
+            if (entranceIndex >= 0) {
+                target = assignedRoute.getWaypoints().get(entranceIndex);
+                approachingPortal = true;
+            }
+        }
 
         GuiGraphicsExtractor graphics = event.getGuiGraphics();
         int selectedRouteWidth = minecraft.font.width(selectedRouteLabel)
@@ -122,12 +132,16 @@ public final class RouteNavigationHud {
                 : Math.max(selectedRouteWidth, assignmentWidth);
         Component waypointLabel = null;
         if (assignment != null && assignedRoute != null && target != null) {
-            long targetDistance = Math.round(target.position().distanceTo(navigationEntity.position()));
+            Identifier navigationDimension = navigationEntity.level().dimension().identifier();
+            long targetDistance = target.dimension().equals(navigationDimension)
+                    ? Math.round(target.position().distanceTo(navigationEntity.position())) : 0;
             long remainingDistance = Math.round(RouteMetrics.remainingDistance(
                     assignedRoute,
                     navigationEntity.position(),
+                    navigationDimension,
                     assignment.getTargetWaypointIndex(),
-                    assignment.getTraversalDirection()));
+                    assignment.getTraversalDirection())
+                    + (approachingPortal ? navigationEntity.position().distanceTo(target.position()) : 0.0));
             waypointLabel = Component.translatable(
                     "hud.farandwide.waypoint",
                     assignment.getTraversalDirection() > 0 ? "+" : "-",
@@ -150,7 +164,8 @@ public final class RouteNavigationHud {
                 centerX,
                 centerY);
 
-        if (target == null || assignment == null) {
+        if (target == null || assignment == null
+                || !target.dimension().equals(navigationEntity.level().dimension().identifier())) {
             hasDisplayedAngle = false;
             resetBullseye();
             return;

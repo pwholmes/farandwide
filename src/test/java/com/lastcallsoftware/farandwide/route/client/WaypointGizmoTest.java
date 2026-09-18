@@ -9,5 +9,6 @@ class WaypointGizmoTest {
     void cargoMarkerLabelIsDistinctFromNormalMarkerLabel() {
         assertEquals("4", WaypointGizmo.markerLabel(4, false));
         assertEquals("C4", WaypointGizmo.markerLabel(4, true));
+        assertEquals("P4", WaypointGizmo.markerLabel(4, false, true));
     }
 }

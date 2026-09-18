@@ -30,7 +30,7 @@ import java.util.Optional;
 import java.util.List;
 import org.eclipse.jdt.annotation.NonNull;
 
-/** Reusable create/edit screen for normal and cargo waypoint behavior. */
+/** Reusable create/edit screen for normal, portal, and cargo waypoint behavior. */
 public final class CargoWaypointScreen extends FarAndWideScreen {
     private static final int CONTROL_WIDTH = Constants.Client.CARGO_WAYPOINT_CONTROL_WIDTH;
     private static final int FILTER_ITEM_SLOT_SIZE = 22;
@@ -95,9 +95,9 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         CargoBehavior initialCargo = waypoint != null && waypoint.action() instanceof WaypointAction.Cargo cargo
                 ? cargo.behavior()
                 : CargoBehavior.unfiltered(CargoOperation.LOAD);
-        selectedBehavior = waypoint != null && waypoint.action() instanceof WaypointAction.Normal
+        selectedBehavior = waypoint == null || waypoint.action() instanceof WaypointAction.Normal
                 ? BehaviorType.NORMAL
-                : BehaviorType.CARGO;
+                : waypoint.action() instanceof WaypointAction.Portal ? BehaviorType.PORTAL : BehaviorType.CARGO;
         selectedOperation = initialCargo.operation();
         loadFilter = initialCargo.loadFilter();
         unloadFilter = initialCargo.unloadFilter();
@@ -154,7 +154,8 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
                 .create(left, yPos, CONTROL_WIDTH, 20,
                         Component.translatable("screen.farandwide.cargo_waypoint.mode"),
                         (button, value) -> {
-                            selectedBehavior = value.isCargo() ? BehaviorType.CARGO : BehaviorType.NORMAL;
+                            selectedBehavior = value.isCargo() ? BehaviorType.CARGO
+                                    : value == WaypointMode.PORTAL ? BehaviorType.PORTAL : BehaviorType.NORMAL;
                             if (value.isCargo()) {
                                 if (value.operation() == CargoOperation.UNLOAD_THEN_LOAD
                                         && selectedOperation != CargoOperation.UNLOAD_THEN_LOAD) loadTab = false;
@@ -498,6 +499,9 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
         if (selectedBehavior == BehaviorType.NORMAL) {
             return WaypointAction.normal();
         }
+        if (selectedBehavior == BehaviorType.PORTAL) {
+            return WaypointAction.portal();
+        }
         return WaypointAction.cargo(new CargoBehavior(
                 selectedOperation, loadFilter, unloadFilter, selectedLoadStation, selectedUnloadStation, sourceInventories));
     }
@@ -695,17 +699,20 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
 
     private enum BehaviorType {
         NORMAL,
+        PORTAL,
         CARGO
     }
 
     private enum WaypointMode {
         NORMAL,
+        PORTAL,
         CARGO_UNLOAD,
         CARGO_LOAD,
         CARGO_UNLOAD_THEN_LOAD;
 
         static WaypointMode of(BehaviorType behavior, CargoOperation operation) {
             if (behavior == BehaviorType.NORMAL) return NORMAL;
+            if (behavior == BehaviorType.PORTAL) return PORTAL;
             return switch (operation) {
                 case UNLOAD -> CARGO_UNLOAD;
                 case LOAD -> CARGO_LOAD;
@@ -713,14 +720,14 @@ public final class CargoWaypointScreen extends FarAndWideScreen {
             };
         }
 
-        boolean isCargo() { return this != NORMAL; }
+        boolean isCargo() { return this != NORMAL && this != PORTAL; }
 
         CargoOperation operation() {
             return switch (this) {
                 case CARGO_UNLOAD -> CargoOperation.UNLOAD;
                 case CARGO_LOAD -> CargoOperation.LOAD;
                 case CARGO_UNLOAD_THEN_LOAD -> CargoOperation.UNLOAD_THEN_LOAD;
-                case NORMAL -> throw new IllegalStateException("Normal waypoints have no cargo operation");
+                case NORMAL, PORTAL -> throw new IllegalStateException("Non-cargo waypoints have no cargo operation");
             };
         }
 

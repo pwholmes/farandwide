@@ -8,10 +8,12 @@ import net.minecraft.gizmos.TextGizmo;
 import net.minecraft.world.phys.Vec3;
 
 public record WaypointGizmo(
-        Vec3 position, int ordinal, boolean cargo, boolean navigationTarget, boolean editTarget) implements Gizmo {
+        Vec3 position, int ordinal, boolean cargo, boolean portal, boolean navigationTarget, boolean editTarget) implements Gizmo {
 
     private static final int WAYPOINT_COLOR = Constants.Client.WAYPOINT_COLOR;
     private static final int CARGO_COLOR = Constants.Client.CARGO_WAYPOINT_COLOR;
+    private static final int PORTAL_COLOR = 0xFF8844CC;
+    private static final int PORTAL_EDGE_COLOR = 0xFFCC88FF;
     private static final double HALF_WIDTH = Constants.Client.WAYPOINT_GIZMO_HALF_WIDTH;
     private static final double HALF_HEIGHT = Constants.Client.WAYPOINT_GIZMO_HALF_HEIGHT;
     private static final double HEIGHT_OFFSET = Constants.Client.WAYPOINT_GIZMO_HEIGHT_OFFSET;
@@ -44,13 +46,13 @@ public record WaypointGizmo(
 
         int fillColor = editTarget ? EDIT_TARGET_COLOR
                 : navigationTarget ? TARGET_COLOR
-                : cargo ? CARGO_COLOR : WAYPOINT_COLOR;
+                : cargo ? CARGO_COLOR : portal ? PORTAL_COLOR : WAYPOINT_COLOR;
         int edgeColor = editTarget ? EDIT_TARGET_EDGE_COLOR
                 : navigationTarget ? TARGET_EDGE_COLOR
-                : cargo ? CARGO_EDGE_COLOR : EDGE_COLOR;
+                : cargo ? CARGO_EDGE_COLOR : portal ? PORTAL_EDGE_COLOR : EDGE_COLOR;
         int textColor = editTarget ? EDIT_TARGET_TEXT_COLOR
                 : navigationTarget ? TARGET_TEXT_COLOR
-                : cargo ? CARGO_TEXT_COLOR : TEXT_COLOR;
+                : cargo ? CARGO_TEXT_COLOR : portal ? PORTAL_EDGE_COLOR : TEXT_COLOR;
 
         primitives.addTriangleFan(pyramid1, fillColor);
         primitives.addTriangleFan(pyramid2, fillColor);
@@ -86,11 +88,15 @@ public record WaypointGizmo(
 
         primitives.addText(
                 center.add(0, HALF_HEIGHT/2, 0),
-                markerLabel(ordinal, cargo),
+                markerLabel(ordinal, cargo, portal),
                 TextGizmo.Style.forColorAndCentered(textColor).withScale(TEXT_SCALE));
     }
 
     static String markerLabel(int ordinal, boolean cargo) {
-        return cargo ? "C" + ordinal : Integer.toString(ordinal);
+        return markerLabel(ordinal, cargo, false);
+    }
+
+    static String markerLabel(int ordinal, boolean cargo, boolean portal) {
+        return cargo ? "C" + ordinal : portal ? "P" + ordinal : Integer.toString(ordinal);
     }
 }

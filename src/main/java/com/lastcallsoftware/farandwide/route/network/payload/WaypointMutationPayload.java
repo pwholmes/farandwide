@@ -91,7 +91,7 @@ public record WaypointMutationPayload(
 
     private static void writeAction(RegistryFriendlyByteBuf buffer, WaypointAction action) {
         if (action instanceof WaypointAction.Cargo cargo) {
-            buffer.writeBoolean(true);
+            buffer.writeVarInt(1);
             CargoBehavior behavior = cargo.behavior();
             buffer.writeVarInt(behavior.operation().ordinal());
             writeFilter(buffer, behavior.loadFilter());
@@ -100,13 +100,20 @@ public record WaypointMutationPayload(
             writeStation(buffer, behavior.unloadStation());
             SourceInventoryBindings.write(buffer, behavior.sourceInventories());
         } else {
-            buffer.writeBoolean(false);
+            buffer.writeVarInt(action instanceof WaypointAction.Portal ? 2 : 0);
         }
     }
 
     private static WaypointAction readAction(RegistryFriendlyByteBuf buffer) {
-        if (!buffer.readBoolean()) {
+        int type = buffer.readVarInt();
+        if (type == 0) {
             return WaypointAction.normal();
+        }
+        if (type == 2) {
+            return WaypointAction.portal();
+        }
+        if (type != 1) {
+            throw new IllegalArgumentException("Unknown waypoint action");
         }
         CargoOperation operation = readEnum(buffer, CargoOperation.values(), "cargo operation");
         return WaypointAction.cargo(new CargoBehavior(

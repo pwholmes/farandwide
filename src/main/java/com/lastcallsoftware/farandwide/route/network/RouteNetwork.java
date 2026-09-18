@@ -42,7 +42,7 @@ public final class RouteNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("15");
+        var registrar = event.registrar("16");
         OrderNetwork.register(registrar);
         registrar.playToServer(RequestRouteSnapshotPayload.TYPE, RequestRouteSnapshotPayload.STREAM_CODEC,
                 (payload, context) -> replyWithRoutes((ServerPlayer) context.player(), context));

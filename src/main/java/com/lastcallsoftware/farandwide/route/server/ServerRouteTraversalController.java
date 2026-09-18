@@ -27,10 +27,12 @@ import com.lastcallsoftware.farandwide.vehicle.server.cargo.CargoVehicleInventor
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -52,6 +54,7 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
 public final class ServerRouteTraversalController {
     private static final Map<Integer, CargoTransferSession> cargoTransfersByAssignee = new HashMap<>();
     private static final Map<Integer, Long> reverseDwellUntilByAssignee = new HashMap<>();
+    private static final Map<Integer, Integer> portalExitTargetByAssignee = new HashMap<>();
 
     private ServerRouteTraversalController() {
     }
@@ -65,6 +68,7 @@ public final class ServerRouteTraversalController {
         Map<Integer, RouteAssignment> assignments = data.getAssignmentsByAssignee();
         if (assignments.isEmpty()) {
             reverseDwellUntilByAssignee.clear();
+            portalExitTargetByAssignee.clear();
             return;
         }
 
@@ -85,6 +89,11 @@ public final class ServerRouteTraversalController {
             RouteAssignment assignment = assignments.get(assigneeId);
             return assignment == null || !assignment.isActive();
         });
+        portalExitTargetByAssignee.keySet().removeIf(assigneeId -> {
+            RouteAssignment assignment = assignments.get(assigneeId);
+            return assignment == null || !assignment.isActive()
+                    || assignment.getTargetWaypointIndex() != portalExitTargetByAssignee.get(assigneeId);
+        });
         assignments.forEach((assigneeId, assignment) -> {
             Entity entity = entitiesByAssigneeId.get(assigneeId);
             if (entity != null) {
@@ -98,6 +107,7 @@ public final class ServerRouteTraversalController {
             RouteAssignment assignment) {
         if (!assignment.isActive()) {
             cargoTransfersByAssignee.remove(assigneeId);
+            portalExitTargetByAssignee.remove(assigneeId);
             VehicleChunkLoadingManager.release(entity);
             return;
         }
@@ -121,8 +131,56 @@ public final class ServerRouteTraversalController {
                 && assignment.getTargetWaypointIndex() < route.getWaypoints().size()
                 ? route.getWaypoints().get(assignment.getTargetWaypointIndex())
                 : null;
-        if (target == null || !target.dimension().equals(entity.level().dimension().identifier())) {
+        if (target == null) {
+            portalExitTargetByAssignee.remove(assigneeId);
             ServerVehicleController.stop(entity);
+            return;
+        }
+        int portalExitIndex = route.portalExitIndex(assignment.getTargetWaypointIndex(),
+                assignment.getTraversalDirection(), effectiveTraversalType(data, route, assignment));
+        if (!target.dimension().equals(entity.level().dimension().identifier())) {
+            // Vanilla replaces non-player entities during dimension travel. Their
+            // serialized assignee ID identifies the new entity on the next tick.
+            if (portalExitIndex >= 0) {
+                Waypoint exit = route.getWaypoints().get(portalExitIndex);
+                if (exit.dimension().equals(entity.level().dimension().identifier()) && exit.hasArrived(entity)) {
+                    if (advanceAssignment(data, assigneeId, route, assignment)) {
+                        portalExitTargetByAssignee.put(assigneeId, portalExitIndex);
+                        syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
+                        RouteNetwork.broadcastVehicleAssignments(server);
+                    }
+                    ServerVehicleController.stop(entity);
+                    return;
+                }
+            }
+            int portalEntranceIndex = route.portalEntranceIndex(assignment.getTargetWaypointIndex(),
+                    assignment.getTraversalDirection(), effectiveTraversalType(data, route, assignment));
+            if (portalEntranceIndex >= 0) {
+                Waypoint entrance = route.getWaypoints().get(portalEntranceIndex);
+                if (entrance.dimension().equals(entity.level().dimension().identifier())
+                        && entity.level().getBlockState(BlockPos.containing(entrance.position())).is(Blocks.NETHER_PORTAL)) {
+                    portalExitTargetByAssignee.put(assigneeId, assignment.getTargetWaypointIndex());
+                    ServerVehicleController.navigate(entity, entrance);
+                    return;
+                }
+            }
+            pauseFailedCrossing(server, data, entity, assigneeId);
+            return;
+        }
+        boolean arrivingFromPortal = portalExitTargetByAssignee.getOrDefault(assigneeId, -1)
+                == assignment.getTargetWaypointIndex();
+        if (arrivingFromPortal && !target.hasArrived(entity)) {
+            pauseFailedCrossing(server, data, entity, assigneeId);
+            return;
+        }
+        if (portalExitIndex >= 0 && !arrivingFromPortal) {
+            if (!entity.level().getBlockState(BlockPos.containing(target.position())).is(Blocks.NETHER_PORTAL)) {
+                pauseFailedCrossing(server, data, entity, assigneeId);
+                return;
+            }
+            // Reaching the entrance radius does not complete the waypoint. Keep
+            // moving into the portal until vanilla transfers the entity.
+            ServerVehicleController.navigate(entity, target);
             return;
         }
         if (!target.hasArrived(entity)) {
@@ -140,6 +198,7 @@ public final class ServerRouteTraversalController {
             return;
         }
         if (advanceAssignment(data, assigneeId, route, assignment)) {
+            portalExitTargetByAssignee.remove(assigneeId);
             RouteAssignment updated = data.getAssignment(assigneeId);
             if (updated == null || !updated.isActive()) {
                 VehicleChunkLoadingManager.release(entity);
@@ -155,6 +214,18 @@ public final class ServerRouteTraversalController {
             cargoProcessor.accept(cargo.behavior());
         }
         return advanceAssignment(data, assigneeId, route, assignment);
+    }
+
+    private static void pauseFailedCrossing(net.minecraft.server.MinecraftServer server, FarAndWideSavedData data,
+            Entity entity, int assigneeId) {
+        portalExitTargetByAssignee.remove(assigneeId);
+        ServerVehicleController.stop(entity);
+        if (data.setAssignmentActive(assigneeId, false)) {
+            VehicleChunkLoadingManager.release(entity);
+            syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
+            RouteNetwork.broadcastVehicleAssignments(server);
+            notifyControllingPlayer(server, entity, RouteOperationResult.PORTAL_CROSSING_FAILED);
+        }
     }
 
     private static boolean waitForReverseDeparture(int assigneeId, Route route, RouteAssignment assignment,

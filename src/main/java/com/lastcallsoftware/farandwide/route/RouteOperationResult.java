@@ -23,7 +23,9 @@ public enum RouteOperationResult {
     CHUNK_LOADING_LIMIT,
     VEHICLE_LOCATION_UNAVAILABLE,
     VEHICLE_NOT_FOUND,
-    CHUNK_LOADING_DISABLED;
+    CHUNK_LOADING_DISABLED,
+    PORTAL_CROSSING_FAILED,
+    INVALID_PORTAL_WAYPOINT;
 
     public String translationKey() {
         return "message.farandwide.operation." + name().toLowerCase(java.util.Locale.ROOT);

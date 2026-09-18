@@ -21,7 +21,9 @@ import java.util.UUID;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -589,6 +591,9 @@ public final class RouteService {
                         > Constants.Waypoints.EDIT_RADIUS * Constants.Waypoints.EDIT_RADIUS) {
             return RouteOperationResult.INVALID_WAYPOINT;
         }
+        if (action instanceof WaypointAction.Portal && !isNetherPortal(player, waypoint.position())) {
+            return RouteOperationResult.INVALID_PORTAL_WAYPOINT;
+        }
         RouteOperationResult cargoValidation = validateCargoStations(player, waypoint.position(), action,
                 data.getRoute(routeId), waypointId);
         if (cargoValidation != RouteOperationResult.SUCCESS) {
@@ -641,7 +646,14 @@ public final class RouteService {
                         * Constants.Waypoints.EDIT_RADIUS)) {
             return RouteOperationResult.INVALID_WAYPOINT;
         }
+        if (action instanceof WaypointAction.Portal && !isNetherPortal(player, position)) {
+            return RouteOperationResult.INVALID_PORTAL_WAYPOINT;
+        }
         return validateCargoStations(player, position, action, route, replacedWaypointId);
+    }
+
+    private static boolean isNetherPortal(ServerPlayer player, Vec3 position) {
+        return player.level().getBlockState(BlockPos.containing(position)).is(Blocks.NETHER_PORTAL);
     }
 
     private static RouteOperationResult validateCargoStations(ServerPlayer player, Vec3 waypointPosition,

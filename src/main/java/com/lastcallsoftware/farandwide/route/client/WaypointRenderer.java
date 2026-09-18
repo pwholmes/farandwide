@@ -38,6 +38,7 @@ public class WaypointRenderer {
             Gizmos.addGizmo(new WaypointGizmo(
                     waypoint.position(), ordinal,
                     waypoint.action() instanceof WaypointAction.Cargo,
+                    waypoint.action() instanceof WaypointAction.Portal,
                     target, WaypointEditor.isTargeted(waypoint)));
             ordinal++;
         }

@@ -2,6 +2,7 @@ package com.lastcallsoftware.farandwide.vehicle.client;
 
 import com.lastcallsoftware.farandwide.Constants;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
+import com.lastcallsoftware.farandwide.route.Route;
 import com.lastcallsoftware.farandwide.route.Waypoint;
 import com.lastcallsoftware.farandwide.route.client.RouteManager;
 import com.lastcallsoftware.farandwide.vehicle.VehicleActuator;
@@ -61,9 +62,23 @@ public final class VehicleController {
         }
 
         Waypoint target = RouteManager.getTargetWaypoint(assignment);
+        Route route = RouteManager.getRoute(assignment.getRouteId());
+        boolean crossingPortal = route != null && route.portalExitIndex(
+                assignment.getTargetWaypointIndex(), assignment.getTraversalDirection(),
+                assignment.getTraversalType(route)) >= 0;
+        Waypoint steeringTarget = target;
+        if (target != null && route != null
+                && !target.dimension().equals(ridden.level().dimension().identifier())) {
+            int entranceIndex = route.portalEntranceIndex(assignment.getTargetWaypointIndex(),
+                    assignment.getTraversalDirection(), assignment.getTraversalType(route));
+            if (entranceIndex >= 0) {
+                steeringTarget = route.getWaypoints().get(entranceIndex);
+                crossingPortal = true;
+            }
+        }
         autoNavigatedEntityId = ridden.getId();
 
-        if (target == null || !target.dimension().equals(ridden.level().dimension().identifier())) {
+        if (steeringTarget == null || !steeringTarget.dimension().equals(ridden.level().dimension().identifier())) {
             actuator.stop(ridden);
             return;
         }
@@ -71,7 +86,7 @@ public final class VehicleController {
         // Ridden vehicle physics are client-authoritative. Stop locally as soon as
         // the waypoint is reached while the server processes arrival and advances
         // the assignment; otherwise stale steering circles around the target.
-        if (target.hasArrived(ridden)) {
+        if (!crossingPortal && steeringTarget.hasArrived(ridden)) {
             actuator.stop(ridden);
             return;
         }
@@ -79,7 +94,7 @@ public final class VehicleController {
         VehicleNavigator navigator = NAVIGATORS.stream().filter(candidate -> candidate.supports(ridden))
                 .findFirst().orElse(null);
         if (navigator != null) {
-            NavigationIntent intent = navigator.navigate(ridden, target);
+            NavigationIntent intent = navigator.navigate(ridden, steeringTarget);
             actuator.apply(ridden, intent);
         }
     }
@@ -113,6 +128,13 @@ public final class VehicleController {
             Waypoint target = assignment != null && assignment.isActive()
                     ? RouteManager.getTargetWaypoint(assignment)
                     : null;
+            Route route = assignment == null ? null : RouteManager.getRoute(assignment.getRouteId());
+            if (assignment != null && target != null && route != null
+                    && !target.dimension().equals(player.level().dimension().identifier())) {
+                int entranceIndex = route.portalEntranceIndex(assignment.getTargetWaypointIndex(),
+                        assignment.getTraversalDirection(), assignment.getTraversalType(route));
+                if (entranceIndex >= 0) target = route.getWaypoints().get(entranceIndex);
+            }
             if (target == null || !target.dimension().equals(player.level().dimension().identifier())) {
                 return;
             }

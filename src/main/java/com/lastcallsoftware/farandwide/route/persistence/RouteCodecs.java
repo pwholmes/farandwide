@@ -80,11 +80,13 @@ public final class RouteCodecs {
             Identifier.CODEC.optionalFieldOf("dimension", Waypoint.DEFAULT_DIMENSION).forGetter((@NonNull Waypoint waypoint) -> waypoint.dimension()),
             Codec.DOUBLE.optionalFieldOf("arrivalRadius", Constants.Waypoints.DEFAULT_ARRIVAL_RADIUS)
                     .forGetter((@NonNull Waypoint waypoint) -> waypoint.arrivalRadius()),
-            CARGO_BEHAVIOR.optionalFieldOf("cargo").forGetter((@NonNull Waypoint waypoint) -> cargoBehavior(waypoint)))
+            CARGO_BEHAVIOR.optionalFieldOf("cargo").forGetter((@NonNull Waypoint waypoint) -> cargoBehavior(waypoint)),
+            Codec.BOOL.optionalFieldOf("portal", false)
+                    .forGetter((@NonNull Waypoint waypoint) -> waypoint.action() instanceof WaypointAction.Portal))
             .apply(instance, (@NonNull Integer id, @NonNull Double x, @NonNull Double y, @NonNull Double z,
                     @NonNull Identifier dimension, @NonNull Double arrivalRadius,
-                    @NonNull Optional<CargoBehavior> cargoBehavior)
-                    -> waypoint(id, x, y, z, dimension, arrivalRadius, cargoBehavior)));
+                    @NonNull Optional<CargoBehavior> cargoBehavior, @NonNull Boolean portal)
+                    -> waypoint(id, x, y, z, dimension, arrivalRadius, cargoBehavior, portal)));
 
     private static final Codec<Route> ROUTE = RecordCodecBuilder.create(instance -> instance.group(
             Codec.INT.fieldOf("id").forGetter((@NonNull Route route) -> route.getId()),
@@ -249,9 +251,9 @@ public final class RouteCodecs {
     }
 
     private static Waypoint waypoint(int id, double x, double y, double z, Identifier dimension, double arrivalRadius,
-            Optional<CargoBehavior> cargoBehavior) {
-        WaypointAction action = cargoBehavior.<WaypointAction>map(WaypointAction::cargo)
-                .orElseGet(WaypointAction::normal);
+            Optional<CargoBehavior> cargoBehavior, boolean portal) {
+        WaypointAction action = portal ? WaypointAction.portal()
+                : cargoBehavior.<WaypointAction>map(WaypointAction::cargo).orElseGet(WaypointAction::normal);
         return new Waypoint(id, new Vec3(x, y, z), dimension, action, arrivalRadius);
     }
 
