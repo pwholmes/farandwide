@@ -1,8 +1,10 @@
 package com.lastcallsoftware.farandwide.route.server;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.ObjIntConsumer;
@@ -54,6 +56,7 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
 public final class ServerRouteTraversalController {
     private static final Map<Integer, CargoTransferSession> cargoTransfersByAssignee = new HashMap<>();
     private static final Map<Integer, Long> reverseDwellUntilByAssignee = new HashMap<>();
+    private static final Set<Integer> dwellingAssignees = new HashSet<>();
     private static final Map<Integer, Integer> portalExitTargetByAssignee = new HashMap<>();
 
     private ServerRouteTraversalController() {
@@ -68,6 +71,7 @@ public final class ServerRouteTraversalController {
         Map<Integer, RouteAssignment> assignments = data.getAssignmentsByAssignee();
         if (assignments.isEmpty()) {
             reverseDwellUntilByAssignee.clear();
+            dwellingAssignees.clear();
             portalExitTargetByAssignee.clear();
             return;
         }
@@ -100,12 +104,26 @@ public final class ServerRouteTraversalController {
                 tickAssignment(event.getServer(), data, entity, assigneeId, assignment);
             }
         });
+        dwellingAssignees.removeIf(assigneeId -> !assignments.containsKey(assigneeId)
+                || !assignments.get(assigneeId).isActive() || !entitiesByAssigneeId.containsKey(assigneeId));
+    }
+
+    public static boolean isDwelling(int assigneeId) {
+        return dwellingAssignees.contains(assigneeId);
+    }
+
+    private static void setDwelling(net.minecraft.server.MinecraftServer server, Entity entity,
+            int assigneeId, boolean dwelling) {
+        if (dwelling ? dwellingAssignees.add(assigneeId) : dwellingAssignees.remove(assigneeId)) {
+            RouteNetwork.syncDwellState(server, entity, dwelling);
+        }
     }
 
     private static void tickAssignment(net.minecraft.server.MinecraftServer server, FarAndWideSavedData data,
             Entity entity, int assigneeId,
             RouteAssignment assignment) {
         if (!assignment.isActive()) {
+            setDwelling(server, entity, assigneeId, false);
             cargoTransfersByAssignee.remove(assigneeId);
             portalExitTargetByAssignee.remove(assigneeId);
             VehicleChunkLoadingManager.release(entity);
@@ -113,6 +131,7 @@ public final class ServerRouteTraversalController {
         }
         Route route = data.getRoute(assignment.getRouteId());
         if (route == null) {
+            setDwelling(server, entity, assigneeId, false);
             if (data.setAssignmentActive(assigneeId, false)) {
                 ServerVehicleController.stop(entity);
                 VehicleChunkLoadingManager.release(entity);
@@ -121,6 +140,7 @@ public final class ServerRouteTraversalController {
             return;
         }
         if (!VehicleChunkLoadingManager.update(entity, assigneeId)) {
+            setDwelling(server, entity, assigneeId, false);
             data.setAssignmentActive(assigneeId, false);
             ServerVehicleController.stop(entity);
             syncToControllingPlayer(server, entity, data.getAssignment(assigneeId));
@@ -132,6 +152,7 @@ public final class ServerRouteTraversalController {
                 ? route.getWaypoints().get(assignment.getTargetWaypointIndex())
                 : null;
         if (target == null) {
+            setDwelling(server, entity, assigneeId, false);
             portalExitTargetByAssignee.remove(assigneeId);
             ServerVehicleController.stop(entity);
             return;
@@ -184,19 +205,25 @@ public final class ServerRouteTraversalController {
             return;
         }
         if (!target.hasArrived(entity)) {
+            setDwelling(server, entity, assigneeId, false);
             ServerVehicleController.navigate(entity, target);
             return;
         }
 
         ServerVehicleController.stop(entity);
         boolean departingFromRestartAnchor = isRestartAnchor(route, assignment);
-        if (target.action() instanceof WaypointAction.Cargo cargo
-                && !processCargo(assigneeId, route.getId(), entity, target, cargo.behavior(), departingFromRestartAnchor)) {
-            return;
+        if (target.action() instanceof WaypointAction.Cargo cargo) {
+            if (!processCargo(assigneeId, route.getId(), entity, target, cargo.behavior(), departingFromRestartAnchor)) {
+                CargoTransferSession session = cargoTransfersByAssignee.get(assigneeId);
+                setDwelling(server, entity, assigneeId, session != null && session.isDwelling());
+                return;
+            }
         }
         if (waitForReverseDeparture(assigneeId, route, assignment, entity.level().getGameTime())) {
+            setDwelling(server, entity, assigneeId, true);
             return;
         }
+        setDwelling(server, entity, assigneeId, false);
         if (advanceAssignment(data, assigneeId, route, assignment)) {
             portalExitTargetByAssignee.remove(assigneeId);
             RouteAssignment updated = data.getAssignment(assigneeId);
@@ -350,6 +377,7 @@ public final class ServerRouteTraversalController {
         private final boolean departing;
         private CargoStage stage;
         private long nextTransferTick;
+        private boolean dwelling;
 
         CargoTransferSession(int routeId, int waypointId, CargoBehavior behavior) {
             this(routeId, waypointId, behavior, false);
@@ -377,15 +405,20 @@ public final class ServerRouteTraversalController {
                 long dwellTicks = (long) Math.ceil(Constants.Cargo.DWELL_SECONDS * 20.0);
                 nextTransferTick = gameTime + dwellTicks;
                 if (dwellTicks > 0) {
+                    dwelling = true;
                     return false;
                 }
             }
+            dwelling = false;
             if (load.getAsInt() > 0) {
                 nextTransferTick = gameTime + transferDelayTicks();
                 return false;
             }
             return true;
         }
+
+        boolean isDwelling() { return dwelling; }
+
 
         boolean matches(int routeId, int waypointId, CargoBehavior behavior, boolean departing) {
             return this.routeId == routeId && this.waypointId == waypointId && this.behavior.equals(behavior)

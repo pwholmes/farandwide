@@ -23,6 +23,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.OrderPayloads;
 import com.lastcallsoftware.farandwide.route.network.payload.AssignmentSnapshotPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleDwellPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.RouteOperationResultPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleAssignmentsSnapshotPayload;
 
@@ -86,6 +87,8 @@ public class FarAndWideClient {
         event.register(AssignmentSnapshotPayload.TYPE,
                 (payload, context) -> RouteManager.replaceAssignmentFromServer(
                         payload.entityId(), payload.stableAssigneeId(), payload.assignment()));
+        event.register(VehicleDwellPayload.TYPE,
+                (payload, context) -> RouteManager.setDwellingFromServer(payload.entityId(), payload.dwelling()));
         event.register(VehicleAssignmentsSnapshotPayload.TYPE,
                 (payload, context) -> RouteManager.replaceVehicleAssignmentsFromServer(payload.assignments()));
         event.register(RouteOperationResultPayload.TYPE,

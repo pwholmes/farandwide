@@ -103,4 +103,22 @@ class RouteManagerTest {
 
         assertEquals("Boat 3", RouteManager.getManagedAssigneeDisplayName(runtimeEntityId));
     }
+
+    @Test
+    void dwellStatusClearsWhenAnAssignmentStopsOrIsRemoved() {
+        int entityId = 9010;
+        RouteAssignment active = new RouteAssignment(1, entityId, 0, 1, null, true);
+        RouteManager.replaceAssignmentFromServer(entityId, 50, active);
+        RouteManager.setDwellingFromServer(entityId, true);
+        assertTrue(RouteManager.isDwelling(entityId));
+
+        RouteManager.replaceAssignmentFromServer(entityId, 50,
+                new RouteAssignment(1, entityId, 0, 1, null, false));
+        assertFalse(RouteManager.isDwelling(entityId));
+
+        RouteManager.replaceAssignmentFromServer(entityId, 50, active);
+        RouteManager.setDwellingFromServer(entityId, true);
+        RouteManager.replaceAssignmentFromServer(entityId, 0, null);
+        assertFalse(RouteManager.isDwelling(entityId));
+    }
 }

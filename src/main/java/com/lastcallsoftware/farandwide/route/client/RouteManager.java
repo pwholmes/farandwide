@@ -18,8 +18,10 @@ import com.lastcallsoftware.farandwide.vehicle.VehicleSupport;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
@@ -123,6 +125,7 @@ public class RouteManager {
         }
     }
     private static final Map<Integer, RouteAssignment> assignmentsByEntity = new HashMap<>();
+    private static final Set<Integer> dwellingEntities = new HashSet<>();
     private static final Map<Integer, Integer> stableAssigneeIdsByEntity = new HashMap<>();
     private static List<VehicleRouteAssignment> vehicleRouteAssignments = new ArrayList<>();
     private static Route selectedRoute = null;
@@ -151,6 +154,7 @@ public class RouteManager {
         orderFeedback = null;
         orderStateRevision++;
         assignmentsByEntity.clear();
+        dwellingEntities.clear();
         stableAssigneeIdsByEntity.clear();
         vehicleRouteAssignments.clear();
         selectedRoute = null;
@@ -379,6 +383,7 @@ public class RouteManager {
 
     public static void replaceAssignmentFromServer(
             int entityId, int stableAssigneeId, RouteAssignment assignment) {
+        if (assignment == null || !assignment.isActive()) dwellingEntities.remove(entityId);
         if (assignment == null) {
             assignmentsByEntity.remove(entityId);
             stableAssigneeIdsByEntity.remove(entityId);
@@ -386,6 +391,16 @@ public class RouteManager {
             assignmentsByEntity.put(entityId, assignment);
             stableAssigneeIdsByEntity.put(entityId, stableAssigneeId);
         }
+    }
+
+    public static void setDwellingFromServer(int entityId, boolean dwelling) {
+        if (dwelling && assignmentsByEntity.containsKey(entityId)
+                && assignmentsByEntity.get(entityId).isActive()) dwellingEntities.add(entityId);
+        else dwellingEntities.remove(entityId);
+    }
+
+    public static boolean isDwelling(int entityId) {
+        return dwellingEntities.contains(entityId);
     }
 
     public static void handleOperationResult(RouteOperationResult result) {

@@ -28,9 +28,13 @@ class CargoTransferSessionTest {
     void noMovableUnloadDwellsBeforeDeparture(CargoOperation operation) {
         CargoTransferSession session = session(operation);
 
+        assertFalse(session.isDwelling());
         assertFalse(session.tick(ARRIVAL_TICK, () -> 0, () -> 0));
+        assertTrue(session.isDwelling());
         assertFalse(session.tick(ARRIVAL_TICK + DWELL - 1, () -> fail("Still dwelling"), () -> fail("Still dwelling")));
+        assertTrue(session.isDwelling());
         assertTrue(session.tick(ARRIVAL_TICK + DWELL, () -> 0, () -> 0));
+        assertFalse(session.isDwelling());
     }
 
     @ParameterizedTest
@@ -44,6 +48,7 @@ class CargoTransferSessionTest {
 
         long firstTransferTick = ARRIVAL_TICK;
         assertFalse(session.tick(firstTransferTick, unload, load));
+        assertFalse(session.isDwelling());
         assertEquals(1, attempts.get());
         assertFalse(session.tick(firstTransferTick + INTERVAL - 1, unload, load));
         assertEquals(1, attempts.get());
@@ -53,8 +58,10 @@ class CargoTransferSessionTest {
         assertEquals(2, attempts.get());
         if (operation == CargoOperation.UNLOAD) {
             assertFalse(session.tick(firstTransferTick + 2 * INTERVAL, unload, load));
+            assertTrue(session.isDwelling());
             assertEquals(3, attempts.get());
             assertTrue(session.tick(firstTransferTick + 2 * INTERVAL + DWELL, unload, load));
+            assertFalse(session.isDwelling());
         } else {
             assertTrue(session.tick(firstTransferTick + 2 * INTERVAL, unload, load));
             assertEquals(3, attempts.get());

@@ -171,6 +171,15 @@ public final class RouteNavigationHud {
             return;
         }
 
+        if (assignment.isActive() && RouteManager.isDwelling(navigationEntity.getId())) {
+            hasDisplayedAngle = false;
+            resetBullseye();
+            drawBadge(graphics, centerX, centerY);
+            drawSleepIcon(graphics, centerX, centerY);
+            graphics.centeredText(minecraft.font, waypointLabel, centerX, centerY + 12, 0xFFFFFFFF);
+            return;
+        }
+
         Vec3 delta = target.position().subtract(navigationEntity.position());
         double horizontalDistance = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
         boolean sameBullseyeTarget = assignment.getRouteId() == bullseyeRouteId
@@ -298,6 +307,20 @@ public final class RouteNavigationHud {
                 BADGE_TEXTURE_SIZE,
                 BADGE_TEXTURE_SIZE,
                 BADGE_TEXTURE_SIZE);
+    }
+
+    /** Draws two compact Zs inside the navigation badge during a timed dwell. */
+    private static void drawSleepIcon(GuiGraphicsExtractor graphics, int centerX, int centerY) {
+        drawZ(graphics, centerX - 6, centerY - 1, 6, 0xFFFFFFFF);
+        drawZ(graphics, centerX + 1, centerY - 6, 5, 0xFFFFFFFF);
+    }
+
+    private static void drawZ(GuiGraphicsExtractor graphics, int x, int y, int size, int color) {
+        graphics.fill(x, y, x + size, y + 1, color);
+        for (int step = 1; step < size - 1; step++) {
+            graphics.fill(x + size - step - 1, y + step, x + size - step, y + step + 1, color);
+        }
+        graphics.fill(x, y + size - 1, x + size, y + size, color);
     }
 
     /** Keeps the bullseye stable near the radius boundary while switching targets immediately. */

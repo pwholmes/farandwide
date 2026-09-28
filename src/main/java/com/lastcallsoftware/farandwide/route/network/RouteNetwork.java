@@ -17,7 +17,9 @@ import com.lastcallsoftware.farandwide.route.network.payload.VehicleDirectionMut
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleAssignmentsSnapshotPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleWaypointMutationPayload;
 import com.lastcallsoftware.farandwide.route.network.payload.VehicleUnassignmentMutationPayload;
+import com.lastcallsoftware.farandwide.route.network.payload.VehicleDwellPayload;
 import com.lastcallsoftware.farandwide.route.server.RouteService;
+import com.lastcallsoftware.farandwide.route.server.ServerRouteTraversalController;
 import com.lastcallsoftware.farandwide.route.RouteAssignment;
 import com.lastcallsoftware.farandwide.route.RouteOperationResult;
 
@@ -42,7 +44,7 @@ public final class RouteNetwork {
     }
 
     public static void registerPayloads(RegisterPayloadHandlersEvent event) {
-        var registrar = event.registrar("16");
+        var registrar = event.registrar("17");
         OrderNetwork.register(registrar);
         registrar.playToServer(RequestRouteSnapshotPayload.TYPE, RequestRouteSnapshotPayload.STREAM_CODEC,
                 (payload, context) -> replyWithRoutes((ServerPlayer) context.player(), context));
@@ -222,6 +224,7 @@ public final class RouteNetwork {
         registrar.playToClient(VehicleAssignmentsSnapshotPayload.TYPE,
                 VehicleAssignmentsSnapshotPayload.STREAM_CODEC);
         registrar.playToClient(RouteOperationResultPayload.TYPE, RouteOperationResultPayload.STREAM_CODEC);
+        registrar.playToClient(VehicleDwellPayload.TYPE, VehicleDwellPayload.STREAM_CODEC);
     }
 
     private static void sendAssignmentSnapshot(ServerPlayer player) {
@@ -230,6 +233,7 @@ public final class RouteNetwork {
         // entity's current runtime ID.
         RouteService.AssignmentState state = RouteService.getAssignment(player);
         PacketDistributor.sendToPlayer(player, new AssignmentSnapshotPayload(state.entityId(), state.assignment()));
+        sendDwellState(player, state.entityId(), state.assignment());
     }
 
     private static void sendManagedAssignmentSnapshot(
@@ -253,6 +257,7 @@ public final class RouteNetwork {
                 new AssignmentSnapshotPayload(playerState.entityId(), playerState.assignment()));
         PacketDistributor.sendToPlayer(player,
                 new AssignmentSnapshotPayload(vehicleState.entityId(), vehicleState.assignment()));
+        sendDwellState(player, vehicleState.entityId(), vehicleState.assignment());
         PacketDistributor.sendToPlayer(player,
                 new VehicleAssignmentsSnapshotPayload(RouteService.getRouteManagementAssignments(player)));
     }
@@ -261,6 +266,20 @@ public final class RouteNetwork {
     public static void broadcastVehicleRemoval(MinecraftServer server, int runtimeEntityId) {
         PacketDistributor.sendToAllPlayers(new AssignmentSnapshotPayload(runtimeEntityId, null));
         broadcastVehicleAssignments(server);
+    }
+
+    private static void sendDwellState(ServerPlayer player, int entityId, RouteAssignment assignment) {
+        boolean dwelling = assignment != null && assignment.isActive()
+                && ServerRouteTraversalController.isDwelling(assignment.getAssigneeId());
+        PacketDistributor.sendToPlayer(player, new VehicleDwellPayload(entityId, dwelling));
+    }
+
+    public static void syncDwellState(MinecraftServer server, Entity entity, boolean dwelling) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player == entity || player.getVehicle() == entity) {
+                PacketDistributor.sendToPlayer(player, new VehicleDwellPayload(entity.getId(), dwelling));
+            }
+        }
     }
 
     /** Reports an asynchronous activation failure and refreshes every management view. */
