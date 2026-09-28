@@ -156,8 +156,10 @@ tasks.named('jar', Jar).configure {
     }
 }
 
-def minecraftModsDirectory = providers.gradleProperty('minecraftModsDir')
-        .orElse('D:/Minecraft/CurseForge/Instances/26.2 NeoForge/mods')
+def minecraftModsDirectory = providers.gradleProperty('minecraftModsDir').orNull
+if (minecraftModsDirectory == null || minecraftModsDirectory.trim().isEmpty()) {
+    throw new GradleException("Cannot configure the copy task: set the 'minecraftModsDir' Gradle property to the target Minecraft mods directory.")
+}
 
 tasks.register('copy', Copy) {
     group = 'distribution'
