@@ -39,7 +39,6 @@ Initial revision.
 -----
 - Added: Added support for minecarts!  You knew it had to happen eventually.  I resisted doing this because Minecraft already has some built-in support for automating minecarts and I didn't want to subvert or undermine that.  But I really wanted minecarts to participate in Far And Wide's logistics, and that impulse won.
 - Added: Added the Round-Trip Route type.  It does just what the name implies: Vehicles on ths Route travel to the highest-numbered Waypoint, then return to Waypoint 1, then stop.  This Route type is particularly useful for Vehicles dedicated to Order delivery, as they will always be available at the start of the Route when idle.
-- Added: Added the Portal Waypoint.  These are necessary to send vehicles between dimensions -- in particular, to the Nether.  Add a Portal Waypoint where the Route intersects the portal (i.e., in the portal itself) in each dimension (e.g., one in the Overworld and one in the Nether).  This manages Vehicle transitions between dimensions.  Think of it as two separate Routes, each of which terminates at a portal, stitched together.
 - Changed: "Order Sources" are now known as "Source Inventories".
 - Changed: The "Orders" screen is now known as "Manage Orders".
 - Changed: The player no longer needs to be riding a Vehicle to assign it a Route or activate it -- the player can now also issue those commands to Vehicles they are looking at.  This was necessary because you can't mount chest minecarts, but it's an overdue change for other kinds of Vehicles too.
