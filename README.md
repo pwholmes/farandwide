@@ -18,6 +18,7 @@ Install the JAR in the instance’s `mods` folder. For multiplayer, install it o
 - Horses
 - Donkeys
 - Mules
+- Minecarts
 - The player
 
 Cargo transport is supported by:
@@ -47,7 +48,9 @@ Edit any Waypoint by 'using' it (default: right-click) and change it into a Carg
 
 Item filters can restrict which items a Vehicle loads or unloads.  Cargo Stations can use compatible inventory blocks such as chests, barrels, hoppers, and furnaces.
 
-Each stack loaded or unloaded takes one second at normal server speed. There is no fixed wait when nothing can transfer. Resuming a completed One Way Route returns the Vehicle to its last endpoint and performs that Waypoint's cargo operation again before beginning the return journey.
+Each "bunch" of items loaded or unloaded at a Cargo Station takes a fixed amount of time.  There is no wait period when nothing can transfer.
+
+Resuming a completed One Way Route returns the Vehicle to its last endpoint and then performs that Waypoint's cargo operation (if any) again before beginning the return journey.
 
 ## Orders
 
